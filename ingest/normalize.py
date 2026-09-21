@@ -62,7 +62,7 @@ def build_players(opb: dict) -> list[dict]:
         out.append({
             "id": e.get("playerId"),
             "rank": e.get("rank"),
-            "name": e.get("displayName") or e.get("username"),
+            "name": clean_name(e.get("displayName") or e.get("username")),
             "bounty": e.get("rating"),
             "wins": e.get("wins"), "losses": e.get("losses"), "matches": e.get("matches"),
             "winRate": e.get("winRate"),
