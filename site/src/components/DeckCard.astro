@@ -20,13 +20,10 @@ const preview = [...deck.cards].sort((a, b) => b.qty - a.qty || Number(card(b.id
     <span class="deck-head">
       <span class="deck-title">
         {rank != null && <span class="pill-rank deck-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{rank}</span>}
-        <span>
-          <span style="font-weight:600">{s.pilots != null ? `${fmt(s.pilots, 0)} pilots` : 'Ranked list'}</span>
-          {deck.size !== 50 && <span class="muted small"> · {deck.size} cards</span>}
-        </span>
+        {deck.size !== 50 && <span class="muted small">{deck.size} cards</span>}
       </span>
     </span>
-    <span class="num"><span class="muted small">games </span><b>{fmt(s.games, 0)}</b></span>
+    <span class="num"><span class="muted small">games </span><b>{fmt(s.games, 0)}</b>{s.pilots != null && <span class="muted small"> · {fmt(s.pilots, 0)} {s.pilots === 1 ? 'player' : 'players'}</span>}</span>
     <span class:list={['num', s.winRate != null && s.winRate >= 50 ? 'good' : 'bad']}><span class="muted small">win </span><b>{pct(s.winRate)}</b></span>
     <span class="deck-actions">
       <button class="copy" data-copy={simText} onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied';setTimeout(()=>this.textContent='Copy for sim',1200);event.preventDefault()" title="Copies the list in the text format OPTCG Sim imports">Copy for sim</button>
