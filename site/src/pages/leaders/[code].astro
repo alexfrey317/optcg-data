@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import Info from '../../components/Info.astro';
-import { leaders, leadersByVolume, deckFile, cardFile, card, fmt, pct, volume, players, type Leader } from '../../lib/data';
+import { leaders, leadersByVolume, deckFile, cardFile, card, fmt, pct, volume, players, imgUrl, imgOnError, type Leader } from '../../lib/data';
 
 export function getStaticPaths() {
   return leadersByVolume().filter((l) => volume(l) > 0).map((l) => ({ params: { code: l.code }, props: { leader: l } }));
@@ -79,7 +79,7 @@ const wr = Number(k.winRate ?? o.winRate ?? 0);
         <table>
           <thead><tr><th>Card</th><th class="num">Usage</th><th class="num">Copies</th><th class="num">Win % <Info text="Win rate of lists that include the card." /></th><th class="num">vs leader <Info text="Win rate of lists with this card minus the leader's overall win rate. Positive means lists running it do better than average." /></th></tr></thead>
           <tbody>{cardsF.cards.slice(0, 80).map((c) => { const k2 = card(c.id); return (
-            <tr><td title={c.id} style="display:flex;align-items:center;gap:.6rem">{k2.img ? <img src={k2.img} alt="" loading="lazy" style="width:30px;height:42px;object-fit:cover;object-position:top;border-radius:4px" /> : <span style="width:30px"></span>}<span><span style="font-weight:500">{k2.name}</span><div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
+            <tr><td title={c.id} style="display:flex;align-items:center;gap:.6rem"><img src={imgUrl(c.id)} alt="" loading="lazy" onerror={imgOnError(c.id)} style="width:44px;height:62px;object-fit:cover;object-position:top;border-radius:5px;flex:none" /><span><span style="font-weight:500">{k2.name}</span><div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
               <td class="num"><div class="bar" style="width:60px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
               <td class="num">{fmt(c.avgCopies, 1)}</td>
               <td class="num">{pct(c.winRate)}</td>

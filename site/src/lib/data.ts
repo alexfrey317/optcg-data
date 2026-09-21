@@ -35,17 +35,26 @@ export interface CardFile {
 export interface Card { name: string; type: string; cost: string; color: string; power: string; counter: string; rarity: string; img: string; set: string }
 export interface Meta { generatedAt: string; date: string; status: Record<string, string>; players: number; leaders: number; sources: { name: string; url: string; support?: string }[]; [k: string]: unknown }
 
+/** Official Bandai card image (no watermark, loads cross-site). */
+export const imgUrl = (id: string) => `https://en.onepiece-cardgame.com/images/cardlist/card/${id}.png`;
+/** Fallback if Bandai lacks the card (some promos): Limitless CDN. Used via onerror. */
+export const imgFallback = (id: string) => `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${id.split('-')[0]}/${id}_EN.webp`;
+/** Inline onerror handler: try the fallback once, then hide the broken image. */
+export const imgOnError = (id: string) => `if(!this.dataset.f){this.dataset.f=1;this.src='${imgFallback(id)}'}else{this.style.visibility='hidden'}`;
+
 export const meta = readJson<Meta>(join(LATEST, 'meta.json'), { generatedAt: '', date: '', status: {}, players: 0, leaders: 0, sources: [] });
 export const players = readJson<Player[]>(join(LATEST, 'players.json'), []);
 export const leaders = readJson<Record<string, Leader>>(join(LATEST, 'leaders.json'), {});
 export const cards = readJson<Record<string, Card>>(join(LATEST, 'cards.json'), {});
+for (const [id, c] of Object.entries(cards)) c.img = imgUrl(id);
+for (const [code, l] of Object.entries(leaders)) l.img = imgUrl(code);
 
 export const deckFile = (code: string) => readJson<DeckFile>(join(LATEST, 'decks', `${code}.json`), { leader: code, decks: [], topPilots: [] });
 export const cardFile = (code: string) => readJson<CardFile>(join(LATEST, 'cards', `${code}.json`), { leader: code, cards: [], openingHand: [], tech: {} });
 export const bountyHistory = (id: string | number) => readJson<[string, number, number][]>(join(HISTORY, 'bounty', `${id}.json`), []);
 export const leaderHistory = (code: string) => readJson<(string | number | null)[][]>(join(HISTORY, 'leaders', `${code}.json`), []);
 
-export const card = (id: string): Card => cards[id] ?? { name: id, type: '', cost: '', color: '', power: '', counter: '', rarity: '', img: '', set: id.split('-')[0] };
+export const card = (id: string): Card => cards[id] ?? { name: id, type: '', cost: '', color: '', power: '', counter: '', rarity: '', img: imgUrl(id), set: id.split('-')[0] };
 export const leaderName = (code: string) => leaders[code]?.name ?? card(code).name ?? code;
 
 /** Leaders sorted by Card Kaizoku match volume, then OPBounty. */

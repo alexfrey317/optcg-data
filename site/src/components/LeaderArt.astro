@@ -1,18 +1,17 @@
 ---
-import { leaders, card, colorVar } from '../lib/data';
+import { leaders, card, colorVar, imgUrl, imgOnError } from '../lib/data';
 /** Leader card art at a chosen size, with a colour stripe and link. size: 'sm' | 'md' | 'lg' | 'xl' */
 interface Props { code: string; size?: 'sm' | 'md' | 'lg' | 'xl'; label?: boolean; sub?: string; link?: boolean }
 const { code, size = 'md', label = true, sub, link = true } = Astro.props;
 const L = leaders[code];
 const c = card(code);
 const name = L?.name ?? c.name ?? code;
-const img = L?.img ?? c.img;
 const color = colorVar(L?.color ?? c.color);
 const Tag = link ? 'a' : 'span';
 ---
 <Tag class:list={['leader', `leader-${size}`]} href={link ? `/leaders/${code}/` : undefined} title={`${name} · ${code}`} style={`--lc:${color}`}>
   <span class="leader-frame">
-    {img ? <img src={img} alt={name} loading="lazy" decoding="async" /> : <span class="leader-blank">{code}</span>}
+    <img src={imgUrl(code)} alt={name} loading="lazy" decoding="async" onerror={imgOnError(code)} />
   </span>
   {label && <span class="leader-label"><span class="leader-name">{name}</span>{sub && <span class="leader-sub">{sub}</span>}</span>}
 </Tag>
