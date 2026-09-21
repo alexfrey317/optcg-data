@@ -4,12 +4,15 @@ import DeckCard from './DeckCard.astro';
 import DeckList from './DeckList.astro';
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersFor, deckFileFor, cardFile, card, fmt, pct, berry, players, imgUrl, imgOnError, leaderStats, matchupIn, heat, pilotScore, WINDOWS, wpath, type Win, type Leader } from '../lib/data';
+import { leadersFor, deckFileFor, cardFile, card, fmt, pct, berry, players, imgUrl, imgOnError, leaderStats, matchupIn, heat, pilotScore, deckStats, deckScore, WINDOWS, wpath, type Win, type Leader } from '../lib/data';
 interface Props { window: Win; leader: Leader }
 const { window: W, leader: L } = Astro.props;
 const ls = leadersFor(W);
 const s = leaderStats(L);
-const decks = deckFileFor(W, L.code);
+const decksRaw = deckFileFor(W, L.code);
+// Default order: most successful (win rate shrunk toward 50% for small samples), ties by games.
+const ranked = [...decksRaw.decks].sort((a, b) => { const sa = deckStats(a), sb = deckStats(b); return deckScore(sb) - deckScore(sa) || sb.games - sa.games; });
+const decks = { ...decksRaw, decks: ranked };
 const cardsF = cardFile(L.code);                 // card usage / hands / tech are only published weekly
 const DECKS_SHOWN = 5, DECKS_MAX = 40;
 const opps = Object.keys(L.matchups).filter((o) => ls[o] && matchupIn(ls, L.code, o)).map((o) => ({ code: o, m: matchupIn(ls, L.code, o)! }))
@@ -67,9 +70,9 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
   ))}</div></div></>}
 
 <section>
-  <h2>Decklists <span class="sub">{decks.decks.length} distinct lists · {WINDOWS[W].label.toLowerCase()}</span> <Info text="Distinct 50-card lists seen in ranked over the window, most games first. Games and win rate combine every ranked game we have for the exact list. Click a list to expand it." /></h2>
-  <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards. Differences are measured against the #1 list.</p>
-  <DeckList limit={DECKS_SHOWN} total={Math.min(DECKS_MAX, decks.decks.length)}>
+  <h2>Decklists <span class="sub">{decks.decks.length} distinct lists · {WINDOWS[W].label.toLowerCase()}</span> <Info text="Distinct 50-card lists seen in ranked over the window. Most Successful ranks by win rate shrunk toward 50% for lists with few games, so a lucky 3-0 does not beat a proven 58% list; you can re-sort by games, raw win rate, or number of pilots. Games and win rate combine every ranked game we have for the exact list." /></h2>
+  <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards. Differences are measured against the most successful list.</p>
+  <DeckList limit={DECKS_SHOWN} total={Math.min(DECKS_MAX, decks.decks.length)} sortable>
     {decks.decks.slice(0, DECKS_MAX).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={decks.decks[0]} />)}
   </DeckList>
 </section>

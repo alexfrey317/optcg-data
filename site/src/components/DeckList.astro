@@ -1,9 +1,12 @@
 ---
-/** Wraps a list of <DeckCard>s; shows the first `limit`, the rest behind a "Show more" button (handled in Base.astro). */
-interface Props { limit?: number; total: number; noun?: string }
-const { limit = 5, total, noun = 'lists' } = Astro.props;
+/** Wraps a list of <DeckCard>s; shows the first `limit`, the rest behind a "Show more" button.
+ *  With `sortable`, adds a sort bar (client-side reorder + renumber, handled in Base.astro). */
+interface Props { limit?: number; total: number; noun?: string; sortable?: boolean }
+const { limit = 5, total, noun = 'lists', sortable = false } = Astro.props;
+const SORTS = [['score', 'Most Successful'], ['games', 'Most Played'], ['wr', 'Win %'], ['pilots', 'Pilots']];
 ---
 <div class="decklist" data-limit={limit} data-noun={noun}>
+  {sortable && <div class="deck-sort" role="toolbar" aria-label="Sort lists"><span class="muted small">Sort by</span>{SORTS.map(([k, label], i) => <button type="button" class:list={['sort-btn', { on: i === 0 }]} data-sort={k}>{label}</button>)}</div>}
   <slot />
   {total > limit && <button type="button" class="show-more copy" data-total={total}>Show {total - limit} more {noun}</button>}
 </div>

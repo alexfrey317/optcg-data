@@ -28,6 +28,7 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
     </header>
     <main class:list={['wrap', { wide }]}><slot /></main>
     <div id="tip" role="tooltip"></div>
+    <div id="zoom" role="dialog" aria-modal="true" aria-label="Card preview" hidden><figure><img alt="" /><figcaption></figcaption></figure></div>
     <script>
       const tip = document.getElementById('tip')!;
       let current: HTMLElement | null = null;
@@ -49,14 +50,22 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       document.addEventListener('scroll', hide, { passive: true });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
 
-      // "Show more" for deck lists: keep the first data-limit lists visible, reveal the rest on click.
+      // Deck lists: "Show more" keeps the first data-limit lists visible; the sort bar reorders by a data-* key and renumbers.
       document.querySelectorAll<HTMLElement>('.decklist').forEach((box) => {
         const limit = Number(box.dataset.limit ?? 5), noun = box.dataset.noun ?? 'lists';
-        const items = [...box.querySelectorAll<HTMLElement>(':scope > details.deck')];
+        let items = [...box.querySelectorAll<HTMLElement>(':scope > details.deck')];
         const btn = box.querySelector<HTMLButtonElement>(':scope > .show-more');
         let open = false;
         const render = () => { items.forEach((d, i) => { d.hidden = !open && i >= limit; }); if (btn) btn.textContent = open ? `Show fewer ${noun}` : `Show ${items.length - limit} more ${noun}`; };
         btn?.addEventListener('click', () => { open = !open; render(); if (!open) box.scrollIntoView({ block: 'nearest' }); });
+        box.querySelectorAll<HTMLButtonElement>('.sort-btn').forEach((sb) => sb.addEventListener('click', () => {
+          const key = sb.dataset.sort!;
+          box.querySelectorAll('.sort-btn').forEach((x) => x.classList.remove('on')); sb.classList.add('on');
+          items.sort((a, b) => Number(b.dataset[key] ?? 0) - Number(a.dataset[key] ?? 0) || Number(b.dataset.games ?? 0) - Number(a.dataset.games ?? 0));
+          const anchor = btn ?? null;
+          items.forEach((d, i) => { const r = d.querySelector('.deck-rank'); if (r) r.textContent = String(i + 1); d.open = i === 0; anchor ? box.insertBefore(d, anchor) : box.appendChild(d); });
+          render();
+        }));
         render();
       });
     </script>
@@ -180,10 +189,21 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .pill-rank { display: inline-grid; place-items: center; min-width: 2.2rem; height: 2.2rem; border-radius: 10px; background: var(--panel-2); color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; border: 1px solid var(--line); }
   tr.top1 .pill-rank { background: linear-gradient(160deg, var(--accent-2), #b8901f); color: #1a1405; border-color: transparent; }
   tr.top3 .pill-rank { border-color: var(--accent); color: var(--accent-2); }
+  /* card zoom */
+  img[src*="limitlesstcg"]:not(a img) { cursor: zoom-in; }
+  #zoom { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; background: rgba(5,7,12,.86); backdrop-filter: blur(6px); cursor: zoom-out; }
+  #zoom[hidden] { display: none; }
+  #zoom figure { margin: 0; display: grid; gap: .6rem; justify-items: center; animation: zoomin .15s ease-out; }
+  #zoom img { max-height: min(86vh, 900px); max-width: 92vw; border-radius: 4.5% / 3.2%; box-shadow: 0 30px 80px -20px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.08); }
+  #zoom figcaption { color: var(--text); font-weight: 600; font-size: 1rem; }
+  @keyframes zoomin { from { transform: scale(.92); opacity: 0 } to { transform: none; opacity: 1 } }
   /* window toggle + show more */
   .wtoggle { display: inline-flex; align-items: center; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
   .wtoggle a[role=tab] { padding: .35rem .85rem; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); font-size: .85rem; font-weight: 600; }
   .wtoggle a[role=tab]:hover { color: var(--text); text-decoration: none; } .wtoggle a.on { background: var(--accent); color: #1a1405; border-color: var(--accent); }
+  .deck-sort { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: 0 0 .6rem; }
+  .sort-btn { padding: .3rem .7rem; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+  .sort-btn:hover { color: var(--text); } .sort-btn.on { background: var(--accent); color: #1a1405; border-color: var(--accent); }
   .decklist > .show-more { display: block; width: 100%; padding: .6rem; margin-top: .25rem; font-size: .9rem; }
   /* rankings: wide landscape crop of the card art */
   .art-wide { display: block; width: 132px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line-2); position: relative; }

@@ -1,5 +1,5 @@
 ---
-import { card, fmt, pct, deckStats, imgUrl, imgOnError, TYPE_ORDER, type Deck } from '../lib/data';
+import { card, fmt, pct, deckStats, deckScore, imgUrl, imgOnError, TYPE_ORDER, type Deck } from '../lib/data';
 interface Props { deck: Deck; leader: string; open?: boolean; rank?: number; baseline?: Deck }
 const { deck, leader, open = false, rank, baseline } = Astro.props;
 const s = deckStats(deck);
@@ -26,16 +26,16 @@ if (baseline && baseline.hash !== deck.hash) {
 }
 const diffCount = diff ? diff.add.reduce((n, s) => n + Number(s.match(/^\+(\d+)/)?.[1] ?? 0), 0) : 0;
 ---
-<details class="deck" open={open} id={deck.hash}>
+<details class="deck" open={open} id={deck.hash} data-games={s.games} data-wr={s.winRate ?? 0} data-pilots={s.pilots ?? 0} data-score={deckScore(s)}>
   <summary>
     <span class="deck-head">
       <span class="deck-title">
-        {rank != null && <span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{rank}</span>}
+        {rank != null && <span class="pill-rank deck-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{rank}</span>}
         <span>
           <span style="font-weight:600">{s.pilots != null ? `${fmt(s.pilots, 0)} pilots` : 'Ranked list'}</span>
           {deck.size !== 50 && <span class="muted small"> · {deck.size} cards</span>}
           <div class="muted small deck-diff">
-            {diff == null ? (rank === 1 ? 'Most played list' : '') : diffCount === 0 ? 'Same 50 as #1' : `${diffCount} card${diffCount === 1 ? '' : 's'} off #1: ${[...diff.add, ...diff.cut].slice(0, 4).join(', ')}${diff.add.length + diff.cut.length > 4 ? ', …' : ''}`}
+            {diff == null ? (baseline ? 'Baseline list' : '') : diffCount === 0 ? 'Same 50 as baseline' : `${diffCount} card${diffCount === 1 ? '' : 's'} off baseline: ${[...diff.add, ...diff.cut].slice(0, 4).join(', ')}${diff.add.length + diff.cut.length > 4 ? ', …' : ''}`}
           </div>
         </span>
       </span>

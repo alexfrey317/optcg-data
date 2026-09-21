@@ -86,6 +86,12 @@ export const deckStats = (d: Deck): { games: number; winRate: number | null; pil
   const wins = pools.reduce((s, p) => s + Number(p.games ?? 0) * Number(p.winRate ?? 0) / 100, 0);
   return { games, winRate: games ? Math.round((wins / games) * 1000) / 10 : null, pilots: k?.pilots != null ? Number(k.pilots) : null };
 };
+/** "Most successful" ordering: win rate shrunk toward 50% for lists with few games, so a 3-0 list
+ *  does not outrank a 60% list with 200 games. K=25 games of prior weight. */
+export const deckScore = (s: { games: number; winRate: number | null }) => {
+  const g = s.games ?? 0, wr = s.winRate ?? 50;
+  return Math.round(((wr * g + 50 * 25) / (g + 25)) * 100) / 100;
+};
 export const deckGames = (d: Deck) => deckStats(d).games;
 export const deckWinRate = (d: Deck) => deckStats(d).winRate;
 
