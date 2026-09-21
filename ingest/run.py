@@ -15,16 +15,16 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import normalize as N
+from . import link, normalize as N
 from .http import get_json
-from .sources import kaizoku, kaizoku_players, opbounty, optcgone
+from .sources import kaizoku, kaizoku_players, opbounty, opbounty_matches, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
 LATEST = ROOT / "data" / "latest"
 HISTORY = ROOT / "data" / "history"
 DAILY = ROOT / "data" / "daily"
-WINDOWS = {"30d": 30}  # extra windows built from the daily files; the 7-day view uses the weekly snapshot
+WINDOWS = {"7d": 7, "30d": 30}  # built from the match archive + Card Kaizoku dailies; the site reads these
 
 
 def dump(path: Path, obj):
@@ -38,7 +38,7 @@ def load(path: Path, default):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players")
+    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players,matches")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
 
@@ -78,6 +78,19 @@ def main(argv=None):
     step("optcgone", optcgone.fetch_all)
     step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
     step("opbounty", opbounty.fetch_all)
+
+    # OPBounty ranked match archive (Firestore). Needs OPB_FS_EMAIL/OPB_FS_PASSWORD; skipped otherwise.
+    matches_status = None
+    if "matches" in skip or not opbounty_matches.EMAIL:
+        status["matches"] = "skipped"
+    else:
+        try:
+            matches_status = opbounty_matches.fetch_all()
+            status["matches"] = "ok"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["matches"] = f"error: {e}"
+        print(f"[matches] {status['matches']} {json.dumps(matches_status) if matches_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
 
     opb, kz, one = raw["opbounty"], raw["kaizoku"], raw["optcgone"]
     card_db = N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
@@ -126,15 +139,36 @@ def main(argv=None):
         for d in load(f, {}).get("decks", []):
             used_cards.update(c["id"] for c in d["cards"])
 
-    # longer windows summed from the daily files
+    # link ladder rows to sim handles via the match archive, and write per-player match histories
+    archive_days = link.load_days(max(WINDOWS.values()) + 1) if link.MATCHES.exists() else []
+    links = {}
+    if archive_days:
+        try:
+            series, deck_text = link.handle_series(archive_days)
+            # the ladder snapshot time: now when we just pulled it, else whenever the cached one was pulled
+            snap_ts = datetime.now(timezone.utc).isoformat(timespec="seconds") if status.get("opbounty") == "ok" \
+                else (load(LATEST / "meta.json", {}).get("generatedAt") or datetime.now(timezone.utc).isoformat(timespec="seconds"))
+            links = link.link(players, series, snap_ts[:19], load(LATEST / "handles.json", {}))
+            link.write_player_matches(links, series, deck_text)
+            dump(LATEST / "handles.json", links)
+            status["link"] = f"ok {len(links)}/{len(players)} linked, {len(series)} handles"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["link"] = f"error: {e}"
+        print(f"[link] {status['link']} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    handles_by_day = {d["date"]: load(link.HANDLES / f"{d['date']}.json", {}) for d in archive_days}
+
+    # windows: match archive (games, matchups, decks, pilots) + Card Kaizoku dailies (1st/2nd, card stats stay weekly)
     window_meta = {}
     daily_files = sorted(DAILY.glob("*.json")) if DAILY.exists() else []
     for wname, days in WINDOWS.items():
-        picked = daily_files[-days:]
-        if not picked:
+        kz_days = [load(f, {}) for f in daily_files[-days:]]
+        ar_days = archive_days[-days:]
+        if not kz_days and not ar_days:
             continue
-        dailies = [load(f, {}) for f in picked]
-        w_leaders, w_decks = N.build_window(dailies, card_db)
+        kz_leaders, kz_decks = N.build_window(kz_days, card_db) if kz_days else ({}, {})
+        ar_leaders, ar_decks = N.build_archive_window(ar_days, card_db, handles_by_day, links) if ar_days else ({}, {})
+        w_leaders, w_decks = N.merge_windows(kz_leaders, ar_leaders, kz_decks, ar_decks)
         wdir = ROOT / "data" / "windows" / wname
         for code, dfile in w_decks.items():
             dump(wdir / "decks" / f"{code}.json", dfile)
@@ -142,8 +176,10 @@ def main(argv=None):
                 used_cards.update(c["id"] for c in d["cards"])
         used_cards.update(w_leaders)
         dump(wdir / "leaders.json", w_leaders)
-        window_meta[wname] = {"days": len(dailies), "targetDays": days, "start": dailies[0].get("date"), "end": dailies[-1].get("date"),
-                              "matches": sum(int(d.get("total") or 0) for d in dailies)}
+        span = ar_days or kz_days
+        window_meta[wname] = {"days": len(span), "targetDays": days, "start": span[0].get("date"), "end": span[-1].get("date"),
+                              "matches": sum(len(d.get("matches") or []) for d in ar_days) if ar_days else sum(int(d.get("total") or 0) for d in kz_days),
+                              "archiveDays": len(ar_days), "kaizokuDays": len(kz_days)}
         dump(wdir / "meta.json", window_meta[wname])
 
     dump(LATEST / "players.json", players)
@@ -172,6 +208,8 @@ def main(argv=None):
         "optcgone": {"fetchedAt": one.get("fetched_at"), "rankedCount": one.get("ranked_count")},
         "playerDecks": player_stats,
         "daily": daily_status,
+        "matches": matches_status,
+        "linked": len(links),
         "windows": window_meta,
         "sources": [
             {"name": "OPBounty", "url": "https://stats.tcgmatchmaking.com/", "support": "https://www.patreon.com/tcgmm"},

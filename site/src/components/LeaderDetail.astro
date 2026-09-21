@@ -19,11 +19,20 @@ const opps = Object.keys(L.matchups).filter((o) => ls[o] && matchupIn(ls, L.code
   .sort((a, b) => b.m.games - a.m.games).slice(0, 18);
 const cls = (v: number | null) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
 
-// Best pilots: ladder top-1000 players with this leader among their most-played. Games and win rate are that
-// player's own numbers with this leader; score blends win rate (shrunk for small samples) with bounty.
-const pilots = players.filter((p) => p.id != null && p.topLeaders.some((t) => t.code === L.code))
-  .map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return { p, t, score: pilotScore(t.winRate, t.matches, p.bounty) }; })
-  .sort((a, b) => b.score - a.score).slice(0, 15);
+// Best pilots. Preferred: every sim handle seen piloting this leader in the window (from the ranked match
+// archive; bounty is their rating at their last game), linked to a ladder page when we matched the handle.
+// Fallback: ladder top-1000 players with the leader among their most-played.
+const archivePilots = (decks.topPilots ?? []).filter((t) => t.handle).map((t) => ({
+  name: t.name, href: t.ladderId ? `/players/${t.ladderId}/` : null, bounty: t.bounty ?? 0, games: t.games, winRate: t.winRate,
+  rank: t.ladderId ? players.find((p) => String(p.id) === t.ladderId)?.rank ?? null : null,
+  score: pilotScore(t.winRate, t.games, t.bounty ?? 0),
+}));
+const ladderPilots = players.filter((p) => p.id != null && p.topLeaders.some((t) => t.code === L.code))
+  .map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return { name: p.name, href: `/players/${p.id}/`, bounty: p.bounty, games: t.matches ?? 0, winRate: t.winRate, rank: p.rank, score: pilotScore(t.winRate, t.matches, p.bounty) }; });
+const pilots = (archivePilots.length ? archivePilots : ladderPilots).sort((a, b) => b.score - a.score).slice(0, 15);
+const pilotsNote = archivePilots.length
+  ? `Every pilot seen with this leader in ranked over the window (players above bounty 1,900). Bounty is their rating at their last game. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000. Names link to a ladder page when we could match the sim handle to a ladder row.`
+  : `Top-1,000 ladder players who have this leader among their most-played. Games and win rate are that player's own results with this leader. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000.`;
 
 // Tech cards: only cards that are NOT staples (under 90% usage for this leader) count as tech.
 const usage = new Map(cardsF.cards.map((c) => [c.id, c.usage ?? 0]));
@@ -70,7 +79,7 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
   ))}</div></div></>}
 
 <section>
-  <h2>Decklists <span class="sub">{decks.decks.length} distinct lists · {WINDOWS[W].label.toLowerCase()}</span> <Info text="Distinct 50-card lists seen in ranked over the window. Most Successful ranks by win rate shrunk toward 50% for lists with few games, so a lucky 3-0 does not beat a proven 58% list; you can re-sort by games, raw win rate, or number of pilots. Games and win rate combine every ranked game we have for the exact list." /></h2>
+  <h2>Decklists <span class="sub">{fmt((decks as any).deckCount ?? decks.decks.length, 0)} distinct lists · {WINDOWS[W].label.toLowerCase()}</span> <Info text="Distinct 50-card lists seen in ranked over the window. Most Successful ranks by win rate shrunk toward 50% for lists with few games, so a lucky 3-0 does not beat a proven 58% list; you can re-sort by games, raw win rate, or number of pilots. Games and win rate combine every ranked game we have for the exact list." /></h2>
   <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards.</p>
   <DeckList limit={DECKS_SHOWN} total={Math.min(DECKS_MAX, decks.decks.length)} sortable>
     {decks.decks.slice(0, DECKS_MAX).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} />)}
@@ -79,18 +88,18 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
 
 <div class="grid two">
   <section>
-    <h2>Best Pilots <Info text="Top-1,000 ladder players who have this leader among their most-played. Games and win rate are that player's own results with this leader. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000. Click a name for their lists." /></h2>
+    <h2>Best Pilots <Info text={pilotsNote} /></h2>
     <div class="panel tight">
       <table>
         <thead><tr><th>Player</th><th class="num">Bounty</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Score <Info text="Blend of win rate with this leader and bounty. Higher is better." /></th></tr></thead>
-        <tbody>{pilots.map(({ p, t, score }, i) => (
-          <tr><td><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem;margin-right:.5rem">{i + 1}</span><a href={`/players/${p.id}/`} style="font-weight:600;color:var(--text)">{p.name}</a> <span class="muted small">#{p.rank}</span></td>
+        <tbody>{pilots.map((p, i) => (
+          <tr><td><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem;margin-right:.5rem">{i + 1}</span>{p.href ? <a href={p.href} style="font-weight:600;color:var(--text)">{p.name}</a> : <span style="font-weight:600">{p.name}</span>} {p.rank != null && <span class="muted small">#{p.rank}</span>}</td>
             <td class="num gold" style="font-weight:700">{berry(p.bounty)}</td>
-            <td class="num muted">{fmt(t.matches, 0)}</td>
-            <td class:list={['num', cls(t.winRate)]}>{pct(t.winRate)}</td>
-            <td class="num" style="font-weight:700">{fmt(score, 1)}</td></tr>))}</tbody>
+            <td class="num muted">{fmt(p.games, 0)}</td>
+            <td class:list={['num', cls(p.winRate)]}>{pct(p.winRate)}</td>
+            <td class="num" style="font-weight:700">{fmt(p.score, 1)}</td></tr>))}</tbody>
       </table>
-      {pilots.length === 0 && <p class="muted" style="padding:1rem;margin:0">No top-1,000 ladder player has this leader among their most-played.</p>}
+      {pilots.length === 0 && <p class="muted" style="padding:1rem;margin:0">No pilots with 5 or more games on this leader in the window.</p>}
     </div>
   </section>
   <section>

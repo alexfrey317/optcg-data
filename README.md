@@ -12,7 +12,8 @@ Sources (used with permission): [OPBounty](https://stats.tcgmatchmaking.com/),
 
 ```
 ingest/            Python 3.12+, stdlib only.  python -m ingest.run
-  sources/         one module per upstream
+  sources/         one module per upstream (opbounty ladder, opbounty_matches archive, kaizoku, kaizoku_players, optcgone)
+  link.py          ladder row -> sim handle linking via the match archive (exact bounty equality, then name)
   normalize.py     merge + hash decks, build per-leader files
 data/latest/       players.json, leaders.json, cards.json, decks/<LEADER>.json, cards/<LEADER>.json, meta.json
 data/history/      bounty/<playerId>.json  [date, bounty, rank] ; leaders/<LEADER>.json
@@ -56,3 +57,13 @@ cd site && npm run build && npx wrangler pages deploy dist --project-name optcg-
 | OPBounty | 1 token + 5 leaderboard pages + 3 tables + ~20 decklists |
 | Card Kaizoku | 1 manifest + up to 6 files (skipped when unchanged) + card db |
 | optcg.one | 1 |
+
+## Ranked match archive
+
+`ingest/sources/opbounty_matches.py` pulls every finished ranked match from OPBounty's Firestore
+`Replays` collection (used with permission) into `data/matches/YYYY-MM-DD.json.gz`: leaders, bounties,
+both decklists (hashed, text in the day's `decks` map), timestamp and combat-log path. For games where a
+player is above bounty 1,900 the first 4 KB of the combat log is read to get both sim handles
+(`data/matches/handles/`). Files are never deleted; windows (`data/windows/7d`, `30d`) are summed from
+them. Requires `OPB_FS_EMAIL` / `OPB_FS_PASSWORD` (GitHub secrets); without them the step is skipped.
+Backfill: `OPB_MATCH_DAYS=31 python -m ingest.sources.opbounty_matches 31`.

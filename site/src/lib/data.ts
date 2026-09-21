@@ -22,7 +22,7 @@ export interface Leader {
   deckCount: number; cardCount: number;
 }
 export interface Deck { hash: string; cards: { id: string; qty: number }[]; size: number; sources: Record<string, SourceStats> }
-export interface DeckFile { leader: string; decks: Deck[]; topPilots: { name: string; rank: number; wins: number; games: number; winRate: number }[] }
+export interface DeckFile { leader: string; decks: Deck[]; topPilots: { name: string; rank?: number; wins: number; games: number; winRate: number | null; handle?: string; bounty?: number; ladderId?: string | null }[] }
 export interface CardStat {
   id: string; games: number; usage: number; winRate: number; winRateVsLeader: number; avgCopies: number;
   firstWinRate: number | null; secondWinRate: number | null; quantities: { qty: number; games: number; winRate: number }[];
@@ -73,12 +73,14 @@ export const leaderName = (code: string) => leaders[code]?.name ?? card(code).na
 /** Leaders sorted by Card Kaizoku match volume, then OPBounty. */
 export const leadersByVolume = (): Leader[] =>
   Object.values(leaders).sort((a, b) => volume(b) - volume(a));
-export const volume = (l: Leader) => Number(l.sources.kaizoku?.matches ?? 0) + Number(l.sources.opbounty?.matches ?? 0);
+export const volume = (l: Leader) => l.sources.ranked ? Number(l.sources.ranked.matches ?? 0) : Number(l.sources.kaizoku?.matches ?? 0) + Number(l.sources.opbounty?.matches ?? 0);
 
 /** Consolidated deck stats. The ladder feed and the ranked-decklist feed describe the same match pool, so we take the
  *  larger of the two rather than adding them; the sim-wide pool is a separate set of games and is added. Win rate is games-weighted. */
 export const deckStats = (d: Deck): { games: number; winRate: number | null; pilots: number | null } => {
   if (d.sources.player) return { games: Number(d.sources.player.games ?? 0), winRate: d.sources.player.winRate == null ? null : Number(d.sources.player.winRate), pilots: null };
+  // the ranked match archive is the complete pool; when present it supersedes the sampled feeds
+  if (d.sources.ranked) return { games: Number(d.sources.ranked.games ?? 0), winRate: d.sources.ranked.winRate == null ? null : Number(d.sources.ranked.winRate), pilots: d.sources.ranked.pilots == null ? null : Number(d.sources.ranked.pilots) };
   const o = d.sources.opbounty, n = d.sources.optcgone, k = d.sources.kaizokuBest ?? d.sources.kaizokuPlayed;
   const ladder = (Number(o?.games ?? 0) >= Number(n?.games ?? 0) ? o : n) ?? null;
   const pools = [ladder, k].filter(Boolean) as SourceStats[];
@@ -100,18 +102,18 @@ export const berry = (n: number | null | undefined) => (n == null ? '–' : `฿
 
 /** Matchup cell for leader a vs b: prefer the sim-wide pool (has 1st/2nd), fall back to the ladder pool. */
 export const matchup = (a: string, b: string) => {
-  const m = leaders[a]?.matchups?.[b];
-  const s = m?.kaizoku ?? m?.opbounty;
-  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: s.firstWinRate == null ? null : Number(s.firstWinRate), second: s.secondWinRate == null ? null : Number(s.secondWinRate) } : null;
+  return matchupIn(leaders, a, b);
 };
 /** Leader headline numbers from whichever pool has them. */
 export const leaderStats = (l: Leader) => {
-  const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {};
+  const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {}, r = l.sources.ranked;
+  // games, win rate and play rate come from the complete ranked archive when we have it; 1st/2nd only exist in the sim-wide feed
+  const main = r ?? k;
   return {
-    games: Number(k.matches ?? 0) + Number(o.matches ?? 0),
-    winRate: (k.winRate ?? o.winRate) == null ? null : Number(k.winRate ?? o.winRate),
-    weighted: k.weightedWinRate == null ? null : Number(k.weightedWinRate),
-    playRate: k.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(k.playRate),
+    games: r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0),
+    winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
+    weighted: main.weightedWinRate == null ? null : Number(main.weightedWinRate),
+    playRate: main.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(main.playRate),
     first: k.firstWinRate == null ? null : Number(k.firstWinRate),
     second: k.secondWinRate == null ? null : Number(k.secondWinRate),
     avgDuration: o.avgDuration == null ? null : Number(o.avgDuration),
@@ -155,12 +157,14 @@ export const WINDOWS: Record<Win, { label: string; short: string; base: string }
 export const WINDOW_KEYS = Object.keys(WINDOWS) as Win[];
 const WDIR = join(ROOT, 'windows');
 export interface WindowMeta { days: number; targetDays: number; start: string | null; end: string | null; matches: number }
+const hasWindow = (w: Win) => existsSync(join(WDIR, w, 'leaders.json'));
 export const windowMeta = (w: Win): WindowMeta | null =>
-  w === '7d' ? { days: 7, targetDays: 7, start: null, end: meta.date, matches: Object.values(leaders).reduce((n, l) => n + Number(l.sources.kaizoku?.matches ?? 0), 0) / 2 }
-             : readJson<WindowMeta | null>(join(WDIR, w, 'meta.json'), null);
+  hasWindow(w) ? readJson<WindowMeta | null>(join(WDIR, w, 'meta.json'), null)
+  : w === '7d' ? { days: 7, targetDays: 7, start: null, end: meta.date, matches: Object.values(leaders).reduce((n, l) => n + Number(l.sources.kaizoku?.matches ?? 0), 0) / 2 }
+  : null;
 const windowLeadersCache: Partial<Record<Win, Record<string, Leader>>> = {};
 export const leadersFor = (w: Win): Record<string, Leader> => {
-  if (w === '7d') return leaders;
+  if (!hasWindow(w)) return w === '7d' ? leaders : {};
   if (!windowLeadersCache[w]) {
     const ls = readJson<Record<string, Leader>>(join(WDIR, w, 'leaders.json'), {});
     for (const [code, l] of Object.entries(ls)) { l.img = imgUrl(code); l.color ??= leaders[code]?.color ?? null; }
@@ -170,11 +174,19 @@ export const leadersFor = (w: Win): Record<string, Leader> => {
 };
 export const leadersByVolumeFor = (w: Win): Leader[] => Object.values(leadersFor(w)).filter((l) => volume(l) > 0).sort((a, b) => volume(b) - volume(a));
 export const deckFileFor = (w: Win, code: string): DeckFile =>
-  w === '7d' ? deckFile(code) : readJson<DeckFile>(join(WDIR, w, 'decks', `${code}.json`), { leader: code, decks: [], topPilots: [] });
+  hasWindow(w) ? readJson<DeckFile>(join(WDIR, w, 'decks', `${code}.json`), { leader: code, decks: [], topPilots: [] }) : w === '7d' ? deckFile(code) : { leader: code, decks: [], topPilots: [] };
+export interface TopPilot { handle: string; name: string; games: number; wins: number; winRate: number | null; bounty: number; ladderId: string | null }
+/** Per-player ranked history from the match archive (linked ladder players only). */
+export interface PlayerGame { ts: string; id: string; side: 'w' | 'l'; b: number; leader: string; deck: string | null; opp: string; oppB: number; oppDeck: string | null; won: boolean }
+export interface PlayerMatches { handle: string; name: string; games: PlayerGame[]; decks: Record<string, string> }
+export const playerMatches = (id: string | number) => readJson<PlayerMatches | null>(join(LATEST, 'matches', `${id}.json`), null);
+export const handleLinks = readJson<Record<string, { handle: string; name: string; confidence: string; gap: number; lastSeen: string; lastBounty: number; games: number }>>(join(LATEST, 'handles.json'), {});
+/** Parse a compact "4xOP01-016 3xOP01-024" list into cards. */
+export const parseCompactDeck = (txt: string) => txt.split(/\s+/).filter(Boolean).map((t) => { const [q, id] = t.split('x'); return { id, qty: Number(q) }; }).sort((a, b) => a.id.localeCompare(b.id));
 export const matchupIn = (ls: Record<string, Leader>, a: string, b: string) => {
   const m = ls[a]?.matchups?.[b];
-  const s = m?.kaizoku ?? m?.opbounty;
-  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: s.firstWinRate == null ? null : Number(s.firstWinRate), second: s.secondWinRate == null ? null : Number(s.secondWinRate) } : null;
+  const s = m?.ranked ?? m?.kaizoku ?? m?.opbounty, k = m?.kaizoku;
+  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: k?.firstWinRate == null ? null : Number(k.firstWinRate), second: k?.secondWinRate == null ? null : Number(k.secondWinRate) } : null;
 };
 /** Route prefix for a window: '' for the default 7-day view, '/30d' otherwise. */
 export const wpath = (w: Win, path: string) => `${WINDOWS[w].base}${path}`;

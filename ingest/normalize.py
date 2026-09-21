@@ -338,3 +338,114 @@ def build_window(dailies: list[dict], card_db: dict) -> tuple[dict, dict]:
         out.sort(key=lambda x: -x["sources"]["kaizokuBest"]["games"])
         decks_by_leader[code] = {"leader": code, "decks": out, "topPilots": []}
     return leaders, decks_by_leader
+
+
+# ---------------------------------------------------------------- OPBounty match archive windows
+MAX_WINDOW_DECKS = 300
+def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[str, dict] | None = None,
+                         links: dict | None = None) -> tuple[dict, dict]:
+    """Sum data/matches day files into (leaders, decks_by_leader) using source key "ranked".
+
+    leaders[code].sources.ranked = {matches, wins, winRate, weightedWinRate, playRate}
+    leaders[code].matchups[opp].ranked = {games, winRate}
+    decks_by_leader[code] = {"leader", "decks":[{hash, cards, size, sources:{ranked:{games,wins,winRate,pilots}}}],
+                             "topPilots":[{handle,name,games,wins,winRate,bounty,ladderId}]}
+    Pilots/handles come from the sampled combat-log heads (high-bounty games only)."""
+    handles_by_day = handles_by_day or {}
+    handle_to_ladder = {v["handle"]: k for k, v in (links or {}).items()}
+    total = 0
+    g = defaultdict(int); w = defaultdict(int)
+    mu = defaultdict(lambda: defaultdict(lambda: [0, 0]))            # code -> opp -> [games, wins]
+    dk = defaultdict(lambda: defaultdict(lambda: {"g": 0, "w": 0, "p": set()}))  # code -> hash -> stats
+    deck_text: dict[str, str] = {}
+    pilots = defaultdict(lambda: defaultdict(lambda: {"g": 0, "w": 0, "b": 0.0, "ts": ""}))  # code -> handle
+    for day in days:
+        deck_text.update(day.get("decks") or {})
+        hmap = handles_by_day.get(day["date"], {})
+        for m in day["matches"]:
+            W, L = m["w"], m["l"]
+            if not W.get("l") or not L.get("l"):
+                continue  # a handful of documents lack a leader; they cannot be attributed
+            total += 1
+            g[W["l"]] += 1; g[L["l"]] += 1; w[W["l"]] += 1
+            mu[W["l"]][L["l"]][0] += 1; mu[W["l"]][L["l"]][1] += 1
+            mu[L["l"]][W["l"]][0] += 1
+            seats = hmap.get(m["id"])
+            sides = {}
+            if seats and len(seats) == 2 and all(isinstance(s, list) for s in seats):
+                (h1, l1), (h2, l2) = seats
+                if W["l"] != L["l"]:
+                    sides = {("w" if l1 == W["l"] else "l"): h1, ("w" if l2 == W["l"] else "l"): h2}
+            for side, S in (("w", W), ("l", L)):
+                if S["d"]:
+                    d = dk[S["l"]][S["d"]]
+                    d["g"] += 1; d["w"] += side == "w"
+                    if side in sides:
+                        d["p"].add(sides[side])
+                if side in sides:
+                    p = pilots[S["l"]][sides[side]]
+                    p["g"] += 1; p["w"] += side == "w"
+                    if (m["ts"] or "") >= p["ts"]:
+                        p["ts"], p["b"] = m["ts"] or "", S["b"]
+
+    def rate(x, n):
+        return round(100 * x / n, 1) if n else None
+
+    leaders: dict[str, dict] = {}
+    for code in g:
+        c = card_db.get(code, {})
+        matchups = {}
+        for opp, (mg, mw) in sorted(mu[code].items(), key=lambda kv: -kv[1][0]):
+            matchups[opp] = {"ranked": {"games": mg, "winRate": rate(mw, mg)}}
+        leaders[code] = {
+            "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
+            "sources": {"ranked": {"matches": g[code], "wins": w[code], "winRate": rate(w[code], g[code]),
+                                   "weightedWinRate": round(100 * (w[code] + 50) / (g[code] + 100), 1),
+                                   "playRate": round(100 * g[code] / total, 2) if total else None}},
+            "matchups": matchups, "deckCount": len(dk.get(code, {})), "cardCount": 0,
+        }
+    decks_by_leader: dict[str, dict] = {}
+    for code in g:
+        out = []
+        for h, d in dk.get(code, {}).items():
+            txt = deck_text.get(h)
+            if not txt:
+                continue
+            cards = parse_deck(txt)
+            out.append({"hash": h, "cards": cards, "size": sum(c["qty"] for c in cards),
+                        "sources": {"ranked": {"games": d["g"], "wins": d["w"], "winRate": rate(d["w"], d["g"]), "pilots": len(d["p"]) or None}}})
+        out.sort(key=lambda x: -x["sources"]["ranked"]["games"])
+        out = out[:MAX_WINDOW_DECKS]  # the long tail is one-off lists; keep the site files small
+        tp = []
+        for h, p in pilots.get(code, {}).items():
+            if p["g"] < 5:
+                continue
+            tp.append({"handle": h, "name": clean_name(h), "games": p["g"], "wins": p["w"], "winRate": rate(p["w"], p["g"]),
+                       "bounty": round(p["b"]), "ladderId": handle_to_ladder.get(h)})
+        tp.sort(key=lambda x: -((x["winRate"] or 0) * x["games"] + 50 * 20) / (x["games"] + 20) - (x["bounty"] - 3000) / 200)
+        decks_by_leader[code] = {"leader": code, "decks": out, "topPilots": tp[:40], "deckCount": len(dk.get(code, {}))}
+    return leaders, decks_by_leader
+
+
+def merge_windows(kz_leaders: dict, ar_leaders: dict, kz_decks: dict, ar_decks: dict) -> tuple[dict, dict]:
+    """Archive numbers win; Card Kaizoku contributes 1st/2nd win rates (not in the archive) and any
+    leaders/decks the archive lacks."""
+    leaders = {}
+    for code in set(kz_leaders) | set(ar_leaders):
+        base = dict(ar_leaders.get(code) or kz_leaders[code])
+        base["sources"] = {**(kz_leaders.get(code, {}).get("sources") or {}), **(ar_leaders.get(code, {}).get("sources") or {})}
+        mus = {}
+        for opp in set((kz_leaders.get(code, {}).get("matchups") or {})) | set((ar_leaders.get(code, {}).get("matchups") or {})):
+            mus[opp] = {**(kz_leaders.get(code, {}).get("matchups", {}).get(opp) or {}), **(ar_leaders.get(code, {}).get("matchups", {}).get(opp) or {})}
+        base["matchups"] = dict(sorted(mus.items(), key=lambda kv: -max((s.get("games") or 0) for s in kv[1].values())))
+        leaders[code] = base
+    decks = {}
+    for code in set(kz_decks) | set(ar_decks):
+        ar = ar_decks.get(code, {"leader": code, "decks": [], "topPilots": []})
+        have = {d["hash"] for d in ar["decks"]}
+        extra = [d for d in kz_decks.get(code, {}).get("decks", []) if d["hash"] not in have]
+        decks[code] = {"leader": code, "decks": ar["decks"] + extra, "topPilots": ar["topPilots"],
+                       "deckCount": max(ar.get("deckCount", 0), len(ar["decks"]) + len(extra))}
+        if code in leaders:
+            leaders[code]["deckCount"] = decks[code]["deckCount"]
+    return leaders, decks

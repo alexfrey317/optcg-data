@@ -17,8 +17,8 @@ const one = meta.optcgone as { fetchedAt?: string; rankedCount?: number } | unde
     <table>
       <thead><tr><th>Source</th><th>What we use</th><th>Snapshot</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td><a href="https://stats.tcgmatchmaking.com/">OPBounty</a> <span class="muted">(TCG Match Making)</span></td><td>Standard ladder top 1,000: bounty, records, top leaders. Leader and matchup table. Ladder decklists per leader.</td><td>set <code>{opb?.set}</code></td><td>{meta.status.opbounty}</td></tr>
-        <tr><td><a href="https://www.cardkaizoku.com/">Card Kaizoku</a></td><td>Leader win/play rates, 1st/2nd split, matchup grid, best and most-played lists, per-card usage and win rate, tech cards, opening hands, top pilots per leader. Card database and images.</td><td><code>{kz?.dataset}</code> · {kz?.manifestDate}</td><td>{meta.status.kaizoku}</td></tr>
+        <tr><td><a href="https://stats.tcgmatchmaking.com/">OPBounty</a> <span class="muted">(TCG Match Making)</span></td><td>Standard ladder top 1,000: bounty, records, top leaders. Ranked match archive: every finished ranked game with both leaders, bounties and decklists, which drives the leader, matchup, decklist, pilot and player views for any window. Sim handles from combat logs for games above bounty 1,900.</td><td>set <code>{opb?.set}</code> · {String((meta as any).windows?.['30d']?.archiveDays ?? 0)} days archived</td><td>{meta.status.opbounty} / {meta.status.matches ?? 'n/a'}</td></tr>
+        <tr><td><a href="https://www.cardkaizoku.com/">Card Kaizoku</a></td><td>1st/2nd turn split, per-card usage and win rate, tech cards, opening hands (weekly). Per-account decklists where a ladder name matches. Card database.</td><td><code>{kz?.dataset}</code> · {kz?.manifestDate}</td><td>{meta.status.kaizoku}</td></tr>
         <tr><td><a href="https://www.optcg.one/">optcg.one</a></td><td>Ranked decklists with region / Elo tier ({fmt(one?.rankedCount, 0)} lists).</td><td>{one?.fetchedAt?.slice(0, 10)}</td><td>{meta.status.optcgone}</td></tr>
       </tbody>
     </table>

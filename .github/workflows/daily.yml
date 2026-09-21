@@ -33,6 +33,9 @@ jobs:
 
       - name: Ingest
         id: ingest
+        env:
+          OPB_FS_EMAIL: ${{ secrets.OPB_FS_EMAIL }}
+          OPB_FS_PASSWORD: ${{ secrets.OPB_FS_PASSWORD }}
         run: python -m ingest.run
 
       - name: Upload raw snapshots (90-day retention)
