@@ -33,11 +33,21 @@ OPBounty calls (2.0), `KAIZOKU_DATASET` (`op17_lw_p`).
 
 ## Deploy (Cloudflare Pages, free)
 
-1. Cloudflare dashboard → Workers & Pages → Create → Pages → **Connect to Git** → pick this repo.
-2. Build settings: framework **Astro**, root directory `site`, build command `npm run build`,
-   output directory `dist`. Environment variable `NODE_VERSION` = `22`.
-3. Save. Every push to `main` (including the daily data commit) triggers a rebuild.
-   The site is served at `https://<project>.pages.dev`.
+Live at https://optcg-ladder.pages.dev (classic Pages project, direct upload).
+
+The daily workflow builds `site/` and runs `wrangler pages deploy` when the repo secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set. Create the token in the Cloudflare
+dashboard (My Profile → API Tokens → Create → custom token with **Cloudflare Pages: Edit**), then:
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN   # paste the token when prompted
+```
+
+Manual deploy from a machine that has run `wrangler login`:
+
+```bash
+cd site && npm run build && npx wrangler pages deploy dist --project-name optcg-ladder --branch main
+```
 
 ## Request budget per day
 
