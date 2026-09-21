@@ -27,6 +27,28 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       </div>
     </header>
     <main class:list={['wrap', { wide }]}><slot /></main>
+    <div id="tip" role="tooltip"></div>
+    <script>
+      const tip = document.getElementById('tip')!;
+      let current: HTMLElement | null = null;
+      function show(el: HTMLElement) {
+        current = el; el.classList.add('on');
+        tip.textContent = el.dataset.tip ?? ''; el.removeAttribute('title');
+        tip.classList.add('show');
+        const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+        let x = r.left + r.width / 2 - tw / 2, y = r.top - th - 8;
+        if (y < 8) y = r.bottom + 8;
+        x = Math.max(8, Math.min(x, window.innerWidth - tw - 8));
+        tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+      }
+      function hide() { tip.classList.remove('show'); current?.classList.remove('on'); current = null; }
+      document.addEventListener('mouseover', (e) => { const el = (e.target as HTMLElement).closest<HTMLElement>('.info'); if (el && el !== current) show(el); else if (!el && current) hide(); });
+      document.addEventListener('focusin', (e) => { const el = (e.target as HTMLElement).closest<HTMLElement>('.info'); if (el) show(el); });
+      document.addEventListener('focusout', hide);
+      document.addEventListener('click', (e) => { const el = (e.target as HTMLElement).closest<HTMLElement>('.info'); if (el) { e.preventDefault(); e.stopPropagation(); current === el && tip.classList.contains('show') ? hide() : show(el); } });
+      document.addEventListener('scroll', hide, { passive: true });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+    </script>
     <footer class:list={['wrap', { wide }]}>
       <div>Data: {meta.sources.map((s, i) => <>{i > 0 && ' · '}<a href={s.url} rel="noopener">{s.name}</a></>)} · refreshed once a day.</div>
       <div>Unofficial fan project. One Piece Card Game is a trademark of Bandai. Not affiliated with Bandai, OPTCG Sim, OPBounty, or Card Kaizoku.</div>
@@ -84,12 +106,12 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .stat .value { font-size: 1.55rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: .15rem; letter-spacing: -.01em; }
 
   /* info tooltip */
-  .info { position: relative; display: inline-flex; color: var(--dim); cursor: help; vertical-align: middle; line-height: 0; }
-  .info:hover, .info:focus { color: var(--accent); outline: none; }
-  .info .tip { display: none; position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: max-content; max-width: 260px; padding: .5rem .65rem; border-radius: 8px;
-    background: #0a0c12; color: var(--text); border: 1px solid var(--line-2); font-size: .78rem; font-weight: 400; line-height: 1.35; text-transform: none; letter-spacing: 0; white-space: normal; text-align: left; z-index: 50; box-shadow: 0 10px 30px -10px rgba(0,0,0,.9); }
-  .info:hover .tip, .info:focus .tip { display: block; }
+  .info { display: inline-flex; color: var(--dim); cursor: help; vertical-align: middle; line-height: 0; background: none; border: 0; padding: 0; margin: 0; font: inherit; }
+  .info:hover, .info:focus-visible, .info.on { color: var(--accent); outline: none; }
   th .info, .label .info { margin-left: .25rem; }
+  #tip { position: fixed; z-index: 1000; max-width: 280px; padding: .55rem .7rem; border-radius: 9px; background: #0a0c12; color: var(--text); border: 1px solid var(--line-2);
+    font-size: .8rem; font-weight: 400; line-height: 1.4; text-transform: none; letter-spacing: 0; white-space: normal; text-align: left; box-shadow: 0 12px 32px -10px rgba(0,0,0,.95); pointer-events: none; opacity: 0; transition: opacity .1s; }
+  #tip.show { opacity: 1; }
 
   /* leader art */
   .leader { display: inline-flex; align-items: center; gap: .55rem; color: var(--text); vertical-align: middle; } .leader:hover { text-decoration: none; } .leader:hover .leader-name { color: var(--accent-2); }
