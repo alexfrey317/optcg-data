@@ -40,16 +40,21 @@ const recent = [...games].reverse().slice(0, 30);
 const arcSpan = games.length ? `${games[0].ts.slice(0, 10)} → ${games[games.length - 1].ts.slice(0, 10)}` : '';
 
 /* ---- bounty curve: per-game bounties from the archive when we have them, else daily ladder snapshots ---- */
-const curve: [string, number][] = games.length >= 2 ? games.map((g) => [g.ts, g.b]) : bountyHistory(player.id!).map((h) => [h[0], h[1]]);
+type Pt = { t: string; b: number; leader?: string; opp?: string; won?: boolean };
+const curve: Pt[] = games.length >= 2
+  ? games.map((g) => ({ t: (g as any).ct || g.ts, b: g.b, leader: g.leader, opp: g.opp, won: g.won }))
+  : bountyHistory(player.id!).map((h) => ({ t: h[0], b: h[1] }));
 const W = 720, H = 180;
 let path = '', area = '', minB = 0, maxB = 0;
+let pts: { x: number; y: number }[] = [];
 if (curve.length >= 2) {
-  const ys = curve.map((h) => h[1]); minB = Math.min(...ys); maxB = Math.max(...ys);
+  const ys = curve.map((h) => h.b); minB = Math.min(...ys); maxB = Math.max(...ys);
   const span = maxB - minB || 1;
-  const pts = ys.map((y, i) => [(i / (ys.length - 1)) * (W - 20) + 10, H - 24 - ((y - minB) / span) * (H - 48)] as const);
-  path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  area = `${path} L${pts.at(-1)![0].toFixed(1)},${H - 24} L10,${H - 24} Z`;
+  pts = ys.map((y, i) => ({ x: (i / (ys.length - 1)) * (W - 20) + 10, y: H - 24 - ((y - minB) / span) * (H - 48) }));
+  path = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  area = `${path} L${pts.at(-1)!.x.toFixed(1)},${H - 24} L10,${H - 24} Z`;
 }
+const curveData = JSON.stringify(curve.map((c, i) => ({ ...c, x: +pts[i]?.x.toFixed(1), y: +pts[i]?.y.toFixed(1), ln: c.leader ? leaders[c.leader]?.name ?? c.leader : undefined, on: c.opp ? leaders[c.opp]?.name ?? c.opp : undefined })));
 
 /* ---- fallback: Card Kaizoku per-account lists ---- */
 const own = pm ? null : playerDecks(player.id!);
@@ -75,15 +80,20 @@ const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filte
   <h2>Bounty History <Info text={games.length >= 2 ? 'Bounty after each ranked game in the window, from the match archive.' : 'One point per daily snapshot. The chart appears after a second daily snapshot.'} /></h2>
   <div class="panel">
     {curve.length >= 2 ? (
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:220px;display:block" role="img" aria-label="Bounty over time">
-        <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
-        <path d={area} fill="url(#g)" />
-        <path d={path} fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" />
-        <text x="10" y="14" fill="var(--muted)" font-size="11">{fmt(maxB, 0)}</text>
-        <text x="10" y={H - 6} fill="var(--muted)" font-size="11">{fmt(minB, 0)}</text>
-        <text x={W - 10} y={H - 6} fill="var(--muted)" font-size="11" text-anchor="end">{curve[0][0].slice(0, 10)} → {curve.at(-1)![0].slice(0, 10)} · {curve.length} points</text>
-      </svg>
-    ) : <p class="muted" style="margin:0">Tracking started {curve[0]?.[0]?.slice(0, 10) ?? 'today'}. The chart appears after a second daily snapshot.</p>}
+      <div class="bcurve" data-points={curveData}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:220px;display:block" role="img" aria-label="Bounty over time">
+          <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+          <path d={area} fill="url(#g)" />
+          <path d={path} fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" />
+          <line class="bc-cursor" x1="0" x2="0" y1="8" y2={H - 24} stroke="var(--muted)" stroke-dasharray="3 3" style="display:none" />
+          <circle class="bc-dot" r="4" fill="var(--accent)" stroke="#1a1405" stroke-width="1.5" style="display:none" />
+          <text x="10" y="14" fill="var(--muted)" font-size="11">{fmt(maxB, 0)}</text>
+          <text x="10" y={H - 6} fill="var(--muted)" font-size="11">{fmt(minB, 0)}</text>
+          <text x={W - 10} y={H - 6} fill="var(--muted)" font-size="11" text-anchor="end">{curve[0].t.slice(0, 10)} → {curve.at(-1)!.t.slice(0, 10)} · {curve.length} points</text>
+        </svg>
+        <div class="bc-tip" style="display:none"></div>
+      </div>
+    ) : <p class="muted" style="margin:0">Tracking started {curve[0]?.t?.slice(0, 10) ?? 'today'}. The chart appears after a second daily snapshot.</p>}
   </div>
 
   {pm ? (
@@ -166,4 +176,33 @@ const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filte
       )}
     </>
   )}
+
+  <style>
+    .bcurve { position: relative; }
+    .bc-tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: .4rem .6rem; font-size: .8rem; line-height: 1.35; white-space: nowrap; box-shadow: var(--shadow); z-index: 5; }
+    .bc-tip b { color: var(--accent); }
+  </style>
+  <script>
+    document.querySelectorAll<HTMLElement>('.bcurve').forEach((box) => {
+      const pts = JSON.parse(box.dataset.points || '[]') as { t: string; b: number; x: number; y: number; ln?: string; on?: string; won?: boolean }[];
+      const svg = box.querySelector('svg')!, cur = box.querySelector<SVGLineElement>('.bc-cursor')!, dot = box.querySelector<SVGCircleElement>('.bc-dot')!, tip = box.querySelector<HTMLElement>('.bc-tip')!;
+      const W = svg.viewBox.baseVal.width;
+      const fmtT = (t: string) => { const d = new Date(t.endsWith('Z') || t.includes('+') ? t : t + 'Z'); return isNaN(+d) ? t : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+      const show = (clientX: number) => {
+        const r = svg.getBoundingClientRect(); const vx = ((clientX - r.left) / r.width) * W;
+        let best = 0; for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i].x - vx) < Math.abs(pts[best].x - vx)) best = i;
+        const p = pts[best]; if (!p) return;
+        cur.setAttribute('x1', String(p.x)); cur.setAttribute('x2', String(p.x)); cur.style.display = '';
+        dot.setAttribute('cx', String(p.x)); dot.setAttribute('cy', String(p.y)); dot.style.display = '';
+        const prev = pts[best - 1]; const delta = prev ? p.b - prev.b : null;
+        tip.innerHTML = `<b>฿${Math.round(p.b).toLocaleString()}</b>${delta == null ? '' : ` <span style="color:${delta >= 0 ? 'var(--good)' : 'var(--bad)'}">${delta >= 0 ? '+' : ''}${delta.toFixed(0)}</span>`}<br>${fmtT(p.t)}${p.ln ? `<br>${p.ln} vs ${p.on ?? '?'} · <span style="color:${p.won ? 'var(--good)' : 'var(--bad)'}">${p.won ? 'Win' : 'Loss'}</span>` : ''}`;
+        tip.style.display = '';
+        const px = (p.x / W) * r.width; const tw = tip.offsetWidth;
+        tip.style.left = `${Math.min(Math.max(px - tw / 2, 0), r.width - tw)}px`; tip.style.top = `${(p.y / svg.viewBox.baseVal.height) * r.height - tip.offsetHeight - 14}px`;
+      };
+      svg.addEventListener('mousemove', (e) => show(e.clientX));
+      svg.addEventListener('touchmove', (e) => { show(e.touches[0].clientX); }, { passive: true });
+      svg.addEventListener('mouseleave', () => { cur.style.display = 'none'; dot.style.display = 'none'; tip.style.display = 'none'; });
+    });
+  </script>
 </Base>
