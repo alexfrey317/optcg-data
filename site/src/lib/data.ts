@@ -118,8 +118,8 @@ export const leaderStats = (l: Leader) => {
     winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
     weighted,
     playRate: main.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(main.playRate),
-    first: k.firstWinRate == null ? null : Number(k.firstWinRate),
-    second: k.secondWinRate == null ? null : Number(k.secondWinRate),
+    first: (r?.firstWinRate ?? k.firstWinRate) == null ? null : Number(r?.firstWinRate ?? k.firstWinRate),
+    second: (r?.secondWinRate ?? k.secondWinRate) == null ? null : Number(r?.secondWinRate ?? k.secondWinRate),
     avgDuration: o.avgDuration == null ? null : Number(o.avgDuration),
   };
 };

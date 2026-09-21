@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import link, normalize as N
 from .http import get_json
-from .sources import kaizoku, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, optcgone
+from .sources import kaizoku, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_stats, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
@@ -38,7 +38,7 @@ def load(path: Path, default):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players,matches,profiles")
+    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players,matches,profiles,stats")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
 
@@ -92,8 +92,21 @@ def main(argv=None):
             status["matches"] = f"error: {e}"
         print(f"[matches] {status['matches']} {json.dumps(matches_status) if matches_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
 
+    # OPBounty published ranked stats (public bucket, complete): leaders, matchups, every decklist with its record
+    stats_status = None
+    if "stats" in skip:
+        status["stats"] = "skipped"
+    else:
+        try:
+            stats_status = opbounty_stats.fetch_all()
+            status["stats"] = "ok"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["stats"] = f"error: {e}"
+        print(f"[stats] {status['stats']} {json.dumps(stats_status) if stats_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+
     opb, kz, one = raw["opbounty"], raw["kaizoku"], raw["optcgone"]
-    card_db = N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
+    card_db =N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
 
     players = N.build_players(opb)
 
@@ -174,14 +187,18 @@ def main(argv=None):
     # windows: match archive (games, matchups, decks, pilots) + Card Kaizoku dailies (1st/2nd, card stats stay weekly)
     window_meta = {}
     daily_files = sorted(DAILY.glob("*.json")) if DAILY.exists() else []
+    stats_days_all = opbounty_stats.load_days(max(WINDOWS.values()) + 1)
     for wname, days in WINDOWS.items():
         kz_days = [load(f, {}) for f in daily_files[-days:]]
         ar_days = archive_days[-days:]
-        if not kz_days and not ar_days:
+        st_days = stats_days_all[-days:]
+        if not kz_days and not ar_days and not st_days:
             continue
         kz_leaders, kz_decks = N.build_window(kz_days, card_db) if kz_days else ({}, {})
         ar_leaders, ar_decks = N.build_archive_window(ar_days, card_db, handles_by_day, links) if ar_days else ({}, {})
-        w_leaders, w_decks = N.merge_windows(kz_leaders, ar_leaders, kz_decks, ar_decks)
+        st_leaders, st_decks = N.build_stats_window(st_days, card_db) if st_days else ({}, {})
+        r_leaders, r_decks = N.merge_stats_archive(st_leaders, ar_leaders, st_decks, ar_decks)
+        w_leaders, w_decks = N.merge_windows(kz_leaders, r_leaders, kz_decks, r_decks)
         wdir = ROOT / "data" / "windows" / wname
         for code, dfile in w_decks.items():
             dump(wdir / "decks" / f"{code}.json", dfile)
@@ -189,10 +206,12 @@ def main(argv=None):
                 used_cards.update(c["id"] for c in d["cards"])
         used_cards.update(w_leaders)
         dump(wdir / "leaders.json", w_leaders)
-        span = ar_days or kz_days
+        span = st_days or ar_days or kz_days
         window_meta[wname] = {"days": len(span), "targetDays": days, "start": span[0].get("date"), "end": span[-1].get("date"),
-                              "matches": sum(len(d.get("matches") or []) for d in ar_days) if ar_days else sum(int(d.get("total") or 0) for d in kz_days),
-                              "archiveDays": len(ar_days), "kaizokuDays": len(kz_days)}
+                              "matches": sum(int(d.get("matches") or 0) for d in st_days) if st_days
+                              else sum(len(d.get("matches") or []) for d in ar_days) if ar_days else sum(int(d.get("total") or 0) for d in kz_days),
+                              "statsDays": len(st_days), "archiveDays": len(ar_days), "kaizokuDays": len(kz_days),
+                              "archiveMatches": sum(len(d.get("matches") or []) for d in ar_days)}
         dump(wdir / "meta.json", window_meta[wname])
 
     dump(LATEST / "players.json", players)
@@ -223,6 +242,7 @@ def main(argv=None):
         "daily": daily_status,
         "matches": matches_status,
         "profiles": profiles_status,
+        "stats": stats_status,
         "linked": len(links),
         "windows": window_meta,
         "sources": [

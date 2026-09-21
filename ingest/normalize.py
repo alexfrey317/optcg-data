@@ -427,6 +427,90 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
     return leaders, decks_by_leader
 
 
+# ---------------------------------------------------------------- OPBounty published stats windows (complete)
+def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
+    """Sum data/stats day files (OPBounty's own complete aggregates) into (leaders, decks_by_leader)
+    under source key "ranked": games, wins, first/second win rates, matchups, and every distinct list
+    with its own record.  No pilots here; merge_stats_archive adds those from the replay archive."""
+    total = 0
+    L = defaultdict(lambda: {"g": 0, "w": 0, "fw": 0, "fl": 0, "sw": 0, "sl": 0, "dur": 0.0})
+    mu = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0, 0]))
+    D: dict[str, dict] = {}
+    text: dict[str, str] = {}
+    for day in days:
+        total += int(day.get("matches") or 0)
+        for B in (day.get("brackets") or {}).values():
+            for code, s in (B.get("leaders") or {}).items():
+                a = L[code]
+                for k in ("g", "w", "fw", "fl", "sw", "sl"):
+                    a[k] += int(s.get(k) or 0)
+                a["dur"] += float(s.get("dur") or 0)
+                for opp, row in (s.get("mu") or {}).items():
+                    m = mu[code][opp]
+                    for j in range(6):
+                        m[j] += int(row[j] if j < len(row) else 0)
+        text.update(day.get("deckText") or {})
+        for h, s in (day.get("decks") or {}).items():
+            d = D.setdefault(h, {"l": s["l"], "g": 0, "w": 0, "fw": 0, "fl": 0, "sw": 0, "sl": 0})
+            for k in ("g", "w", "fw", "fl", "sw", "sl"):
+                d[k] += int(s.get(k) or 0)
+
+    def rate(x, n):
+        return round(100 * x / n, 1) if n else None
+
+    leaders: dict[str, dict] = {}
+    for code, a in L.items():
+        c = card_db.get(code, {})
+        matchups = {}
+        for opp, m in sorted(mu[code].items(), key=lambda kv: -kv[1][0]):
+            g, w, fw, fl, sw, sl = m
+            matchups[opp] = {"ranked": {"games": g, "winRate": rate(w, g), "firstWinRate": rate(fw, fw + fl), "secondWinRate": rate(sw, sw + sl),
+                                        "firstGames": fw + fl, "secondGames": sw + sl}}
+        leaders[code] = {
+            "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
+            "sources": {"ranked": {"matches": a["g"], "wins": a["w"], "winRate": rate(a["w"], a["g"]),
+                                   "weightedWinRate": round(100 * (a["w"] + 500) / (a["g"] + 1000), 1),
+                                   "playRate": round(100 * a["g"] / total, 2) if total else None,
+                                   "firstWinRate": rate(a["fw"], a["fw"] + a["fl"]), "secondWinRate": rate(a["sw"], a["sw"] + a["sl"]),
+                                   "firstGames": a["fw"] + a["fl"], "secondGames": a["sw"] + a["sl"],
+                                   "avgDuration": round(a["dur"] / a["g"], 1) if a["g"] else None}},
+            "matchups": matchups, "deckCount": 0, "cardCount": 0,
+        }
+    by_leader: dict[str, list] = defaultdict(list)
+    for h, d in D.items():
+        txt = text.get(h)
+        if not txt:
+            continue
+        cards = parse_deck(txt)
+        by_leader[d["l"]].append({"hash": h, "cards": cards, "size": sum(c["qty"] for c in cards),
+                                  "sources": {"ranked": {"games": d["g"], "wins": d["w"], "winRate": rate(d["w"], d["g"]),
+                                                         "firstWinRate": rate(d["fw"], d["fw"] + d["fl"]), "secondWinRate": rate(d["sw"], d["sw"] + d["sl"])}}})
+    decks_by_leader: dict[str, dict] = {}
+    for code in leaders:
+        out = sorted(by_leader.get(code, []), key=lambda x: -x["sources"]["ranked"]["games"])
+        leaders[code]["deckCount"] = len(out)
+        decks_by_leader[code] = {"leader": code, "decks": out[:MAX_WINDOW_DECKS], "topPilots": [], "deckCount": len(out)}
+    return leaders, decks_by_leader
+
+
+def merge_stats_archive(st_leaders: dict, ar_leaders: dict, st_decks: dict, ar_decks: dict) -> tuple[dict, dict]:
+    """Published stats are the numbers; the replay archive only adds who piloted what (pilots per list,
+    top pilots per leader).  Leaders/lists only the archive knows are dropped: the published stats
+    cover every game, so anything missing there did not happen in ranked."""
+    if not st_leaders:
+        return ar_leaders, ar_decks
+    decks = {}
+    for code, st in st_decks.items():
+        ar = ar_decks.get(code, {})
+        pilots = {d["hash"]: d["sources"].get("ranked", {}).get("pilots") for d in ar.get("decks", [])}
+        for d in st["decks"]:
+            p = pilots.get(d["hash"])
+            if p:
+                d["sources"]["ranked"]["pilots"] = p
+        decks[code] = {**st, "topPilots": ar.get("topPilots", [])}
+    return st_leaders, decks
+
+
 def merge_windows(kz_leaders: dict, ar_leaders: dict, kz_decks: dict, ar_decks: dict) -> tuple[dict, dict]:
     """Archive numbers win; Card Kaizoku contributes 1st/2nd win rates (not in the archive) and any
     leaders/decks the archive lacks."""

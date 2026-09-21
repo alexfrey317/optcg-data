@@ -69,7 +69,10 @@ them. Requires `OPB_FS_EMAIL` / `OPB_FS_PASSWORD` (GitHub secrets); without them
 Backfill: `OPB_MATCH_DAYS=31 python -m ingest.sources.opbounty_matches 31`.
 
 The archive only holds games where the room host runs the OPBounty app, about 47% of ranked games, so
-it is a sample. `ingest/sources/opbounty_profiles.py` adds the complete side: each ladder player's own
+it is a sample. `ingest/sources/opbounty_stats.py` pulls OPBounty's own published aggregates (public
+CloudFront bucket, one file per ~6 hours per rank bracket, complete) into `data/stats/YYYY-MM-DD.json.gz`:
+per-leader games, wins, first/second records and matchups, and every distinct decklist with its record.
+Windows use these as the `ranked` numbers; the archive only adds pilots. `ingest/sources/opbounty_profiles.py` adds the complete side: each ladder player's own
 profile document (`PublicUsers/<id>`, field `Western`) with season wins/losses, top-3 leader stats
 (with first/second splits), bounty after every game and the newest 9 public matches with both decklists.
 Written to `data/latest/profiles/<id>.json`; public match rows accumulate forever in
