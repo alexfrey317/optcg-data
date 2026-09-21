@@ -1,0 +1,49 @@
+---
+import Base from '../../layouts/Base.astro';
+import LeaderChip from '../../components/LeaderChip.astro';
+import { leadersByVolume, fmt, pct, volume, players } from '../../lib/data';
+
+const rows = leadersByVolume().filter((l) => volume(l) > 0);
+const pilots = new Map<string, number>();
+for (const p of players) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
+---
+<Base title="Leaders">
+  <h1>Leaders <span class="muted" style="font-size:1rem;font-weight:400">{rows.length} with ranked games this week</span></h1>
+  <div class="panel" style="padding:0;overflow:auto">
+    <table id="t">
+      <thead><tr>
+        <th>Leader</th>
+        <th class="num sortable" data-k="play">Play %</th>
+        <th class="num sortable sorted" data-k="games">Games</th>
+        <th class="num sortable" data-k="wr">Win %</th>
+        <th class="num sortable" data-k="first">1st</th>
+        <th class="num sortable" data-k="second">2nd</th>
+        <th class="num sortable" data-k="opb">OPBounty win %</th>
+        <th class="num sortable" data-k="top">Top-1000 pilots</th>
+        <th class="num">Decks</th>
+      </tr></thead>
+      <tbody>{rows.map((l) => { const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {}; const wr = Number(k.winRate ?? o.winRate ?? 0); return (
+        <tr data-play={k.playRate ?? 0} data-games={volume(l)} data-wr={wr} data-first={k.firstWinRate ?? 0} data-second={k.secondWinRate ?? 0} data-opb={o.winRate ?? 0} data-top={pilots.get(l.code) ?? 0}>
+          <td><LeaderChip code={l.code} /> <span class="muted" style="font-size:.75rem">{l.code}</span></td>
+          <td class="num">{pct(k.playRate as number)}</td>
+          <td class="num">{fmt(k.matches as number, 0)}</td>
+          <td class:list={['num', wr >= 50 ? 'good' : 'bad']} style="font-weight:600">{pct(wr)}</td>
+          <td class="num">{pct(k.firstWinRate as number)}</td>
+          <td class="num">{pct(k.secondWinRate as number)}</td>
+          <td class="num">{pct(o.winRate as number)}</td>
+          <td class="num">{pilots.get(l.code) ?? 0}</td>
+          <td class="num">{l.deckCount}</td>
+        </tr>); })}</tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:.8rem">Play %, games and 1st/2nd split from Card Kaizoku (last week, private lobbies). OPBounty column is the ladder's own last-week win rate. "Top-1000 pilots" counts ladder players with this leader among their top three.</p>
+  <script>
+    const tbody = document.querySelector('#t tbody')!; const rows = [...tbody.querySelectorAll('tr')] as HTMLElement[];
+    let key = 'games', asc = false;
+    document.querySelectorAll('th.sortable').forEach((th) => th.addEventListener('click', () => {
+      const k = (th as HTMLElement).dataset.k!; if (key === k) asc = !asc; else { key = k; asc = false; }
+      document.querySelectorAll('th.sortable').forEach((t) => t.classList.remove('sorted', 'asc')); th.classList.add('sorted'); if (asc) th.classList.add('asc');
+      rows.sort((a, b) => (Number(a.dataset[key]) - Number(b.dataset[key])) * (asc ? 1 : -1)); tbody.append(...rows);
+    }));
+  </script>
+</Base>

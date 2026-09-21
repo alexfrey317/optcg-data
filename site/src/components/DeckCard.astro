@@ -1,0 +1,43 @@
+---
+import { card, fmt, pct, deckGames, deckWinRate, TYPE_ORDER, type Deck } from '../lib/data';
+interface Props { deck: Deck; leader: string; open?: boolean }
+const { deck, leader, open = false } = Astro.props;
+const games = deckGames(deck);
+const wr = deckWinRate(deck);
+const SRC_LABEL: Record<string, string> = { opbounty: 'OPBounty ladder', kaizokuBest: 'Kaizoku best', kaizokuPlayed: 'Kaizoku most played', optcgone: 'optcg.one ranked' };
+const sorted = [...deck.cards].sort((a, b) => {
+  const ca = card(a.id), cb = card(b.id);
+  const t = TYPE_ORDER.indexOf(ca.type) - TYPE_ORDER.indexOf(cb.type);
+  if (t) return t;
+  const cost = Number(ca.cost || 0) - Number(cb.cost || 0);
+  return cost || a.id.localeCompare(b.id);
+});
+const simText = [`1x${leader}`, ...deck.cards.map((c) => `${c.qty}x${c.id}`)].join('\n');
+---
+<details class="deck" open={open} id={deck.hash}>
+  <summary>
+    <span>
+      {Object.keys(deck.sources).map((s) => <span class:list={['src', s]} title={SRC_LABEL[s]}>{SRC_LABEL[s]}</span>)}
+      {deck.size !== 50 && <span class="muted" style="font-size:.75rem"> · {deck.size} cards</span>}
+    </span>
+    <span class="num"><span class="muted" style="font-size:.75rem">games</span> {fmt(games, 0)}</span>
+    <span class:list={['num', wr != null && wr >= 50 ? 'good' : 'bad']}><span class="muted" style="font-size:.75rem">win</span> {pct(wr)}</span>
+    <button class="copy" data-copy={simText} onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied';setTimeout(()=>this.textContent='Copy for sim',1200);event.preventDefault()">Copy for sim</button>
+  </summary>
+  <div class="cards">
+    {sorted.map((c) => { const k = card(c.id); return (
+      <div class="card" title={`${k.name} (${c.id})`}>
+        {k.img ? <img src={k.img} alt={k.name} loading="lazy" /> : <div style="aspect-ratio:5/7;background:var(--panel-2);border-radius:5px"></div>}
+        <span class="qty">{c.qty}</span>
+        <div class="cname">{k.name}</div>
+      </div>
+    ); })}
+  </div>
+  <div style="padding:.4rem .8rem .7rem;font-size:.8rem" class="muted">
+    {Object.entries(deck.sources).map(([s, v]) => (
+      <div><b style="color:var(--text)">{SRC_LABEL[s]}</b>: {fmt(v.games as number, 0)} games, {pct(v.winRate as number)} win
+        {v.pilots != null && <> · {fmt(v.pilots as number, 0)} pilots</>}{v.adjWinRate != null && <> · adj {pct(v.adjWinRate as number)}</>}
+        {Array.isArray(v.regions) && v.regions.length > 0 && <> · {v.regions.join(', ')}</>}</div>
+    ))}
+  </div>
+</details>

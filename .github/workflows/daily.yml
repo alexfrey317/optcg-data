@@ -1,0 +1,65 @@
+name: daily-ingest
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 09:00 UTC, after Card Kaizoku's ~07:00 UTC publish
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore Card Kaizoku cache (skip unchanged snapshots)
+        uses: actions/cache@v4
+        with:
+          path: raw
+          key: raw-${{ github.run_id }}
+          restore-keys: raw-
+
+      - name: Ingest
+        id: ingest
+        run: python -m ingest.run
+
+      - name: Upload raw snapshots (90-day retention)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raw-${{ github.run_id }}
+          path: raw
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Commit data
+        run: |
+          git config user.name "ingest-bot"
+          git config user.email "ingest-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "chore: data snapshot $(date -u +%F)"
+          git push
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Ingest failed ${new Date().toISOString().slice(0,10)}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: 'open', labels: 'ingest' });
+            if (open.some(i => i.title === title)) return;
+            await github.rest.issues.create({ ...context.repo, title, labels: ['ingest'],
+              body: `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}` });

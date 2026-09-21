@@ -1,0 +1,88 @@
+---
+import { meta } from '../lib/data';
+interface Props { title: string; description?: string }
+const { title, description = 'OPTCG Sim ranked ladder: top players, bounties, leaders, decks and cards. Daily snapshot.' } = Astro.props;
+const path = Astro.url.pathname;
+const nav = [
+  ['/', 'Ladder'],
+  ['/leaders/', 'Leaders'],
+  ['/about/', 'About'],
+];
+const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · OPTCG Ladder</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%23d9b83d'/><text x='8' y='11.5' font-size='9' text-anchor='middle' font-family='sans-serif' font-weight='700'>฿</text></svg>" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="/">OPTCG <span>Ladder</span></a>
+      <nav>{nav.map(([href, label]) => <a href={href} class:list={{ active: active(href) }}>{label}</a>)}</nav>
+      <span class="snap" title={meta.generatedAt}>snapshot {meta.date || '–'}</span>
+    </header>
+    <main><slot /></main>
+    <footer>
+      Data: {meta.sources.map((s, i) => <>{i > 0 && ' · '}<a href={s.url} rel="noopener">{s.name}</a></>)}.
+      Unofficial fan project. One Piece Card Game is a trademark of Bandai. Not affiliated with Bandai, OPTCG Sim, OPBounty, or Card Kaizoku.
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --panel-2: #1e2230; --line: #2a2f3d; --text: #e6e8ef; --muted: #9aa0b4;
+    --accent: #d9b83d; --good: #4cc38a; --bad: #e5484d; --link: #7cb2ff;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+  main { max-width: 1200px; margin: 0 auto; padding: 1rem 1rem 3rem; }
+  header.top { display: flex; align-items: center; gap: 1.5rem; padding: .6rem 1rem; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  .brand { font-weight: 800; letter-spacing: .02em; color: var(--text); } .brand span { color: var(--accent); }
+  header nav { display: flex; gap: 1rem; } header nav a { color: var(--muted); padding: .25rem 0; border-bottom: 2px solid transparent; }
+  header nav a.active { color: var(--text); border-color: var(--accent); }
+  .snap { margin-left: auto; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  footer { max-width: 1200px; margin: 0 auto; padding: 1rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); }
+  h1 { font-size: 1.6rem; margin: .5rem 0 1rem; } h2 { font-size: 1.15rem; margin: 1.5rem 0 .6rem; color: var(--text); }
+  .muted { color: var(--muted); } .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { padding: .45rem .6rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  th.num, td.num { text-align: right; }
+  tbody tr:hover { background: var(--panel-2); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; }
+  .grid { display: grid; gap: 1rem; } .grid.two { grid-template-columns: 1fr 1fr; } .grid.stats { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  @media (max-width: 800px) { .grid.two { grid-template-columns: 1fr; } }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .75rem 1rem; }
+  .stat .label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+  .stat .value { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .chip { display: inline-flex; align-items: center; gap: .35rem; padding: .1rem .5rem; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: .8rem; white-space: nowrap; }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; }
+  .leader-img { width: 28px; height: 40px; object-fit: cover; object-position: top; border-radius: 3px; background: var(--panel-2); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-bottom: .8rem; }
+  input[type=search], select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: .45rem .7rem; font-size: .9rem; }
+  th.sortable { cursor: pointer; user-select: none; } th.sortable:hover { color: var(--text); } th.sorted::after { content: ' ▾'; color: var(--accent); } th.sorted.asc::after { content: ' ▴'; }
+  .bar { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; } .bar > i { display: block; height: 100%; background: var(--accent); }
+  details.deck { border: 1px solid var(--line); border-radius: 8px; margin-bottom: .5rem; background: var(--panel); }
+  details.deck summary { list-style: none; cursor: pointer; padding: .6rem .8rem; display: grid; grid-template-columns: 1fr auto auto auto; gap: 1rem; align-items: center; }
+  details.deck summary::-webkit-details-marker { display: none; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: .5rem; padding: .8rem; border-top: 1px solid var(--line); }
+  .card { position: relative; } .card img { width: 100%; aspect-ratio: 5/7; object-fit: cover; border-radius: 5px; background: var(--panel-2); display: block; }
+  .card .qty { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.75); color: #fff; font-weight: 700; font-size: .8rem; padding: 0 .35rem; border-radius: 4px; }
+  .card .cname { font-size: .7rem; color: var(--muted); margin-top: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src { font-size: .72rem; padding: 0 .4rem; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: .25rem; }
+  .src.opbounty { border-color: #7cb2ff55; color: #7cb2ff; } .src.kaizokuBest, .src.kaizokuPlayed { border-color: #d9b83d55; color: var(--accent); } .src.optcgone { border-color: #4cc38a55; color: var(--good); }
+  .spark { display: block; }
+  .matchup-grid td { padding: .25rem .4rem; font-size: .82rem; }
+  .heat { display: inline-block; min-width: 3.2rem; text-align: center; border-radius: 4px; padding: .1rem .3rem; font-variant-numeric: tabular-nums; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
+  pre { background: var(--panel-2); padding: .8rem; border-radius: 8px; overflow: auto; }
+  .copy { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .6rem; cursor: pointer; font-size: .8rem; } .copy:hover { border-color: var(--accent); }
+</style>

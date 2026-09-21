@@ -1,0 +1,40 @@
+---
+import Base from '../layouts/Base.astro';
+import { meta, fmt } from '../lib/data';
+const kz = meta.kaizoku as { dataset?: string; manifestDate?: string } | undefined;
+const opb = meta.opbounty as { set?: string } | undefined;
+const one = meta.optcgone as { fetchedAt?: string; rankedCount?: number } | undefined;
+---
+<Base title="About">
+  <h1>About</h1>
+  <div class="panel">
+    <p>OPTCG Ladder is a free, unofficial view of the OPTCG Sim ranked ladder: the top players, their bounty, the leaders they play, and the decks and cards winning with those leaders.</p>
+    <p>Nothing is fetched live. A scheduled job pulls each source <b>once a day</b>, merges it, and rebuilds this static site. Last snapshot: <b>{meta.date}</b> ({meta.generatedAt}).</p>
+  </div>
+
+  <h2>Data sources</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Source</th><th>What we use</th><th>Snapshot</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://stats.tcgmatchmaking.com/">OPBounty</a> <span class="muted">(TCG Match Making)</span></td><td>Standard ladder top 1,000: bounty, records, top leaders. Leader and matchup table. Ladder decklists per leader.</td><td>set <code>{opb?.set}</code></td><td>{meta.status.opbounty}</td></tr>
+        <tr><td><a href="https://www.cardkaizoku.com/">Card Kaizoku</a></td><td>Leader win/play rates, 1st/2nd split, matchup grid, best and most-played lists, per-card usage and win rate, tech cards, opening hands, top pilots per leader. Card database and images.</td><td><code>{kz?.dataset}</code> · {kz?.manifestDate}</td><td>{meta.status.kaizoku}</td></tr>
+        <tr><td><a href="https://www.optcg.one/">optcg.one</a></td><td>Ranked decklists with region / Elo tier ({fmt(one?.rankedCount, 0)} lists).</td><td>{one?.fetchedAt?.slice(0, 10)}</td><td>{meta.status.optcgone}</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:.85rem">Both OPBounty and Card Kaizoku are one-person community projects funded through Patreon. If this site is useful to you, support them:
+      <a href="https://www.patreon.com/tcgmm">TCG Match Making on Patreon</a> · <a href="https://www.patreon.com/cardkaizoku">Card Kaizoku on Patreon</a>.</p>
+  </div>
+
+  <h2>How decks are merged</h2>
+  <div class="panel" style="font-size:.9rem">
+    <p>Each source publishes decklists in its own shape. We normalise every list to <code>quantity × card id</code>, drop the leader line, sort, and hash. Lists with the same hash are one deck; its games and win rates are shown per source so you can see where each number comes from.</p>
+    <p>Per-player exact decklists are not published by any free source, so a player page shows the top-performing lists for the leaders that player pilots.</p>
+    <p>"Copy for sim" puts the list on your clipboard in the format OPTCG Sim imports.</p>
+  </div>
+
+  <h2>Privacy</h2>
+  <div class="panel" style="font-size:.9rem">
+    <p>We store only what is shown: display name, bounty, records, country and leader usage for players in the ladder top 1,000. Device identifiers and account handles present in upstream data are discarded at ingest. To have your name removed, open an issue on the repository.</p>
+  </div>
+</Base>

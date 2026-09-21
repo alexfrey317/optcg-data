@@ -1,0 +1,100 @@
+---
+import Base from '../../layouts/Base.astro';
+import LeaderChip from '../../components/LeaderChip.astro';
+import DeckCard from '../../components/DeckCard.astro';
+import { leaders, leadersByVolume, deckFile, cardFile, card, fmt, pct, volume, players, type Leader } from '../../lib/data';
+
+export function getStaticPaths() {
+  return leadersByVolume().filter((l) => volume(l) > 0).map((l) => ({ params: { code: l.code }, props: { leader: l } }));
+}
+const { leader: L } = Astro.props as { leader: Leader };
+const k = L.sources.kaizoku ?? {}, o = L.sources.opbounty ?? {};
+const decks = deckFile(L.code);
+const cardsF = cardFile(L.code);
+const SHOW = 40;
+const matchups = Object.entries(L.matchups).filter(([opp]) => leaders[opp]).slice(0, 30);
+const heat = (wr: number | null) => wr == null ? 'transparent' : wr >= 55 ? 'rgba(76,195,138,.35)' : wr >= 50 ? 'rgba(76,195,138,.15)' : wr >= 45 ? 'rgba(229,72,77,.15)' : 'rgba(229,72,77,.35)';
+const topPilotsOnLadder = players.filter((p) => p.topLeaders.some((t) => t.code === L.code)).slice(0, 10);
+const techOpps = Object.entries(cardsF.tech).filter(([opp]) => leaders[opp]).slice(0, 12);
+---
+<Base title={`${L.name} (${L.code})`}>
+  <p><a href="/leaders/">← Leaders</a></p>
+  <div style="display:flex;gap:1rem;align-items:center">
+    {L.img && <img src={L.img} alt="" style="width:72px;height:100px;object-fit:cover;object-position:top;border-radius:6px" />}
+    <div><h1 style="margin:0">{L.name} <span class="muted" style="font-size:1rem;font-weight:400">{L.code} · {L.color}</span></h1>
+      <div class="muted" style="font-size:.85rem">{fmt(k.matches as number, 0)} games last week on Card Kaizoku · {fmt(o.matches as number, 0)} on the OPBounty ladder</div></div>
+  </div>
+
+  <div class="grid stats" style="margin-top:1rem">
+    <div class="stat"><div class="label">Win rate</div><div class:list={['value', Number(k.winRate ?? o.winRate) >= 50 ? 'good' : 'bad']}>{pct((k.winRate ?? o.winRate) as number)}</div></div>
+    <div class="stat"><div class="label">Play rate</div><div class="value">{pct(k.playRate as number)}</div></div>
+    <div class="stat"><div class="label">Going 1st</div><div class="value">{pct(k.firstWinRate as number)}</div></div>
+    <div class="stat"><div class="label">Going 2nd</div><div class="value">{pct(k.secondWinRate as number)}</div></div>
+    <div class="stat"><div class="label">OPBounty win %</div><div class="value">{pct(o.winRate as number)}</div></div>
+    <div class="stat"><div class="label">Avg game</div><div class="value">{o.avgDuration ? `${Math.round(Number(o.avgDuration) / 60)} min` : '–'}</div></div>
+  </div>
+
+  <div class="grid two">
+    <section>
+      <h2>Matchups</h2>
+      <div class="panel" style="padding:0;overflow:auto">
+        <table class="matchup-grid">
+          <thead><tr><th>vs</th><th class="num">Games</th><th class="num">Win %</th><th class="num">1st</th><th class="num">2nd</th><th class="num">OPBounty</th></tr></thead>
+          <tbody>{matchups.map(([opp, s]) => { const kz = s.kaizoku ?? {}, ob = s.opbounty ?? {}; return (
+            <tr><td><LeaderChip code={opp} /></td>
+              <td class="num">{fmt(kz.games as number, 0)}</td>
+              <td class="num"><span class="heat" style={`background:${heat(kz.winRate as number)}`}>{pct(kz.winRate as number)}</span></td>
+              <td class="num">{pct(kz.firstWinRate as number)}</td><td class="num">{pct(kz.secondWinRate as number)}</td>
+              <td class="num"><span class="heat" style={`background:${heat(ob.winRate as number)}`}>{pct(ob.winRate as number)}</span></td></tr>); })}</tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>Top pilots</h2>
+      <div class="panel" style="padding:0">
+        <table>
+          <thead><tr><th>Ladder (top 1000)</th><th class="num">Bounty</th><th class="num">This leader</th></tr></thead>
+          <tbody>{topPilotsOnLadder.map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return (
+            <tr><td><span class="muted">#{p.rank}</span> <a href={`/players/${p.id}/`}>{p.name}</a></td><td class="num" style="color:var(--accent)">{fmt(p.bounty, 0)}</td>
+              <td class="num">{pct(t.winRate)} <span class="muted" style="font-size:.75rem">/ {t.matches}</span></td></tr>); })}</tbody>
+        </table>
+        {decks.topPilots.length > 0 && <>
+          <table style="margin-top:.5rem"><thead><tr><th>Card Kaizoku weekly</th><th class="num">Games</th><th class="num">Win %</th></tr></thead>
+          <tbody>{decks.topPilots.map((p) => <tr><td><span class="muted">#{p.rank}</span> {p.name}</td><td class="num">{p.games}</td><td class="num">{pct(p.winRate)}</td></tr>)}</tbody></table></>}
+      </div>
+    </section>
+  </div>
+
+  <h2>Decklists <span class="muted" style="font-size:.9rem;font-weight:400">{decks.decks.length} distinct lists · showing top {Math.min(SHOW, decks.decks.length)} by games</span></h2>
+  {decks.decks.slice(0, SHOW).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} />)}
+
+  <div class="grid two">
+    <section>
+      <h2>Card usage <span class="muted" style="font-size:.85rem;font-weight:400">Card Kaizoku, {fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists</span></h2>
+      <div class="panel" style="padding:0;max-height:640px;overflow:auto">
+        <table>
+          <thead><tr><th>Card</th><th class="num">Usage</th><th class="num">Copies</th><th class="num">Win %</th><th class="num">vs leader</th></tr></thead>
+          <tbody>{cardsF.cards.slice(0, 80).map((c) => { const k2 = card(c.id); return (
+            <tr><td title={c.id}><span class="dot" style={`background:${k2.color ? 'var(--muted)' : 'transparent'}`}></span> {k2.name} <span class="muted" style="font-size:.72rem">{k2.type?.[0]}{k2.cost && ` ${k2.cost}`}</span></td>
+              <td class="num"><div class="bar" style="width:60px;display:inline-block;vertical-align:middle;margin-right:.3rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
+              <td class="num">{fmt(c.avgCopies, 1)}</td>
+              <td class="num">{pct(c.winRate)}</td>
+              <td class:list={['num', (c.winRateVsLeader ?? 0) >= 0 ? 'good' : 'bad']}>{c.winRateVsLeader == null ? '–' : `${c.winRateVsLeader >= 0 ? '+' : ''}${fmt(c.winRateVsLeader, 2)}`}</td></tr>); })}</tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>Tech cards by matchup <span class="muted" style="font-size:.85rem;font-weight:400">strong evidence only</span></h2>
+      <div class="panel">
+        {techOpps.length === 0 && <p class="muted" style="margin:0">Not enough games for tech-card evidence this week.</p>}
+        {techOpps.map(([opp, techs]) => (
+          <div style="margin-bottom:.6rem"><div style="margin-bottom:.2rem">vs <LeaderChip code={opp} showImg={false} /></div>
+            <div style="font-size:.85rem">{techs.map((t) => <span class="chip" style="margin:.1rem" title={`${pct(t.winRateWith)} with vs ${pct(t.winRateWithout)} without · ${t.gamesWith} games`}>{card(t.id).name} <b class="good">+{fmt(t.lift)}</b></span>)}</div></div>
+        ))}
+      </div>
+      {cardsF.openingHand.length > 0 && <>
+        <h2>Most common opening-hand cards</h2>
+        <div class="panel" style="font-size:.85rem">{cardsF.openingHand.slice(0, 12).map((c) => <span class="chip" style="margin:.1rem">{card(c.id).name} <span class="muted">{pct(c.rate)}</span></span>)}</div></>}
+    </section>
+  </div>
+</Base>

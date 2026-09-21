@@ -1,0 +1,13 @@
+---
+import { leaders, card, colorVar } from '../lib/data';
+interface Props { code: string; showImg?: boolean; suffix?: string }
+const { code, showImg = true, suffix } = Astro.props;
+const L = leaders[code];
+const c = card(code);
+const name = L?.name ?? c.name ?? code;
+const img = L?.img ?? c.img;
+---
+<a class="chip" href={`/leaders/${code}/`} title={code}>
+  {showImg && img ? <img class="leader-img" style="width:18px;height:26px" src={img} alt="" loading="lazy" /> : <span class="dot" style={`background:${colorVar(L?.color ?? c.color)}`}></span>}
+  <span>{name}</span>{suffix && <span class="muted">{suffix}</span>}
+</a>

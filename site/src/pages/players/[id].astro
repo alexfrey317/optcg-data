@@ -1,0 +1,69 @@
+---
+import Base from '../../layouts/Base.astro';
+import LeaderChip from '../../components/LeaderChip.astro';
+import DeckCard from '../../components/DeckCard.astro';
+import { players, leaders, deckFile, bountyHistory, fmt, pct, flag, deckGames, type Player } from '../../lib/data';
+
+export function getStaticPaths() {
+  return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
+}
+const { player } = Astro.props as { player: Player };
+const hist = bountyHistory(player.id!);
+const W = 640, H = 160;
+let path = '', minB = 0, maxB = 0;
+if (hist.length >= 2) {
+  const ys = hist.map((h) => h[1]); minB = Math.min(...ys); maxB = Math.max(...ys);
+  const span = maxB - minB || 1;
+  path = ys.map((y, i) => `${i ? 'L' : 'M'}${(i / (ys.length - 1)) * (W - 20) + 10},${H - 20 - ((y - minB) / span) * (H - 40)}`).join(' ');
+}
+const leaderDecks = player.topLeaders.map((t) => {
+  const f = deckFile(t.code);
+  return { ...t, name: leaders[t.code]?.name ?? t.code, decks: f.decks.slice(0, 3), pilots: f.topPilots.filter((p) => p.name === player.name) };
+});
+---
+<Base title={`${player.name} · #${player.rank}`}>
+  <p><a href="/">← Ladder</a></p>
+  <h1>{flag(player.country)} {player.name} <span class="muted" style="font-size:1rem;font-weight:400">#{player.rank} · {player.faction} · {player.country ?? 'Unknown region'}</span></h1>
+
+  <div class="grid stats">
+    <div class="stat"><div class="label">Bounty</div><div class="value" style="color:var(--accent)">{fmt(player.bounty, 0)}</div></div>
+    <div class="stat"><div class="label">Record</div><div class="value">{player.wins}-{player.losses}</div></div>
+    <div class="stat"><div class="label">Win rate</div><div class:list={['value', player.winRate >= 50 ? 'good' : 'bad']}>{pct(player.winRate)}</div></div>
+    <div class="stat"><div class="label">Ranked games</div><div class="value">{fmt(player.matches, 0)}</div></div>
+  </div>
+
+  <h2>Bounty history</h2>
+  <div class="panel">
+    {hist.length >= 2 ? (
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:200px" role="img" aria-label="Bounty over time">
+        <text x="10" y="14" fill="var(--muted)" font-size="11">{fmt(maxB, 0)}</text>
+        <text x="10" y={H - 4} fill="var(--muted)" font-size="11">{fmt(minB, 0)}</text>
+        <text x={W - 10} y={H - 4} fill="var(--muted)" font-size="11" text-anchor="end">{hist[0][0]} → {hist.at(-1)![0]}</text>
+        <path d={path} fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" />
+      </svg>
+    ) : <p class="muted" style="margin:0">Tracking started {hist[0]?.[0] ?? 'today'}. The chart appears after a second daily snapshot.</p>}
+  </div>
+
+  <h2>Leaders played</h2>
+  <div class="panel" style="padding:0">
+    <table>
+      <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Share</th></tr></thead>
+      <tbody>{player.topLeaders.map((t) => (
+        <tr><td><LeaderChip code={t.code} /></td><td class="num">{fmt(t.matches, 0)}</td>
+          <td class:list={['num', (t.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(t.winRate)}</td>
+          <td class="num">{player.matches ? pct((100 * (t.matches ?? 0)) / player.matches) : '–'}</td></tr>
+      ))}</tbody>
+    </table>
+  </div>
+
+  <h2>What these leaders are winning with</h2>
+  <p class="muted" style="font-size:.85rem;margin-top:-.4rem">Exact per-player decklists are not published by any free source. These are the top-performing ranked lists for each leader this player pilots, merged from OPBounty, Card Kaizoku and optcg.one.</p>
+  {leaderDecks.map((L) => (
+    <section>
+      <h2 style="font-size:1rem"><LeaderChip code={L.code} /> <span class="muted" style="font-weight:400">· {L.name} · this player: {pct(L.winRate)} over {L.matches} games</span>
+        {L.pilots.length > 0 && <span class="chip" style="margin-left:.5rem;border-color:var(--accent)">Top {L.name} pilot #{L.pilots[0].rank} on Card Kaizoku</span>}</h2>
+      {L.decks.length ? L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} />) : <p class="muted">No decklists published for this leader.</p>}
+      <p style="font-size:.85rem"><a href={`/leaders/${L.code}/`}>All {L.name} decks and card stats →</a></p>
+    </section>
+  ))}
+</Base>
