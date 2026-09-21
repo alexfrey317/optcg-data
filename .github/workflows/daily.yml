@@ -54,6 +54,24 @@ jobs:
           git pull --rebase -X theirs origin main
           git push
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Build site
+        run: npm ci && npm run build
+        working-directory: site
+
+      - name: Deploy to Cloudflare Pages
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy dist --project-name optcg-ladder --branch main --commit-dirty=true
+        working-directory: site
+
       - name: Open issue on failure
         if: failure()
         uses: actions/github-script@v7
