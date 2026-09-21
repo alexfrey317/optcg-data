@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import Info from '../../components/Info.astro';
-import { players, leaders, deckFile, bountyHistory, fmt, pct, flag, type Player } from '../../lib/data';
+import { players, leaders, deckFile, bountyHistory, fmt, pct, berry, flag, type Player } from '../../lib/data';
 
 export function getStaticPaths() {
   return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
@@ -34,7 +34,7 @@ const main = player.topLeaders[0];
       <h1>{player.name}</h1>
       <div class="meta">Mains <b style="color:var(--text)">{main ? leaders[main.code]?.name ?? main.code : '–'}</b>{main && <> at {pct(main.winRate)} over {main.matches} games</>}.</div>
       <div class="grid stats" style="margin-top:1rem">
-        <div class="stat"><div class="label">Bounty <Info text="OPBounty ranked rating. Rises with wins and falls with losses, scaled by opponent strength." /></div><div class="value gold">{fmt(player.bounty, 0)}</div></div>
+        <div class="stat"><div class="label">Bounty <Info text="Ranked rating. Rises with wins and falls with losses, scaled by opponent strength." /></div><div class="value gold">{berry(player.bounty)}</div></div>
         <div class="stat"><div class="label">Record</div><div class="value">{player.wins}–{player.losses}</div></div>
         <div class="stat"><div class="label">Win rate</div><div class:list={['value', player.winRate >= 50 ? 'good' : 'bad']}>{pct(player.winRate)}</div></div>
         <div class="stat"><div class="label">Ranked games</div><div class="value">{fmt(player.matches, 0)}</div></div>
@@ -56,7 +56,7 @@ const main = player.topLeaders[0];
     ) : <p class="muted" style="margin:0">Tracking started {hist[0]?.[0] ?? 'today'}. The chart appears after a second daily snapshot.</p>}
   </div>
 
-  <h2>Leaders played <Info text="OPBounty reports each player's three most-played leaders. Share is that leader's portion of the player's ranked games." /></h2>
+  <h2>Leaders played <Info text="The ladder reports each player's three most-played leaders. Share is that leader's portion of the player's ranked games." /></h2>
   <div class="panel tight">
     <table>
       <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Share</th><th class="num">Leader's ladder win % <Info text="How this leader performs across all ladder players, for comparison with this player's own rate." /></th></tr></thead>
@@ -69,12 +69,12 @@ const main = player.topLeaders[0];
     </table>
   </div>
 
-  <h2>What these leaders are winning with <Info text="No free source publishes a player's exact decklist. Shown instead: the top ranked lists for each leader this player pilots, merged from OPBounty, Card Kaizoku and optcg.one." /></h2>
+  <h2>What these leaders are winning with <Info text="No free source publishes a player's exact decklist. Shown instead: the top ranked lists for each leader this player pilots." /></h2>
   {leaderDecks.map((L) => (
     <section style="margin-bottom:1.5rem">
       <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
         <LeaderArt code={L.code} size="lg" sub={`this player: ${pct(L.winRate)} · ${L.matches} games`} />
-        {L.pilot && <span class="chip" style="border-color:var(--accent);color:var(--accent-2)">#{L.pilot.rank} {L.name} pilot last week on Card Kaizoku <Info text="Card Kaizoku ranks the top pilots of each leader by weighted win rate over the last week. This player made that list." /></span>}
+        {L.pilot && <span class="chip" style="border-color:var(--accent);color:var(--accent-2)">#{L.pilot.rank} {L.name} pilot last week <Info text="Top pilots of each leader are ranked by weighted win rate over the last week. This player made that list." /></span>}
       </div>
       {L.decks.length ? L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} />) : <p class="muted">No decklists published for this leader.</p>}
       <p class="small"><a href={`/leaders/${L.code}/`}>All {L.name} decks, matchups and card stats →</a></p>

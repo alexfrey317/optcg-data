@@ -3,7 +3,7 @@ import { meta } from '../lib/data';
 interface Props { title: string; description?: string; wide?: boolean }
 const { title, description = 'OPTCG Sim ranked ladder: top players, bounties, leaders, decks and cards. Daily snapshot.', wide = false } = Astro.props;
 const path = Astro.url.pathname;
-const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/about/', 'About']];
+const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups'], ['/about/', 'About']];
 const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 ---
 <!doctype html>
@@ -50,8 +50,8 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
     </script>
     <footer class:list={['wrap', { wide }]}>
-      <div>Data: {meta.sources.map((s, i) => <>{i > 0 && ' · '}<a href={s.url} rel="noopener">{s.name}</a></>)} · refreshed once a day.</div>
-      <div>Unofficial fan project. One Piece Card Game is a trademark of Bandai. Not affiliated with Bandai, OPTCG Sim, OPBounty, or Card Kaizoku.</div>
+      <div>Standard ranked data, refreshed once a day. <a href="/about/">Sources and methodology</a>.</div>
+      <div>Unofficial fan project. One Piece Card Game is a trademark of Bandai. Not affiliated with Bandai or OPTCG Sim.</div>
     </footer>
   </body>
 </html>
@@ -155,6 +155,26 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .pill-rank { display: inline-grid; place-items: center; min-width: 2.2rem; height: 2.2rem; border-radius: 10px; background: var(--panel-2); color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; border: 1px solid var(--line); }
   tr.top1 .pill-rank { background: linear-gradient(160deg, var(--accent-2), #b8901f); color: #1a1405; border-color: transparent; }
   tr.top3 .pill-rank { border-color: var(--accent); color: var(--accent-2); }
+  /* rankings: wide landscape crop of the card art */
+  .art-wide { display: block; width: 132px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line-2); position: relative; }
+  .art-wide img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block; }
+  .art-wide::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--lc); }
+  .leader-link { color: var(--text); font-weight: 600; } .leader-link:hover { color: var(--accent-2); text-decoration: none; }
+  .rank-table td { padding-top: .45rem; padding-bottom: .45rem; } .delta { font-weight: 600; }
+  /* matchup breakdown strip */
+  .breakdown th, .breakdown td { text-align: center; padding: .5rem .45rem; }
+  .breakdown thead th:first-child, .breakdown tbody th { text-align: left; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  .breakdown tbody td { font-weight: 600; font-variant-numeric: tabular-nums; font-size: .92rem; }
+  .breakdown tbody tr:first-child td { font-size: 1rem; border-radius: 6px; }
+  .breakdown .leader-frame { margin: 0 auto; }
+  /* opening hand */
+  .hand-row { display: flex; gap: .8rem; overflow-x: auto; padding-bottom: .25rem; }
+  .hand-card { flex: none; width: 104px; } .hand-card img { width: 100%; aspect-ratio: 5/7; object-fit: cover; border-radius: 7px; display: block; box-shadow: 0 6px 14px -8px rgba(0,0,0,.9); margin-bottom: .3rem; }
+  /* full matrix */
+  .matrix th, .matrix td { text-align: center; padding: .35rem; border-bottom: 1px solid var(--line); }
+  .matrix thead th { background: transparent; position: static; } .matrix tbody th { text-align: center; }
+  .matrix td { min-width: 66px; font-variant-numeric: tabular-nums; border-radius: 6px; } .matrix td.self { background: var(--panel-2); }
+  .matrix .leader-frame { margin: 0 auto; }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
   pre { background: var(--panel-2); padding: .8rem; border-radius: 8px; overflow: auto; }
 </style>

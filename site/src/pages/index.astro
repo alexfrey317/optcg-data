@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import LeaderArt from '../components/LeaderArt.astro';
 import Sparkline from '../components/Sparkline.astro';
 import Info from '../components/Info.astro';
-import { players, leaders, meta, fmt, pct, flag, bountyHistory } from '../lib/data';
+import { players, leaders, meta, fmt, pct, berry, flag, bountyHistory } from '../lib/data';
 
 const rows = players.map((p) => ({ ...p, hist: p.id != null ? bountyHistory(p.id).map((h) => h[1]) : [] }));
 const countries = [...new Set(players.map((p) => p.country).filter(Boolean))].sort() as string[];
@@ -15,13 +15,13 @@ const days = Math.max(...rows.map((r) => r.hist.length), 1);
   <div class="hero">
     <div>
       <h1>OPTCG Sim ranked ladder</h1>
-      <div class="meta">Top {fmt(players.length, 0)} players on the OPBounty Standard ladder, with the leaders they pilot and the lists winning with those leaders. Updated once a day.</div>
+      <div class="meta">Top {fmt(players.length, 0)} players on the Standard ranked ladder, with the leaders they pilot and the lists winning with those leaders. Updated once a day.</div>
     </div>
   </div>
 
   <div class="grid stats">
-    <div class="stat"><div class="label">Top bounty <Info text="Bounty is OPBounty's ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{fmt(players[0]?.bounty, 0)}</div></div>
-    <div class="stat"><div class="label">#{fmt(players.length, 0)} bounty <Info text="The bounty of the lowest player shown. Anyone above it is on this page." /></div><div class="value">{fmt(players.at(-1)?.bounty, 0)}</div></div>
+    <div class="stat"><div class="label">Top bounty <Info text="Bounty is your ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{berry(players[0]?.bounty)}</div></div>
+    <div class="stat"><div class="label">#{fmt(players.length, 0)} bounty <Info text="The bounty of the lowest player shown. Anyone above it is on this page." /></div><div class="value">{berry(players.at(-1)?.bounty)}</div></div>
     <div class="stat"><div class="label">Ranked games <Info text="Sum of ranked games recorded for the players on this page." /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
     <div class="stat"><div class="label">Days tracked <Info text="Number of daily snapshots we have. Bounty trend lines get longer as this grows." /></div><div class="value">{days}</div></div>
   </div>
@@ -38,7 +38,7 @@ const days = Math.max(...rows.map((r) => r.hist.length), 1);
       <thead><tr>
         <th class="num sortable sorted" data-k="rank">#</th>
         <th>Player</th>
-        <th class="num sortable" data-k="bounty">Bounty <Info text="OPBounty ranked rating. Higher is better. Roughly 1,500 for a new account; the top players sit above 4,000." /></th>
+        <th class="num sortable" data-k="bounty">Bounty <Info text="Ranked rating. Higher is better. Roughly 1,500 for a new account; the top players sit above 4,000." /></th>
         <th>Trend <Info text="Daily bounty since we started tracking this player. Gold means up since the first snapshot, red means down. Needs at least two days of data." /></th>
         <th class="num sortable" data-k="matches">Games <Info text="Ranked games played, with the win–loss record underneath." /></th>
         <th class="num sortable" data-k="winRate">Win % <Info text="Wins divided by ranked games played." /></th>
@@ -51,7 +51,7 @@ const days = Math.max(...rows.map((r) => r.hist.length), 1);
             <td class="num"><span class="pill-rank">{p.rank}</span></td>
             <td><a href={p.id != null ? `/players/${p.id}/` : undefined} style="font-weight:600;color:var(--text)">{p.name}</a>
               {p.country && <div class="muted small">{flag(p.country)} {p.country}</div>}</td>
-            <td class="num gold" style="font-weight:700;font-size:1.02rem">{fmt(p.bounty, 0)}</td>
+            <td class="num gold" style="font-weight:700;font-size:1.02rem">{berry(p.bounty)}</td>
             <td><Sparkline points={p.hist} width={96} height={26} /></td>
             <td class="num">{p.matches ? <>{fmt(p.matches, 0)}<div class="muted small">{p.wins}–{p.losses}</div></> : <span class="dim">–</span>}</td>
             <td class:list={['num', p.winRate >= 50 ? 'good' : 'bad']} style="font-weight:600">{p.matches ? pct(p.winRate) : <span class="dim">–</span>}</td>

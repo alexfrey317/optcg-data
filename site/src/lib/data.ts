@@ -61,14 +61,42 @@ export const leadersByVolume = (): Leader[] =>
   Object.values(leaders).sort((a, b) => volume(b) - volume(a));
 export const volume = (l: Leader) => Number(l.sources.kaizoku?.matches ?? 0) + Number(l.sources.opbounty?.matches ?? 0);
 
-/** Total games across all sources for a deck. */
-export const deckGames = (d: Deck) => Object.values(d.sources).reduce((n, s) => n + Number(s.games ?? 0), 0);
-
-/** Best available win rate for a deck: prefer OPBounty ladder, then Kaizoku, then optcg.one. */
-export const deckWinRate = (d: Deck): number | null => {
-  const s = d.sources.opbounty ?? d.sources.kaizokuBest ?? d.sources.kaizokuPlayed ?? d.sources.optcgone;
-  return s?.winRate == null ? null : Number(s.winRate);
+/** Consolidated deck stats. The ladder feed and the ranked-decklist feed describe the same match pool, so we take the
+ *  larger of the two rather than adding them; the sim-wide pool is a separate set of games and is added. Win rate is games-weighted. */
+export const deckStats = (d: Deck): { games: number; winRate: number | null; pilots: number | null } => {
+  const o = d.sources.opbounty, n = d.sources.optcgone, k = d.sources.kaizokuBest ?? d.sources.kaizokuPlayed;
+  const ladder = (Number(o?.games ?? 0) >= Number(n?.games ?? 0) ? o : n) ?? null;
+  const pools = [ladder, k].filter(Boolean) as SourceStats[];
+  const games = pools.reduce((s, p) => s + Number(p.games ?? 0), 0);
+  const wins = pools.reduce((s, p) => s + Number(p.games ?? 0) * Number(p.winRate ?? 0) / 100, 0);
+  return { games, winRate: games ? Math.round((wins / games) * 1000) / 10 : null, pilots: k?.pilots != null ? Number(k.pilots) : null };
 };
+export const deckGames = (d: Deck) => deckStats(d).games;
+export const deckWinRate = (d: Deck) => deckStats(d).winRate;
+
+/** Berry sign for bounty values. */
+export const berry = (n: number | null | undefined) => (n == null ? '–' : `฿${fmt(n, 0)}`);
+
+/** Matchup cell for leader a vs b: prefer the sim-wide pool (has 1st/2nd), fall back to the ladder pool. */
+export const matchup = (a: string, b: string) => {
+  const m = leaders[a]?.matchups?.[b];
+  const s = m?.kaizoku ?? m?.opbounty;
+  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: s.firstWinRate == null ? null : Number(s.firstWinRate), second: s.secondWinRate == null ? null : Number(s.secondWinRate) } : null;
+};
+/** Leader headline numbers from whichever pool has them. */
+export const leaderStats = (l: Leader) => {
+  const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {};
+  return {
+    games: Number(k.matches ?? 0) + Number(o.matches ?? 0),
+    winRate: (k.winRate ?? o.winRate) == null ? null : Number(k.winRate ?? o.winRate),
+    weighted: k.weightedWinRate == null ? null : Number(k.weightedWinRate),
+    playRate: k.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(k.playRate),
+    first: k.firstWinRate == null ? null : Number(k.firstWinRate),
+    second: k.secondWinRate == null ? null : Number(k.secondWinRate),
+    avgDuration: o.avgDuration == null ? null : Number(o.avgDuration),
+  };
+};
+export const heat = (wr: number | null) => wr == null ? 'transparent' : wr >= 55 ? 'rgba(79,209,143,.32)' : wr >= 50 ? 'rgba(79,209,143,.14)' : wr >= 45 ? 'rgba(239,90,96,.14)' : 'rgba(239,90,96,.32)';
 
 export const fmt = (n: number | string | null | undefined, digits = 1) =>
   n == null || n === '' ? '–' : typeof n === 'number' ? n.toLocaleString('en-US', { maximumFractionDigits: digits }) : String(n);

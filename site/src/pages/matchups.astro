@@ -1,0 +1,28 @@
+---
+import Base from '../layouts/Base.astro';
+import LeaderArt from '../components/LeaderArt.astro';
+import Info from '../components/Info.astro';
+import { leadersByVolume, volume, matchup, heat, fmt, pct } from '../lib/data';
+
+const N = 16;
+const top = leadersByVolume().filter((l) => volume(l) > 0).slice(0, N);
+---
+<Base title="Matchup matrix" wide>
+  <div class="hero"><div><h1>Matchup matrix <Info text="Row leader's win rate against the column leader, with the number of games underneath. Green favours the row leader. Standard ranked, last week." /></h1>
+    <div class="meta">The {N} most-played leaders. Read across a row: how that leader does into each opponent.</div></div></div>
+  <div class="panel scroll">
+    <table class="matrix">
+      <thead><tr><th></th>{top.map((c) => <th><LeaderArt code={c.code} size="md" label={false} /></th>)}</tr></thead>
+      <tbody>{top.map((r) => (
+        <tr>
+          <th><LeaderArt code={r.code} size="md" label={false} /></th>
+          {top.map((c) => { if (c.code === r.code) return <td class="self"></td>; const m = matchup(r.code, c.code); return (
+            <td style={`background:${heat(m?.winRate ?? null)}`} title={`${r.name} vs ${c.name}`}>
+              <div class:list={[m?.winRate == null ? 'dim' : m.winRate >= 50 ? 'good' : 'bad']} style="font-weight:700">{pct(m?.winRate)}</div>
+              <div class="muted small">{m ? fmt(m.games, 0) : ''}</div>
+            </td>); })}
+        </tr>
+      ))}</tbody>
+    </table>
+  </div>
+</Base>

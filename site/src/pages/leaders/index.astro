@@ -1,45 +1,57 @@
 ---
 import Base from '../../layouts/Base.astro';
-import LeaderArt from '../../components/LeaderArt.astro';
 import Info from '../../components/Info.astro';
-import { leadersByVolume, fmt, pct, volume, players } from '../../lib/data';
+import { leadersByVolume, fmt, pct, volume, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory } from '../../lib/data';
 
-const rows = leadersByVolume().filter((l) => volume(l) > 0);
+const rows = leadersByVolume().filter((l) => volume(l) > 0).map((l) => ({ l, s: leaderStats(l) }));
+rows.sort((a, b) => (b.s.weighted ?? b.s.winRate ?? 0) - (a.s.weighted ?? a.s.winRate ?? 0));
 const pilots = new Map<string, number>();
 for (const p of players) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
+const totalGames = rows.reduce((n, r) => n + Number(r.l.sources.kaizoku?.matches ?? 0), 0);
+// 1-day rank movement from leader history (winRate index 1)
+const prevRank = new Map<string, number>();
+{
+  const prev = rows.map((r) => ({ code: r.l.code, h: leaderHistory(r.l.code) })).filter((x) => x.h.length >= 2)
+    .map((x) => ({ code: x.code, wr: Number(x.h.at(-2)![1] ?? 0) })).sort((a, b) => b.wr - a.wr);
+  prev.forEach((x, i) => prevRank.set(x.code, i + 1));
+}
 ---
-<Base title="Leaders" wide>
-  <div class="hero"><div><h1>Leaders</h1><div class="meta">{rows.length} leaders with ranked games last week. Click a column to sort, a leader to see matchups, decks and card stats.</div></div></div>
+<Base title="Leader rankings" wide>
+  <div class="hero"><div><h1>Leader rankings</h1><div class="meta">Standard ranked, last week. <b style="color:var(--text)">{fmt(totalGames, 0)}</b> games played. Sorted by weighted win rate; click any column to re-sort.</div></div></div>
   <div class="panel scroll">
-    <table id="t">
+    <table id="t" class="rank-table">
       <thead><tr>
+        <th class="num">Rank</th>
+        <th class="num">Δ 1D <Info text="Rank change since yesterday's snapshot." /></th>
+        <th>Card</th>
         <th>Leader</th>
-        <th class="num sortable" data-k="play">Play % <Info text="Share of all ranked games last week in which this leader appeared (Card Kaizoku, private lobbies)." /></th>
-        <th class="num sortable sorted" data-k="games">Games <Info text="Ranked games last week on Card Kaizoku." /></th>
-        <th class="num sortable" data-k="wr">Win % <Info text="Raw win rate across all pilots of the leader last week." /></th>
-        <th class="num sortable" data-k="first">Going 1st <Info text="Win rate when this leader took the first turn." /></th>
-        <th class="num sortable" data-k="second">Going 2nd <Info text="Win rate when this leader took the second turn." /></th>
-        <th class="num sortable" data-k="opb">OPBounty win % <Info text="The same leader's win rate on the OPBounty ladder, a different match pool. Large gaps between the two columns usually mean a small sample." /></th>
-        <th class="num sortable" data-k="top">Top-1000 pilots <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
-        <th class="num">Lists <Info text="Distinct 50-card lists we have for this leader across all sources." /></th>
+        <th class="num sortable sorted" data-k="wtd">Wtd WR <Info text="Weighted win rate: raw win rate shrunk toward 50% for leaders with few games, so a leader with 200 games cannot outrank one with 20,000 on a lucky week." /></th>
+        <th class="num sortable" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
+        <th class="num sortable" data-k="play">Play rate <Info text="Share of all ranked games last week in which this leader appeared." /></th>
+        <th class="num sortable" data-k="games">Games</th>
+        <th class="num sortable" data-k="first">1st WR <Info text="Win rate when this leader took the first turn." /></th>
+        <th class="num sortable" data-k="second">2nd WR <Info text="Win rate when this leader took the second turn." /></th>
+        <th class="num sortable" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
       </tr></thead>
-      <tbody>{rows.map((l) => { const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {}; const wr = Number(k.winRate ?? o.winRate ?? 0); return (
-        <tr data-play={k.playRate ?? 0} data-games={volume(l)} data-wr={wr} data-first={k.firstWinRate ?? 0} data-second={k.secondWinRate ?? 0} data-opb={o.winRate ?? 0} data-top={pilots.get(l.code) ?? 0}>
-          <td><LeaderArt code={l.code} size="md" sub={`${l.code} · ${l.color ?? ''}`} /></td>
-          <td class="num"><div class="bar" style="width:70px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${Math.min(100, Number(k.playRate ?? 0) * 3)}%`}></i></div>{pct(k.playRate as number)}</td>
-          <td class="num">{fmt(k.matches as number, 0)}</td>
-          <td class:list={['num', wr >= 50 ? 'good' : 'bad']} style="font-weight:700">{pct(wr)}</td>
-          <td class="num">{pct(k.firstWinRate as number)}</td>
-          <td class="num">{pct(k.secondWinRate as number)}</td>
-          <td class="num">{pct(o.winRate as number)}</td>
+      <tbody>{rows.map(({ l, s }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); return (
+        <tr data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
+          <td class="num"><span class="pill-rank">{i + 1}</span></td>
+          <td class:list={['num', 'delta', d == null || d === 0 ? 'dim' : d > 0 ? 'good' : 'bad']}>{d == null || d === 0 ? '—' : d > 0 ? `↑${d}` : `↓${-d}`}</td>
+          <td><a href={`/leaders/${l.code}/`} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" onerror={imgOnError(l.code)} /></a></td>
+          <td><a href={`/leaders/${l.code}/`} class="leader-link"><span class="muted">[{l.code}]</span> {l.name}</a></td>
+          <td class:list={['num', (s.weighted ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:700">{pct(s.weighted)}</td>
+          <td class:list={['num', (s.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.winRate)}</td>
+          <td class="num">{pct(s.playRate)}</td>
+          <td class="num muted">{fmt(l.sources.kaizoku?.matches as number, 0)}</td>
+          <td class:list={['num', (s.first ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.first)}</td>
+          <td class:list={['num', (s.second ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.second)}</td>
           <td class="num">{pilots.get(l.code) ?? 0}</td>
-          <td class="num muted">{l.deckCount}</td>
         </tr>); })}</tbody>
     </table>
   </div>
   <script>
     const tbody = document.querySelector('#t tbody')!; const rows = [...tbody.querySelectorAll('tr')] as HTMLElement[];
-    let key = 'games', asc = false;
+    let key = 'wtd', asc = false;
     document.querySelectorAll('th.sortable').forEach((th) => th.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.info')) return;
       const k = (th as HTMLElement).dataset.k!; if (key === k) asc = !asc; else { key = k; asc = false; }
