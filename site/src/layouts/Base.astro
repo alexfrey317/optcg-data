@@ -96,7 +96,8 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .leader-frame { position: relative; flex: none; border-radius: 6px; overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line-2), 0 4px 12px -6px rgba(0,0,0,.9); }
   .leader-frame::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: var(--lc); }
   .leader-frame img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
-  .leader-blank { display: grid; place-items: center; width: 100%; height: 100%; font-size: .6rem; color: var(--dim); }
+  .noimg { background: repeating-linear-gradient(135deg, var(--panel-2) 0 6px, var(--panel) 6px 12px); }
+  .card.noimg::before { content: attr(title); position: absolute; inset: 0; display: grid; place-items: center; padding: .5rem; font-size: .72rem; color: var(--muted); text-align: center; }
   .leader-sm .leader-frame { width: 52px; height: 72px; } .leader-md .leader-frame { width: 64px; height: 88px; border-radius: 8px; } .leader-lg .leader-frame { width: 96px; height: 134px; border-radius: 10px; } .leader-xl .leader-frame { width: 180px; height: 252px; border-radius: 14px; }
   .leader-frame img { object-position: 50% 8%; } .leader-xl .leader-frame img, .leader-lg .leader-frame img { object-position: 50% 0; }
   .leader-sm .leader-name { font-size: .95rem; } .leader-sm .leader-sub { font-size: .8rem; }

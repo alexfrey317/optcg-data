@@ -35,12 +35,11 @@ export interface CardFile {
 export interface Card { name: string; type: string; cost: string; color: string; power: string; counter: string; rarity: string; img: string; set: string }
 export interface Meta { generatedAt: string; date: string; status: Record<string, string>; players: number; leaders: number; sources: { name: string; url: string; support?: string }[]; [k: string]: unknown }
 
-/** Official Bandai card image (no watermark, loads cross-site). */
-export const imgUrl = (id: string) => `https://en.onepiece-cardgame.com/images/cardlist/card/${id}.png`;
-/** Fallback if Bandai lacks the card (some promos): Limitless CDN. Used via onerror. */
-export const imgFallback = (id: string) => `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${id.split('-')[0]}/${id}_EN.webp`;
-/** Inline onerror handler: try the fallback once, then hide the broken image. */
-export const imgOnError = (id: string) => `if(!this.dataset.f){this.dataset.f=1;this.src='${imgFallback(id)}'}else{this.style.visibility='hidden'}`;
+/** Card image. Limitless CDN: no watermark and no Cross-Origin-Resource-Policy header, so it embeds cross-site.
+ *  (Card Kaizoku's CDN 403s on foreign referers; Bandai's official images send CORP: same-site and are blocked by browsers.) */
+export const imgUrl = (id: string) => `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${id.split('-')[0]}/${id}_EN.webp`;
+/** Inline onerror handler: swap in a labelled placeholder (promos are missing upstream). */
+export const imgOnError = (_id: string) => `this.style.visibility='hidden';this.parentElement.classList.add('noimg')`;
 
 export const meta = readJson<Meta>(join(LATEST, 'meta.json'), { generatedAt: '', date: '', status: {}, players: 0, leaders: 0, sources: [] });
 export const players = readJson<Player[]>(join(LATEST, 'players.json'), []);
