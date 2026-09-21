@@ -1,0 +1,12 @@
+---
+import { WINDOWS, WINDOW_KEYS, windowMeta, type Win } from '../lib/data';
+/** 7-day / 30-day switch. `path` is the window-relative path of the current page (e.g. '/leaders/'). */
+interface Props { current: Win; path: string }
+const { current, path } = Astro.props;
+const wm = windowMeta(current);
+const partial = current !== '7d' && wm && wm.days < wm.targetDays;
+---
+<div class="wtoggle" role="tablist" aria-label="Time window">
+  {WINDOW_KEYS.map((w) => <a role="tab" aria-selected={w === current} class:list={{ on: w === current }} href={`${WINDOWS[w].base}${path}`}>{WINDOWS[w].label}</a>)}
+  {partial && <span class="muted small" title="Daily snapshots are collected once a day; the window fills in as days accumulate.">collecting: {wm!.days} of {wm!.targetDays} days so far ({wm!.start} → {wm!.end})</span>}
+</div>

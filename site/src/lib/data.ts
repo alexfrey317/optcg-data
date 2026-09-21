@@ -140,4 +140,48 @@ const COUNTRY_CODES: Record<string, string> = {
   'Puerto Rico': 'PR', 'Czech Republic': 'CZ', 'Hungary': 'HU', 'Romania': 'RO', 'Israel': 'IL',
 };
 
+/* ---------------------------------------------------------------- time windows */
+export type Win = '7d' | '30d';
+export const WINDOWS: Record<Win, { label: string; short: string; base: string }> = {
+  '7d': { label: 'Last 7 Days', short: '7 days', base: '' },
+  '30d': { label: 'Last 30 Days', short: '30 days', base: '/30d' },
+};
+export const WINDOW_KEYS = Object.keys(WINDOWS) as Win[];
+const WDIR = join(ROOT, 'windows');
+export interface WindowMeta { days: number; targetDays: number; start: string | null; end: string | null; matches: number }
+export const windowMeta = (w: Win): WindowMeta | null =>
+  w === '7d' ? { days: 7, targetDays: 7, start: null, end: meta.date, matches: Object.values(leaders).reduce((n, l) => n + Number(l.sources.kaizoku?.matches ?? 0), 0) / 2 }
+             : readJson<WindowMeta | null>(join(WDIR, w, 'meta.json'), null);
+const windowLeadersCache: Partial<Record<Win, Record<string, Leader>>> = {};
+export const leadersFor = (w: Win): Record<string, Leader> => {
+  if (w === '7d') return leaders;
+  if (!windowLeadersCache[w]) {
+    const ls = readJson<Record<string, Leader>>(join(WDIR, w, 'leaders.json'), {});
+    for (const [code, l] of Object.entries(ls)) { l.img = imgUrl(code); l.color ??= leaders[code]?.color ?? null; }
+    windowLeadersCache[w] = ls;
+  }
+  return windowLeadersCache[w]!;
+};
+export const leadersByVolumeFor = (w: Win): Leader[] => Object.values(leadersFor(w)).filter((l) => volume(l) > 0).sort((a, b) => volume(b) - volume(a));
+export const deckFileFor = (w: Win, code: string): DeckFile =>
+  w === '7d' ? deckFile(code) : readJson<DeckFile>(join(WDIR, w, 'decks', `${code}.json`), { leader: code, decks: [], topPilots: [] });
+export const matchupIn = (ls: Record<string, Leader>, a: string, b: string) => {
+  const m = ls[a]?.matchups?.[b];
+  const s = m?.kaizoku ?? m?.opbounty;
+  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: s.firstWinRate == null ? null : Number(s.firstWinRate), second: s.secondWinRate == null ? null : Number(s.secondWinRate) } : null;
+};
+/** Route prefix for a window: '' for the default 7-day view, '/30d' otherwise. */
+export const wpath = (w: Win, path: string) => `${WINDOWS[w].base}${path}`;
+
+/** Pilot score for "Best Pilots": win rate with the leader, shrunk toward 50% for small samples, plus a bounty bonus.
+ *  +1 point per 200 bounty above 3,000 so a ฿4,500 pilot at 60% outranks a ฿3,000 pilot at 62%. */
+export const pilotScore = (winRate: number | null, games: number | null, bounty: number) => {
+  const g = games ?? 0, wr = winRate ?? 50;
+  const adj = (wr * g + 50 * 20) / (g + 20);
+  return Math.round((adj + (bounty - 3000) / 200) * 10) / 10;
+};
+
+/** Title Case for headings (keeps all-caps tokens like OPTCG). */
+export const titleCase = (s: string) => s.replace(/\b([a-z])(\w*)/g, (_m, a: string, b: string) => a.toUpperCase() + b);
+
 export const listDeckFiles = () => (existsSync(join(LATEST, 'decks')) ? readdirSync(join(LATEST, 'decks')).map((f) => f.replace(/\.json$/, '')) : []);

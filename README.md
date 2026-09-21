@@ -1,4 +1,4 @@
-# OPTCG Ladder
+# OPTCG Data
 
 Free, static site showing the OPTCG Sim ranked ladder: top players and bounty, the leaders they
 play, and the decks and cards winning with those leaders. Data is pulled **once a day** by a
@@ -33,7 +33,7 @@ OPBounty calls (2.0), `KAIZOKU_DATASET` (`op17_lw_p`).
 
 ## Deploy (Cloudflare Pages, free)
 
-Live at https://optcg-ladder.pages.dev (classic Pages project, direct upload).
+Live at https://optcg-data.pages.dev (classic Pages project, direct upload).
 
 The daily workflow builds `site/` and runs `wrangler pages deploy` when the repo secrets
 `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set. Create the token in the Cloudflare
@@ -46,7 +46,7 @@ gh secret set CLOUDFLARE_API_TOKEN   # paste the token when prompted
 Manual deploy from a machine that has run `wrangler login`:
 
 ```bash
-cd site && npm run build && npx wrangler pages deploy dist --project-name optcg-ladder --branch main
+cd site && npm run build && npx wrangler pages deploy dist --project-name optcg-data --branch main
 ```
 
 ## Request budget per day

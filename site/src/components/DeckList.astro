@@ -1,0 +1,9 @@
+---
+/** Wraps a list of <DeckCard>s; shows the first `limit`, the rest behind a "Show more" button (handled in Base.astro). */
+interface Props { limit?: number; total: number; noun?: string }
+const { limit = 5, total, noun = 'lists' } = Astro.props;
+---
+<div class="decklist" data-limit={limit} data-noun={noun}>
+  <slot />
+  {total > limit && <button type="button" class="show-more copy" data-total={total}>Show {total - limit} more {noun}</button>}
+</div>

@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
+import DeckList from '../../components/DeckList.astro';
 import Info from '../../components/Info.astro';
 import { players, leaders, deckFile, bountyHistory, playerDecks, fmt, pct, berry, flag, heat, type Player } from '../../lib/data';
 
@@ -21,7 +22,7 @@ if (hist.length >= 2) {
 }
 const leaderDecks = player.topLeaders.map((t) => {
   const f = deckFile(t.code);
-  return { ...t, name: leaders[t.code]?.name ?? t.code, decks: f.decks.slice(0, 3), pilot: f.topPilots.find((p) => p.name === player.name) };
+  return { ...t, name: leaders[t.code]?.name ?? t.code, decks: f.decks.slice(0, 10), pilot: f.topPilots.find((p) => p.name === player.name) };
 });
 const main = player.topLeaders[0];
 const own = playerDecks(player.id!);
@@ -45,7 +46,7 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
     </div>
   </div>
 
-  <h2>Bounty history <Info text="One point per daily snapshot. We only keep history for players who have appeared in the top 1,000." /></h2>
+  <h2>Bounty History <Info text="One point per daily snapshot. We only keep history for players who have appeared in the top 1,000." /></h2>
   <div class="panel">
     {hist.length >= 2 ? (
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:220px;display:block" role="img" aria-label="Bounty over time">
@@ -59,10 +60,10 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
     ) : <p class="muted" style="margin:0">Tracking started {hist[0]?.[0] ?? 'today'}. The chart appears after a second daily snapshot.</p>}
   </div>
 
-  <h2>Leaders played <Info text="The ladder reports each player's three most-played leaders. Share is that leader's portion of the player's ranked games." /></h2>
+  <h2>Leaders Played <Info text="The ladder reports each player's three most-played leaders. Share is that leader's portion of the player's ranked games." /></h2>
   <div class="panel tight">
     <table>
-      <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Share</th><th class="num">Leader's ladder win % <Info text="How this leader performs across all ladder players, for comparison with this player's own rate." /></th></tr></thead>
+      <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Share</th><th class="num">Leader's Ladder Win % <Info text="How this leader performs across all ladder players, for comparison with this player's own rate." /></th></tr></thead>
       <tbody>{player.topLeaders.map((t) => { const lw = leaders[t.code]?.sources.opbounty?.winRate ?? leaders[t.code]?.sources.kaizoku?.winRate; return (
         <tr><td><LeaderArt code={t.code} size="md" /></td><td class="num">{fmt(t.matches, 0)}</td>
           <td class:list={['num', (t.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{pct(t.winRate)}</td>
@@ -74,7 +75,7 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
 
   {own && ownByLeader.length > 0 ? (
     <>
-      <h2>Decks played <span class="sub">ranked · {own.window.start} → {own.window.end} · {fmt(own.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked private-lobby games over the last ${own.window.days} days, from the sim's match records. Games and win rate are this player's own results with each list.`} /></h2>
+      <h2>Decks Played <span class="sub">ranked · {own.window.start} → {own.window.end} · {fmt(own.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked private-lobby games over the last ${own.window.days} days, from the sim's match records. Games and win rate are this player's own results with each list.`} /></h2>
       <div class="grid stats" style="margin-bottom:1rem">
         <div class="stat"><div class="label">Win rate <Info text="This player's ranked win rate over the window." /></div><div class:list={['value', cls(own.winRate)]}>{pct(own.winRate)}</div></div>
         <div class="stat"><div class="label">Going 1st <Info text="Win rate in games where this player took the first turn." /></div><div class:list={['value', cls(own.turns?.firstWinRate)]}>{pct(own.turns?.firstWinRate)} <span class="muted small">/ {own.turns?.firstGames ?? 0}</span></div></div>
@@ -95,13 +96,13 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
               <tr><th>Win rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
               <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
             </tbody></table></div>}
-          {L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}
+          <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList>
           <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? leaders[L.code]?.name ?? L.code} lists, matchups and card stats →</a></p>
         </section>
       ))}
     </>
   ) : (
-    <h2>What these leaders are winning with <Info text="We could not link this ladder name to a sim account with recent ranked games, so exact lists are unavailable. Shown instead: the top ranked lists for each leader this player pilots." /></h2>
+    <h2>What These Leaders Are Winning With <Info text="We could not link this ladder name to a sim account with recent ranked games, so exact lists are unavailable. Shown instead: the top ranked lists for each leader this player pilots." /></h2>
   )}
   {!(own && ownByLeader.length > 0) && leaderDecks.map((L) => (
     <section style="margin-bottom:1.5rem">
@@ -109,7 +110,7 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
         <LeaderArt code={L.code} size="lg" sub={`this player: ${pct(L.winRate)} · ${L.matches} games`} />
         {L.pilot && <span class="chip" style="border-color:var(--accent);color:var(--accent-2)">#{L.pilot.rank} {L.name} pilot last week <Info text="Top pilots of each leader are ranked by weighted win rate over the last week. This player made that list." /></span>}
       </div>
-      {L.decks.length ? L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />) : <p class="muted">No decklists published for this leader.</p>}
+      {L.decks.length ? <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList> : <p class="muted">No decklists published for this leader.</p>}
       <p class="small"><a href={`/leaders/${L.code}/`}>All {L.name} decks, matchups and card stats →</a></p>
     </section>
   ))}

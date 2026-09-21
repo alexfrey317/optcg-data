@@ -11,9 +11,9 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} · OPTCG Ladder</title>
+    <title>{title} · OPTCG Data</title>
     <meta name="description" content={description} />
-    <meta property="og:title" content={`${title} · OPTCG Ladder`} />
+    <meta property="og:title" content={`${title} · OPTCG Data`} />
     <meta property="og:description" content={description} />
     <link rel="preconnect" href="https://cdn.cardkaizoku.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%23e8c04a'/><text x='8' y='11.5' font-size='9' text-anchor='middle' font-family='sans-serif' font-weight='700'>฿</text></svg>" />
@@ -21,9 +21,9 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   <body>
     <header class="top">
       <div class:list={['wrap', { wide }]}>
-        <a class="brand" href="/"><span class="coin">฿</span> OPTCG <b>Ladder</b></a>
+        <a class="brand" href="/"><span class="coin">฿</span> OPTCG <b>Data</b></a>
         <nav>{nav.map(([href, label]) => <a href={href} class:list={{ active: active(href) }}>{label}</a>)}</nav>
-        <span class="snap" title={`Generated ${meta.generatedAt}`}>Snapshot <b>{meta.date || '–'}</b></span>
+        <span class="snap" title={`Generated ${meta.generatedAt}`}>Last updated <b>{meta.date || '–'}</b></span>
       </div>
     </header>
     <main class:list={['wrap', { wide }]}><slot /></main>
@@ -48,6 +48,17 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       document.addEventListener('click', (e) => { const el = (e.target as HTMLElement).closest<HTMLElement>('.info'); if (el) { e.preventDefault(); e.stopPropagation(); current === el && tip.classList.contains('show') ? hide() : show(el); } });
       document.addEventListener('scroll', hide, { passive: true });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+
+      // "Show more" for deck lists: keep the first data-limit lists visible, reveal the rest on click.
+      document.querySelectorAll<HTMLElement>('.decklist').forEach((box) => {
+        const limit = Number(box.dataset.limit ?? 5), noun = box.dataset.noun ?? 'lists';
+        const items = [...box.querySelectorAll<HTMLElement>(':scope > details.deck')];
+        const btn = box.querySelector<HTMLButtonElement>(':scope > .show-more');
+        let open = false;
+        const render = () => { items.forEach((d, i) => { d.hidden = !open && i >= limit; }); if (btn) btn.textContent = open ? `Show fewer ${noun}` : `Show ${items.length - limit} more ${noun}`; };
+        btn?.addEventListener('click', () => { open = !open; render(); if (!open) box.scrollIntoView({ block: 'nearest' }); });
+        render();
+      });
     </script>
     <footer class:list={['wrap', { wide }]}>
       <div>Standard ranked data, refreshed once a day. <a href="/about/">Sources and methodology</a>.</div>
@@ -169,6 +180,11 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .pill-rank { display: inline-grid; place-items: center; min-width: 2.2rem; height: 2.2rem; border-radius: 10px; background: var(--panel-2); color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; border: 1px solid var(--line); }
   tr.top1 .pill-rank { background: linear-gradient(160deg, var(--accent-2), #b8901f); color: #1a1405; border-color: transparent; }
   tr.top3 .pill-rank { border-color: var(--accent); color: var(--accent-2); }
+  /* window toggle + show more */
+  .wtoggle { display: inline-flex; align-items: center; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+  .wtoggle a[role=tab] { padding: .35rem .85rem; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); font-size: .85rem; font-weight: 600; }
+  .wtoggle a[role=tab]:hover { color: var(--text); text-decoration: none; } .wtoggle a.on { background: var(--accent); color: #1a1405; border-color: var(--accent); }
+  .decklist > .show-more { display: block; width: 100%; padding: .6rem; margin-top: .25rem; font-size: .9rem; }
   /* rankings: wide landscape crop of the card art */
   .art-wide { display: block; width: 132px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line-2); position: relative; }
   .art-wide img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block; }

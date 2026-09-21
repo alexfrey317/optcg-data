@@ -8,11 +8,11 @@ const one = meta.optcgone as { fetchedAt?: string; rankedCount?: number } | unde
 <Base title="About">
   <h1>About</h1>
   <div class="panel">
-    <p>OPTCG Ladder is a free, unofficial view of the OPTCG Sim ranked ladder: the top players, their bounty, the leaders they play, and the decks and cards winning with those leaders.</p>
-    <p>Nothing is fetched live. A scheduled job pulls each source <b>once a day</b>, merges it, and rebuilds this static site. Last snapshot: <b>{meta.date}</b> ({meta.generatedAt}).</p>
+    <p>OPTCG Data is a free, unofficial view of the OPTCG Sim ranked ladder: the top players, their bounty, the leaders they play, and the decks and cards winning with those leaders.</p>
+    <p>Nothing is fetched live. A scheduled job pulls each source <b>once a day</b>, merges it, and rebuilds this static site. Leader, matchup and decklist views default to the last 7 days; a 30-day view is built by summing one daily snapshot per day, so it fills in as days accumulate. Last updated: <b>{meta.date}</b> ({meta.generatedAt}).</p>
   </div>
 
-  <h2>Data sources</h2>
+  <h2>Data Sources</h2>
   <div class="panel">
     <table>
       <thead><tr><th>Source</th><th>What we use</th><th>Snapshot</th><th>Status</th></tr></thead>
@@ -26,7 +26,7 @@ const one = meta.optcgone as { fetchedAt?: string; rankedCount?: number } | unde
       <a href="https://www.patreon.com/tcgmm">TCG Match Making on Patreon</a> · <a href="https://www.patreon.com/cardkaizoku">Card Kaizoku on Patreon</a>.</p>
   </div>
 
-  <h2>How decks are merged</h2>
+  <h2>How Decks Are Merged</h2>
   <div class="panel" style="font-size:.9rem">
     <p>Each source publishes decklists in its own shape. We normalise every list to <code>quantity × card id</code>, drop the leader line, sort, and hash. Lists with the same hash are one deck. Games and win rate combine the ladder pool and the sim-wide pool; where two feeds describe the same pool we keep the larger sample rather than double counting.</p>
     <p>Per-player exact decklists are not published by any free source, so a player page shows the top-performing lists for the leaders that player pilots.</p>
@@ -35,7 +35,7 @@ const one = meta.optcgone as { fetchedAt?: string; rankedCount?: number } | unde
 
   <h2>Privacy</h2>
   <div class="panel" style="font-size:.9rem">
-    <p>We store only what is shown: display name, bounty, records, country and leader usage for players in the ladder top 1,000. Device identifiers and account handles present in upstream data are discarded at ingest. To have your name removed, <a href="https://github.com/alexfrey317/optcg-ladder/issues">open an issue on the repository</a>.</p>
-    <p>Source code: <a href="https://github.com/alexfrey317/optcg-ladder">github.com/alexfrey317/optcg-ladder</a>.</p>
+    <p>We store only what is shown: display name, bounty, records, country and leader usage for players in the ladder top 1,000. Device identifiers and account handles present in upstream data are discarded at ingest. To have your name removed, <a href="https://github.com/alexfrey317/optcg-data/issues">open an issue on the repository</a>.</p>
+    <p>Source code: <a href="https://github.com/alexfrey317/optcg-data">github.com/alexfrey317/optcg-data</a>.</p>
   </div>
 </Base>

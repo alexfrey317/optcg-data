@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
 LATEST = ROOT / "data" / "latest"
 HISTORY = ROOT / "data" / "history"
+DAILY = ROOT / "data" / "daily"
+WINDOWS = {"30d": 30}  # extra windows built from the daily files; the 7-day view uses the weekly snapshot
 
 
 def dump(path: Path, obj):
@@ -36,7 +38,7 @@ def load(path: Path, default):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,optcgone,cards,players")
+    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
 
@@ -62,6 +64,17 @@ def main(argv=None):
         print(f"[{name}] {status[name]} ({time.time() - t0:.0f}s)", file=sys.stderr)
 
     step("kaizoku", lambda: kaizoku.fetch_all(RAW / "kaizoku_state.json", RAW))
+    daily_status = None
+    if "daily" in skip:
+        status["daily"] = "skipped"
+    else:
+        try:
+            daily_status = kaizoku.fetch_daily(DAILY)
+            status["daily"] = "ok"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["daily"] = f"error: {e}"
+        print(f"[daily] {status['daily']} {json.dumps(daily_status) if daily_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
     step("optcgone", optcgone.fetch_all)
     step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
     step("opbounty", opbounty.fetch_all)
@@ -113,6 +126,26 @@ def main(argv=None):
         for d in load(f, {}).get("decks", []):
             used_cards.update(c["id"] for c in d["cards"])
 
+    # longer windows summed from the daily files
+    window_meta = {}
+    daily_files = sorted(DAILY.glob("*.json")) if DAILY.exists() else []
+    for wname, days in WINDOWS.items():
+        picked = daily_files[-days:]
+        if not picked:
+            continue
+        dailies = [load(f, {}) for f in picked]
+        w_leaders, w_decks = N.build_window(dailies, card_db)
+        wdir = ROOT / "data" / "windows" / wname
+        for code, dfile in w_decks.items():
+            dump(wdir / "decks" / f"{code}.json", dfile)
+            for d in dfile["decks"]:
+                used_cards.update(c["id"] for c in d["cards"])
+        used_cards.update(w_leaders)
+        dump(wdir / "leaders.json", w_leaders)
+        window_meta[wname] = {"days": len(dailies), "targetDays": days, "start": dailies[0].get("date"), "end": dailies[-1].get("date"),
+                              "matches": sum(int(d.get("total") or 0) for d in dailies)}
+        dump(wdir / "meta.json", window_meta[wname])
+
     dump(LATEST / "players.json", players)
     dump(LATEST / "leaders.json", leaders)
     dump(LATEST / "cards.json", {cid: card_db[cid] for cid in sorted(used_cards) if cid in card_db})
@@ -138,6 +171,8 @@ def main(argv=None):
         "kaizoku": {"dataset": kz.get("dataset"), "manifestDate": kz.get("manifest_date"), "files": kz.get("files")},
         "optcgone": {"fetchedAt": one.get("fetched_at"), "rankedCount": one.get("ranked_count")},
         "playerDecks": player_stats,
+        "daily": daily_status,
+        "windows": window_meta,
         "sources": [
             {"name": "OPBounty", "url": "https://stats.tcgmatchmaking.com/", "support": "https://www.patreon.com/tcgmm"},
             {"name": "Card Kaizoku", "url": "https://www.cardkaizoku.com/", "support": "https://www.patreon.com/cardkaizoku"},

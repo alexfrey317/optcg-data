@@ -1,0 +1,118 @@
+---
+import LeaderArt from './LeaderArt.astro';
+import DeckCard from './DeckCard.astro';
+import DeckList from './DeckList.astro';
+import Info from './Info.astro';
+import WindowToggle from './WindowToggle.astro';
+import { leadersFor, deckFileFor, cardFile, card, fmt, pct, berry, players, imgUrl, imgOnError, leaderStats, matchupIn, heat, pilotScore, WINDOWS, wpath, type Win, type Leader } from '../lib/data';
+interface Props { window: Win; leader: Leader }
+const { window: W, leader: L } = Astro.props;
+const ls = leadersFor(W);
+const s = leaderStats(L);
+const decks = deckFileFor(W, L.code);
+const cardsF = cardFile(L.code);                 // card usage / hands / tech are only published weekly
+const DECKS_SHOWN = 5, DECKS_MAX = 40;
+const opps = Object.keys(L.matchups).filter((o) => ls[o] && matchupIn(ls, L.code, o)).map((o) => ({ code: o, m: matchupIn(ls, L.code, o)! }))
+  .sort((a, b) => b.m.games - a.m.games).slice(0, 18);
+const cls = (v: number | null) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
+
+// Best pilots: ladder top-1000 players with this leader among their most-played. Games and win rate are that
+// player's own numbers with this leader; score blends win rate (shrunk for small samples) with bounty.
+const pilots = players.filter((p) => p.id != null && p.topLeaders.some((t) => t.code === L.code))
+  .map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return { p, t, score: pilotScore(t.winRate, t.matches, p.bounty) }; })
+  .sort((a, b) => b.score - a.score).slice(0, 15);
+
+// Tech cards: only cards that are NOT staples (under 90% usage for this leader) count as tech.
+const usage = new Map(cardsF.cards.map((c) => [c.id, c.usage ?? 0]));
+const isTech = (id: string) => (usage.get(id) ?? 0) < 90;
+const techOpps = Object.entries(cardsF.tech).map(([opp, techs]) => [opp, techs.filter((t) => isTech(t.id))] as const)
+  .filter(([opp, techs]) => ls[opp] && techs.length > 0).slice(0, 10);
+const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
+---
+<p style="margin:0 0 .75rem"><a href={wpath(W, '/leaders/')}>← Leader Rankings</a></p>
+
+<div class="hero" style="align-items:stretch">
+  <LeaderArt code={L.code} size="xl" label={false} link={false} />
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+    <h1 style="text-align:center;margin-bottom:.5rem">{L.name} <span class="sub">[{L.code}] · {L.color}</span></h1>
+    <div style="display:flex;justify-content:center;margin-bottom:1rem"><WindowToggle current={W} path={`/leaders/${L.code}/`} /></div>
+    <div class="grid stats" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="label">Weighted Win Rate <Info text="Raw win rate shrunk toward 50% for small samples." /></div><div class:list={['value', cls(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
+      <div class="stat"><div class="label">Play Rate <Info text={`Share of all ranked games in the ${WINDOWS[W].short} window in which this leader appeared.`} /></div><div class="value">{pct(s.playRate)}</div></div>
+      <div class="stat"><div class="label">Total Games</div><div class="value">{fmt(s.games, 0)}</div></div>
+      <div class="stat"><div class="label">1st Win Rate <Info text="Win rate when taking the first turn." /></div><div class:list={['value', cls(s.first)]}>{pct(s.first)}</div></div>
+      <div class="stat"><div class="label">2nd Win Rate <Info text="Win rate when taking the second turn. Compare with 1st to decide the coin flip." /></div><div class:list={['value', cls(s.second)]}>{pct(s.second)}</div></div>
+      <div class="stat"><div class="label">Raw Win Rate <Info text="Wins divided by games, unadjusted." /></div><div class:list={['value', cls(s.winRate)]}>{pct(s.winRate)}</div></div>
+    </div>
+  </div>
+</div>
+
+<h2>Matchup Breakdown <Info text="How this leader fares against each opponent, most-played first. Green favours this leader, red favours the opponent. 1st / 2nd split the same games by who took the first turn." /> <span class="sub"><a href={wpath(W, '/matchups/')}>full matrix →</a></span></h2>
+<div class="panel scroll">
+  <table class="breakdown">
+    <thead><tr><th>Leader</th>{opps.map((o) => <th><LeaderArt code={o.code} size="md" label={false} href={wpath(W, `/leaders/${o.code}/`)} /></th>)}</tr></thead>
+    <tbody>
+      <tr><th>Win Rate</th>{opps.map((o) => <td class={cls(o.m.winRate)} style={`background:${heat(o.m.winRate)}`}>{pct(o.m.winRate)}</td>)}</tr>
+      <tr><th>Games</th>{opps.map((o) => <td class="muted">{fmt(o.m.games, 0)}</td>)}</tr>
+      <tr><th>1st</th>{opps.map((o) => <td class={cls(o.m.first)}>{pct(o.m.first)}</td>)}</tr>
+      <tr><th>2nd</th>{opps.map((o) => <td class={cls(o.m.second)}>{pct(o.m.second)}</td>)}</tr>
+    </tbody>
+  </table>
+</div>
+
+{cardsF.openingHand.length > 0 && <>
+  <h2>Starting Hand Analysis <Info text="How often each card is in the opening five after mulligans, across all games with this leader last week." /></h2>
+  <div class="panel"><div class="hand-row">{cardsF.openingHand.slice(0, 12).map((c) => (
+    <div class="hand-card" title={card(c.id).name}><img src={imgUrl(c.id)} alt={card(c.id).name} loading="lazy" onerror={imgOnError(c.id)} /><div class="num" style="text-align:center;font-weight:600">{pct(c.rate)}</div></div>
+  ))}</div></div></>}
+
+<section>
+  <h2>Decklists <span class="sub">{decks.decks.length} distinct lists · {WINDOWS[W].label.toLowerCase()}</span> <Info text="Distinct 50-card lists seen in ranked over the window, most games first. Games and win rate combine every ranked game we have for the exact list. Click a list to expand it." /></h2>
+  <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards. Differences are measured against the #1 list.</p>
+  <DeckList limit={DECKS_SHOWN} total={Math.min(DECKS_MAX, decks.decks.length)}>
+    {decks.decks.slice(0, DECKS_MAX).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={decks.decks[0]} />)}
+  </DeckList>
+</section>
+
+<div class="grid two">
+  <section>
+    <h2>Best Pilots <Info text="Top-1,000 ladder players who have this leader among their most-played. Games and win rate are that player's own results with this leader. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000. Click a name for their lists." /></h2>
+    <div class="panel tight">
+      <table>
+        <thead><tr><th>Player</th><th class="num">Bounty</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Score <Info text="Blend of win rate with this leader and bounty. Higher is better." /></th></tr></thead>
+        <tbody>{pilots.map(({ p, t, score }, i) => (
+          <tr><td><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem;margin-right:.5rem">{i + 1}</span><a href={`/players/${p.id}/`} style="font-weight:600;color:var(--text)">{p.name}</a> <span class="muted small">#{p.rank}</span></td>
+            <td class="num gold" style="font-weight:700">{berry(p.bounty)}</td>
+            <td class="num muted">{fmt(t.matches, 0)}</td>
+            <td class:list={['num', cls(t.winRate)]}>{pct(t.winRate)}</td>
+            <td class="num" style="font-weight:700">{fmt(score, 1)}</td></tr>))}</tbody>
+      </table>
+      {pilots.length === 0 && <p class="muted" style="padding:1rem;margin:0">No top-1,000 ladder player has this leader among their most-played.</p>}
+    </div>
+  </section>
+  <section>
+    <h2>Card Usage <span class="sub">{fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists · last 7 days</span> <Info text="Per card across every ranked list for this leader last week (card-level stats are only published weekly). Usage is the share of lists running it; copies is the average count when included; lift is how much lists with the card outperform the leader's average win rate." /></h2>
+    <div class="panel scroll" style="max-height:720px">
+      <table>
+        <thead><tr><th>Card</th><th class="num">Usage</th><th class="num">Copies</th><th class="num">Win %</th><th class="num">Lift <Info text="How much better lists running this card do than the leader's average. +1.5 means lists with the card win 1.5 points more often than the leader overall; negative means they do worse." /></th></tr></thead>
+        <tbody>{cardsF.cards.slice(0, 60).map((c) => { const k2 = card(c.id); return (
+          <tr><td style="display:flex;align-items:center;gap:.6rem"><img src={imgUrl(c.id)} alt="" loading="lazy" onerror={imgOnError(c.id)} style="width:44px;height:62px;object-fit:cover;object-position:top;border-radius:5px;flex:none" /><span><span style="font-weight:500">{k2.name}</span>{(c.usage ?? 0) >= 90 && <span class="src" style="margin-left:.4rem">staple</span>}<div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
+            <td class="num"><div class="bar" style="width:56px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
+            <td class="num">{fmt(c.avgCopies, 1)}</td>
+            <td class:list={['num', cls(c.winRate)]}>{pct(c.winRate)}</td>
+            <td class:list={['num', (c.winRateVsLeader ?? 0) >= 0 ? 'good' : 'bad']}>{c.winRateVsLeader == null ? '–' : `${c.winRateVsLeader >= 0 ? '+' : ''}${fmt(c.winRateVsLeader, 2)}`}</td></tr>); })}</tbody>
+      </table>
+    </div>
+
+    <h2>Tech Cards by Matchup <Info text={`Tech cards are cards that are not staples: anything run in 90% or more of this leader's lists (${staples} cards) is excluded. The number is how many points the card raises the win rate in that matchup; only cards with strong statistical evidence are shown.`} /></h2>
+    <div class="panel">
+      {techOpps.length === 0 && <p class="muted" style="margin:0">No non-staple tech cards with strong evidence this week.</p>}
+      {techOpps.map(([opp, techs]) => (
+        <div style="display:flex;gap:.9rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)">
+          <LeaderArt code={opp} size="sm" label={false} href={wpath(W, `/leaders/${opp}/`)} />
+          <div style="font-size:.85rem;display:flex;flex-wrap:wrap;gap:.3rem">{techs.map((t) => <span class="chip" title={`${pct(t.winRateWith)} with vs ${pct(t.winRateWithout)} without · ${t.gamesWith} games · ${pct(usage.get(t.id) ?? null)} of lists run it`}>{card(t.id).name} <b class="good">+{fmt(t.lift)}</b></span>)}</div>
+        </div>
+      ))}
+    </div>
+  </section>
+</div>

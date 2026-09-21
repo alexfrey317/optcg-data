@@ -1,15 +1,15 @@
 ---
 import { leaders, card, colorVar, imgUrl, imgOnError } from '../lib/data';
 /** Leader card art at a chosen size, with a colour stripe and link. size: 'sm' | 'md' | 'lg' | 'xl' */
-interface Props { code: string; size?: 'sm' | 'md' | 'lg' | 'xl'; label?: boolean; sub?: string; link?: boolean }
-const { code, size = 'md', label = true, sub, link = true } = Astro.props;
+interface Props { code: string; size?: 'sm' | 'md' | 'lg' | 'xl'; label?: boolean; sub?: string; link?: boolean; href?: string }
+const { code, size = 'md', label = true, sub, link = true, href } = Astro.props;
 const L = leaders[code];
 const c = card(code);
 const name = L?.name ?? c.name ?? code;
 const color = colorVar(L?.color ?? c.color);
 const Tag = link ? 'a' : 'span';
 ---
-<Tag class:list={['leader', `leader-${size}`]} href={link ? `/leaders/${code}/` : undefined} title={`${name} · ${code}`} style={`--lc:${color}`}>
+<Tag class:list={['leader', `leader-${size}`]} href={link ? (href ?? `/leaders/${code}/`) : undefined} title={`${name} · ${code}`} style={`--lc:${color}`}>
   <span class="leader-frame">
     <img src={imgUrl(code)} alt={name} loading="lazy" decoding="async" onerror={imgOnError(code)} />
   </span>

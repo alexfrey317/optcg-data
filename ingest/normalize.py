@@ -243,3 +243,98 @@ def append_history(path: Path, point: list, max_points: int = 400):
     else:
         series.append(point)
     path.write_text(json.dumps(series[-max_points:], separators=(",", ":")))
+
+
+# ---------------------------------------------------------------- daily accumulation (30-day window)
+def compact_daily(date: str, stats: list[dict], decklist: list[dict]) -> dict:
+    """Reduce one day's leader stats + decklists to additive counts only.
+    matchups: opp -> [games, wins, first_games, first_wins, second_games, second_wins]
+    decks:    leader -> hash -> {"d": "4xOP01-016 3x...", "g": games, "w": wins, "p": pilots}"""
+    total = 0
+    leaders: dict[str, dict] = {}
+    for row in stats or []:
+        code = row.get("leaderKey")
+        if not code:
+            continue
+        total = max(total, int(row.get("total_matches") or 0))
+        mus = {}
+        for m in row.get("matchups") or []:
+            opp = m.get("opponentKey") or m.get("opponent")
+            if not opp:
+                continue
+            mus[opp] = [m.get("total_games") or 0, m.get("wins") or 0, m.get("first_games") or 0, m.get("first_wins") or 0,
+                        m.get("second_games") or 0, m.get("second_wins") or 0]
+        leaders[code] = {"n": row.get("leaderName"), "g": row.get("number_of_matches") or 0, "w": row.get("wins") or 0, "m": mus}
+    decks: dict[str, dict] = {}
+    for row in decklist or []:
+        code = row.get("leaderKey")
+        if not code:
+            continue
+        bucket = decks.setdefault(code, {})
+        for key in ("best_decklists", "most_played_decklists"):
+            for d in row.get(key) or []:
+                cards = parse_deck(d.get("decklist"), leader=code)
+                if not cards:
+                    continue
+                h = deck_hash(cards)
+                cur = bucket.get(h)
+                g, w, p = d.get("total_games") or 0, d.get("wins") or 0, d.get("unique_pilots") or 0
+                if cur is None or g > cur["g"]:  # the same list can appear in both arrays; keep one
+                    bucket[h] = {"d": " ".join(f"{c['qty']}x{c['id']}" for c in cards), "g": g, "w": w, "p": p}
+    return {"date": date, "total": total, "leaders": leaders, "decks": decks}
+
+
+def build_window(dailies: list[dict], card_db: dict) -> tuple[dict, dict]:
+    """Sum compact dailies into (leaders, decks_by_leader) in the same shapes build_leaders/build_decks emit,
+    so the site can render any window with the same components."""
+    total = sum(int(d.get("total") or 0) for d in dailies)
+    acc: dict[str, dict] = {}
+    deck_acc: dict[str, dict] = {}
+    for day in dailies:
+        for code, L in (day.get("leaders") or {}).items():
+            a = acc.setdefault(code, {"name": L.get("n"), "g": 0, "w": 0, "m": defaultdict(lambda: [0, 0, 0, 0, 0, 0])})
+            a["name"] = L.get("n") or a["name"]
+            a["g"] += L.get("g") or 0
+            a["w"] += L.get("w") or 0
+            for opp, v in (L.get("m") or {}).items():
+                for i in range(6):
+                    a["m"][opp][i] += v[i] if i < len(v) else 0
+        for code, bucket in (day.get("decks") or {}).items():
+            da = deck_acc.setdefault(code, {})
+            for h, d in bucket.items():
+                cur = da.setdefault(h, {"d": d["d"], "g": 0, "w": 0, "p": 0})
+                cur["g"] += d.get("g") or 0
+                cur["w"] += d.get("w") or 0
+                cur["p"] = max(cur["p"], d.get("p") or 0)
+
+    def rate(w, g, digits=1):
+        return round(100 * w / g, digits) if g else None
+
+    leaders: dict[str, dict] = {}
+    for code, a in acc.items():
+        c = card_db.get(code, {})
+        g, w = a["g"], a["w"]
+        fg = sum(v[2] for v in a["m"].values()); fw = sum(v[3] for v in a["m"].values())
+        sg = sum(v[4] for v in a["m"].values()); sw = sum(v[5] for v in a["m"].values())
+        matchups = {}
+        for opp, v in sorted(a["m"].items(), key=lambda kv: -kv[1][0]):
+            matchups[opp] = {"kaizoku": {"games": v[0], "winRate": rate(v[1], v[0]), "firstWinRate": rate(v[3], v[2]),
+                                         "secondWinRate": rate(v[5], v[4]), "firstGames": v[2], "secondGames": v[4]}}
+        leaders[code] = {
+            "code": code, "name": a["name"] or c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
+            "sources": {"kaizoku": {"matches": g, "wins": w, "winRate": rate(w, g),
+                                    "weightedWinRate": round(100 * (w + 50) / (g + 100), 1) if g else None,
+                                    "playRate": round(100 * g / total, 2) if total else None,
+                                    "firstWinRate": rate(fw, fg), "secondWinRate": rate(sw, sg)}},
+            "matchups": matchups, "deckCount": len(deck_acc.get(code, {})), "cardCount": 0,
+        }
+    decks_by_leader: dict[str, dict] = {}
+    for code, da in deck_acc.items():
+        out = []
+        for h, d in da.items():
+            cards = parse_deck(d["d"])
+            out.append({"hash": h, "cards": cards, "size": sum(c["qty"] for c in cards),
+                        "sources": {"kaizokuBest": {"games": d["g"], "wins": d["w"], "winRate": rate(d["w"], d["g"]), "pilots": d["p"]}}})
+        out.sort(key=lambda x: -x["sources"]["kaizokuBest"]["games"])
+        decks_by_leader[code] = {"leader": code, "decks": out, "topPilots": []}
+    return leaders, decks_by_leader

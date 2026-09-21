@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.request
 
-USER_AGENT = "optcg-ladder ingest (+https://github.com/alexfrey317/optcg-ladder; daily snapshot)"
+USER_AGENT = "optcg-data ingest (+https://github.com/alexfrey317/optcg-data; daily snapshot)"
 
 
 class HttpError(Exception):

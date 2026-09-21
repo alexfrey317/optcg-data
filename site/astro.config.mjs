@@ -2,7 +2,7 @@
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://optcg-ladder.pages.dev',
+  site: 'https://optcg-data.pages.dev',
   output: 'static',
   build: { format: 'directory' },
   trailingSlash: 'ignore',

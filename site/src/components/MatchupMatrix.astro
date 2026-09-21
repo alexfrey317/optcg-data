@@ -1,0 +1,29 @@
+---
+import LeaderArt from './LeaderArt.astro';
+import Info from './Info.astro';
+import WindowToggle from './WindowToggle.astro';
+import { leadersByVolumeFor, leadersFor, matchupIn, heat, fmt, pct, WINDOWS, type Win } from '../lib/data';
+interface Props { window: Win }
+const { window: W } = Astro.props;
+const N = 16;
+const ls = leadersFor(W);
+const top = leadersByVolumeFor(W).slice(0, N);
+---
+<div class="hero"><div style="flex:1"><h1>Matchup Matrix <Info text="Row leader's win rate against the column leader, with the number of games underneath. Green favours the row leader." /></h1>
+  <div class="meta">The {N} most-played leaders, Standard ranked, {WINDOWS[W].label.toLowerCase()}. Read across a row: how that leader does into each opponent.</div>
+  <WindowToggle current={W} path="/matchups/" /></div></div>
+<div class="panel scroll">
+  <table class="matrix">
+    <thead><tr><th></th>{top.map((c) => <th><LeaderArt code={c.code} size="md" label={false} href={`${WINDOWS[W].base}/leaders/${c.code}/`} /></th>)}</tr></thead>
+    <tbody>{top.map((r) => (
+      <tr>
+        <th><LeaderArt code={r.code} size="md" label={false} href={`${WINDOWS[W].base}/leaders/${r.code}/`} /></th>
+        {top.map((c) => { if (c.code === r.code) return <td class="self"></td>; const m = matchupIn(ls, r.code, c.code); return (
+          <td style={`background:${heat(m?.winRate ?? null)}`} title={`${r.name} vs ${c.name}`}>
+            <div class:list={[m?.winRate == null ? 'dim' : m.winRate >= 50 ? 'good' : 'bad']} style="font-weight:700">{pct(m?.winRate)}</div>
+            <div class="muted small">{m ? fmt(m.games, 0) : ''}</div>
+          </td>); })}
+      </tr>
+    ))}</tbody>
+  </table>
+</div>

@@ -1,0 +1,10 @@
+---
+import Base from '../../../layouts/Base.astro';
+import LeaderDetail from '../../../components/LeaderDetail.astro';
+import { leadersByVolumeFor, type Leader } from '../../../lib/data';
+export function getStaticPaths() {
+  return leadersByVolumeFor('30d').map((l) => ({ params: { code: l.code }, props: { leader: l } }));
+}
+const { leader } = Astro.props as { leader: Leader };
+---
+<Base title={`${leader.name} [${leader.code}] · Last 30 Days`} wide><LeaderDetail window="30d" leader={leader} /></Base>
