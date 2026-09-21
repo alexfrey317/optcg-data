@@ -1,7 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
-import LeaderChip from '../../components/LeaderChip.astro';
+import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
+import Info from '../../components/Info.astro';
 import { leaders, leadersByVolume, deckFile, cardFile, card, fmt, pct, volume, players, type Leader } from '../../lib/data';
 
 export function getStaticPaths() {
@@ -13,36 +14,39 @@ const decks = deckFile(L.code);
 const cardsF = cardFile(L.code);
 const SHOW = 40;
 const matchups = Object.entries(L.matchups).filter(([opp]) => leaders[opp]).slice(0, 30);
-const heat = (wr: number | null) => wr == null ? 'transparent' : wr >= 55 ? 'rgba(76,195,138,.35)' : wr >= 50 ? 'rgba(76,195,138,.15)' : wr >= 45 ? 'rgba(229,72,77,.15)' : 'rgba(229,72,77,.35)';
+const heat = (wr: number | null) => wr == null ? 'transparent' : wr >= 55 ? 'rgba(79,209,143,.35)' : wr >= 50 ? 'rgba(79,209,143,.15)' : wr >= 45 ? 'rgba(239,90,96,.15)' : 'rgba(239,90,96,.35)';
 const topPilotsOnLadder = players.filter((p) => p.topLeaders.some((t) => t.code === L.code)).slice(0, 10);
 const techOpps = Object.entries(cardsF.tech).filter(([opp]) => leaders[opp]).slice(0, 12);
+const wr = Number(k.winRate ?? o.winRate ?? 0);
 ---
-<Base title={`${L.name} (${L.code})`}>
-  <p><a href="/leaders/">← Leaders</a></p>
-  <div style="display:flex;gap:1rem;align-items:center">
-    {L.img && <img src={L.img} alt="" style="width:72px;height:100px;object-fit:cover;object-position:top;border-radius:6px" />}
-    <div><h1 style="margin:0">{L.name} <span class="muted" style="font-size:1rem;font-weight:400">{L.code} · {L.color}</span></h1>
-      <div class="muted" style="font-size:.85rem">{fmt(k.matches as number, 0)} games last week on Card Kaizoku · {fmt(o.matches as number, 0)} on the OPBounty ladder</div></div>
-  </div>
-
-  <div class="grid stats" style="margin-top:1rem">
-    <div class="stat"><div class="label">Win rate</div><div class:list={['value', Number(k.winRate ?? o.winRate) >= 50 ? 'good' : 'bad']}>{pct((k.winRate ?? o.winRate) as number)}</div></div>
-    <div class="stat"><div class="label">Play rate</div><div class="value">{pct(k.playRate as number)}</div></div>
-    <div class="stat"><div class="label">Going 1st</div><div class="value">{pct(k.firstWinRate as number)}</div></div>
-    <div class="stat"><div class="label">Going 2nd</div><div class="value">{pct(k.secondWinRate as number)}</div></div>
-    <div class="stat"><div class="label">OPBounty win %</div><div class="value">{pct(o.winRate as number)}</div></div>
-    <div class="stat"><div class="label">Avg game</div><div class="value">{o.avgDuration ? `${Math.round(Number(o.avgDuration) / 60)} min` : '–'}</div></div>
+<Base title={`${L.name} (${L.code})`} wide>
+  <p style="margin:0 0 .75rem"><a href="/leaders/">← Leaders</a></p>
+  <div class="hero">
+    <LeaderArt code={L.code} size="xl" label={false} link={false} />
+    <div style="flex:1">
+      <div class="muted small">{L.code} · {L.color}</div>
+      <h1>{L.name}</h1>
+      <div class="meta">{fmt(k.matches as number, 0)} ranked games last week on Card Kaizoku · {fmt(o.matches as number, 0)} on the OPBounty ladder · {decks.decks.length} distinct lists</div>
+      <div class="grid stats" style="margin-top:1rem">
+        <div class="stat"><div class="label">Win rate <Info text="Raw win rate across all pilots last week (Card Kaizoku, private lobbies)." /></div><div class:list={['value', wr >= 50 ? 'good' : 'bad']}>{pct(wr)}</div></div>
+        <div class="stat"><div class="label">Play rate <Info text="Share of all ranked games in which this leader appeared." /></div><div class="value">{pct(k.playRate as number)}</div></div>
+        <div class="stat"><div class="label">Going 1st <Info text="Win rate when taking the first turn." /></div><div class="value">{pct(k.firstWinRate as number)}</div></div>
+        <div class="stat"><div class="label">Going 2nd <Info text="Win rate when taking the second turn. Compare with 1st to decide the coin flip." /></div><div class="value">{pct(k.secondWinRate as number)}</div></div>
+        <div class="stat"><div class="label">OPBounty win % <Info text="Same leader on the OPBounty ladder, a separate match pool." /></div><div class="value">{pct(o.winRate as number)}</div></div>
+        <div class="stat"><div class="label">Avg game <Info text="Average ranked game length on OPBounty." /></div><div class="value">{o.avgDuration ? `${Math.round(Number(o.avgDuration) / 60)} min` : '–'}</div></div>
+      </div>
+    </div>
   </div>
 
   <div class="grid two">
     <section>
-      <h2>Matchups</h2>
-      <div class="panel" style="padding:0;overflow:auto">
-        <table class="matchup-grid">
-          <thead><tr><th>vs</th><th class="num">Games</th><th class="num">Win %</th><th class="num">1st</th><th class="num">2nd</th><th class="num">OPBounty</th></tr></thead>
+      <h2>Matchups <Info text="This leader's win rate against each opponent. Green favours this leader, red favours the opponent. 1st / 2nd split the same games by who took the first turn." /></h2>
+      <div class="panel scroll">
+        <table>
+          <thead><tr><th>vs</th><th class="num">Games</th><th class="num">Win %</th><th class="num">1st</th><th class="num">2nd</th><th class="num">OPBounty <Info text="The same matchup on the OPBounty ladder." /></th></tr></thead>
           <tbody>{matchups.map(([opp, s]) => { const kz = s.kaizoku ?? {}, ob = s.opbounty ?? {}; return (
-            <tr><td><LeaderChip code={opp} /></td>
-              <td class="num">{fmt(kz.games as number, 0)}</td>
+            <tr><td><LeaderArt code={opp} size="sm" /></td>
+              <td class="num muted">{fmt(kz.games as number, 0)}</td>
               <td class="num"><span class="heat" style={`background:${heat(kz.winRate as number)}`}>{pct(kz.winRate as number)}</span></td>
               <td class="num">{pct(kz.firstWinRate as number)}</td><td class="num">{pct(kz.secondWinRate as number)}</td>
               <td class="num"><span class="heat" style={`background:${heat(ob.winRate as number)}`}>{pct(ob.winRate as number)}</span></td></tr>); })}</tbody>
@@ -50,33 +54,33 @@ const techOpps = Object.entries(cardsF.tech).filter(([opp]) => leaders[opp]).sli
       </div>
     </section>
     <section>
-      <h2>Top pilots</h2>
-      <div class="panel" style="padding:0">
+      <h2>Top pilots <Info text="Ladder players in the top 1,000 who have this leader among their most-played, ordered by bounty. Below them, Card Kaizoku's weekly top pilots for the leader by weighted win rate." /></h2>
+      <div class="panel tight">
         <table>
-          <thead><tr><th>Ladder (top 1000)</th><th class="num">Bounty</th><th class="num">This leader</th></tr></thead>
+          <thead><tr><th>Ladder</th><th class="num">Bounty</th><th class="num">With this leader</th></tr></thead>
           <tbody>{topPilotsOnLadder.map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return (
-            <tr><td><span class="muted">#{p.rank}</span> <a href={`/players/${p.id}/`}>{p.name}</a></td><td class="num" style="color:var(--accent)">{fmt(p.bounty, 0)}</td>
-              <td class="num">{pct(t.winRate)} <span class="muted" style="font-size:.75rem">/ {t.matches}</span></td></tr>); })}</tbody>
+            <tr><td><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem;margin-right:.5rem">{p.rank}</span><a href={`/players/${p.id}/`} style="font-weight:600;color:var(--text)">{p.name}</a></td><td class="num gold" style="font-weight:700">{fmt(p.bounty, 0)}</td>
+              <td class:list={['num', (t.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(t.winRate)} <span class="muted small">/ {t.matches}</span></td></tr>); })}</tbody>
         </table>
         {decks.topPilots.length > 0 && <>
-          <table style="margin-top:.5rem"><thead><tr><th>Card Kaizoku weekly</th><th class="num">Games</th><th class="num">Win %</th></tr></thead>
-          <tbody>{decks.topPilots.map((p) => <tr><td><span class="muted">#{p.rank}</span> {p.name}</td><td class="num">{p.games}</td><td class="num">{pct(p.winRate)}</td></tr>)}</tbody></table></>}
+          <table style="margin-top:.25rem"><thead><tr><th>Card Kaizoku, last week</th><th class="num">Games</th><th class="num">Win %</th></tr></thead>
+          <tbody>{decks.topPilots.map((p) => <tr><td><span class="muted small" style="margin-right:.4rem">#{p.rank}</span>{p.name}</td><td class="num muted">{p.games}</td><td class:list={['num', p.winRate >= 50 ? 'good' : 'bad']}>{pct(p.winRate)}</td></tr>)}</tbody></table></>}
       </div>
     </section>
   </div>
 
-  <h2>Decklists <span class="muted" style="font-size:.9rem;font-weight:400">{decks.decks.length} distinct lists · showing top {Math.min(SHOW, decks.decks.length)} by games</span></h2>
+  <h2>Decklists <span class="sub">{decks.decks.length} distinct lists · top {Math.min(SHOW, decks.decks.length)} by games</span> <Info text="Lists from OPBounty, Card Kaizoku and optcg.one are matched card-for-card and merged. Tags show which sources published a list; expand one to see the cards and per-source stats." /></h2>
   {decks.decks.slice(0, SHOW).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} />)}
 
   <div class="grid two">
     <section>
-      <h2>Card usage <span class="muted" style="font-size:.85rem;font-weight:400">Card Kaizoku, {fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists</span></h2>
-      <div class="panel" style="padding:0;max-height:640px;overflow:auto">
+      <h2>Card usage <span class="sub">{fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists</span> <Info text="Per card across every ranked list for this leader last week. Usage is the share of lists running it; copies is the average count when included." /></h2>
+      <div class="panel scroll" style="max-height:680px">
         <table>
-          <thead><tr><th>Card</th><th class="num">Usage</th><th class="num">Copies</th><th class="num">Win %</th><th class="num">vs leader</th></tr></thead>
+          <thead><tr><th>Card</th><th class="num">Usage</th><th class="num">Copies</th><th class="num">Win % <Info text="Win rate of lists that include the card." /></th><th class="num">vs leader <Info text="Win rate of lists with this card minus the leader's overall win rate. Positive means lists running it do better than average." /></th></tr></thead>
           <tbody>{cardsF.cards.slice(0, 80).map((c) => { const k2 = card(c.id); return (
-            <tr><td title={c.id}><span class="dot" style={`background:${k2.color ? 'var(--muted)' : 'transparent'}`}></span> {k2.name} <span class="muted" style="font-size:.72rem">{k2.type?.[0]}{k2.cost && ` ${k2.cost}`}</span></td>
-              <td class="num"><div class="bar" style="width:60px;display:inline-block;vertical-align:middle;margin-right:.3rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
+            <tr><td title={c.id} style="display:flex;align-items:center;gap:.6rem">{k2.img ? <img src={k2.img} alt="" loading="lazy" style="width:30px;height:42px;object-fit:cover;object-position:top;border-radius:4px" /> : <span style="width:30px"></span>}<span><span style="font-weight:500">{k2.name}</span><div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
+              <td class="num"><div class="bar" style="width:60px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
               <td class="num">{fmt(c.avgCopies, 1)}</td>
               <td class="num">{pct(c.winRate)}</td>
               <td class:list={['num', (c.winRateVsLeader ?? 0) >= 0 ? 'good' : 'bad']}>{c.winRateVsLeader == null ? '–' : `${c.winRateVsLeader >= 0 ? '+' : ''}${fmt(c.winRateVsLeader, 2)}`}</td></tr>); })}</tbody>
@@ -84,17 +88,19 @@ const techOpps = Object.entries(cardsF.tech).filter(([opp]) => leaders[opp]).sli
       </div>
     </section>
     <section>
-      <h2>Tech cards by matchup <span class="muted" style="font-size:.85rem;font-weight:400">strong evidence only</span></h2>
+      <h2>Tech cards by matchup <Info text="Cards that raise this leader's win rate in a specific matchup. The number is the conservative lift in percentage points; only cards with strong statistical evidence are shown." /></h2>
       <div class="panel">
         {techOpps.length === 0 && <p class="muted" style="margin:0">Not enough games for tech-card evidence this week.</p>}
         {techOpps.map(([opp, techs]) => (
-          <div style="margin-bottom:.6rem"><div style="margin-bottom:.2rem">vs <LeaderChip code={opp} showImg={false} /></div>
-            <div style="font-size:.85rem">{techs.map((t) => <span class="chip" style="margin:.1rem" title={`${pct(t.winRateWith)} with vs ${pct(t.winRateWithout)} without · ${t.gamesWith} games`}>{card(t.id).name} <b class="good">+{fmt(t.lift)}</b></span>)}</div></div>
+          <div style="display:flex;gap:.9rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)">
+            <LeaderArt code={opp} size="sm" label={false} />
+            <div style="font-size:.85rem;display:flex;flex-wrap:wrap;gap:.3rem">{techs.map((t) => <span class="chip" title={`${pct(t.winRateWith)} with vs ${pct(t.winRateWithout)} without · ${t.gamesWith} games`}>{card(t.id).name} <b class="good">+{fmt(t.lift)}</b></span>)}</div>
+          </div>
         ))}
       </div>
       {cardsF.openingHand.length > 0 && <>
-        <h2>Most common opening-hand cards</h2>
-        <div class="panel" style="font-size:.85rem">{cardsF.openingHand.slice(0, 12).map((c) => <span class="chip" style="margin:.1rem">{card(c.id).name} <span class="muted">{pct(c.rate)}</span></span>)}</div></>}
+        <h2>Opening-hand regulars <Info text="How often each card shows up in the opening five after mulligans, across all games with this leader." /></h2>
+        <div class="panel" style="display:flex;flex-wrap:wrap;gap:.35rem;font-size:.85rem">{cardsF.openingHand.slice(0, 12).map((c) => <span class="chip">{card(c.id).name} <span class="muted">{pct(c.rate)}</span></span>)}</div></>}
     </section>
   </div>
 </Base>

@@ -67,7 +67,6 @@ def build_players(opb: dict) -> list[dict]:
             "wins": e.get("wins"), "losses": e.get("losses"), "matches": e.get("matches"),
             "winRate": e.get("winRate"),
             "country": e.get("country"),
-            "faction": "Marine" if e.get("isMarine") else "Pirate",
             "topLeaders": [
                 {"code": strip_prefix(t.get("code")), "winRate": t.get("winRate"), "matches": t.get("matches")}
                 for t in (e.get("topLeaders") or [])

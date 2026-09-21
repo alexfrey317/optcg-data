@@ -13,7 +13,7 @@ function readJson<T>(path: string, fallback: T): T {
 export interface TopLeader { code: string; winRate: number | null; matches: number | null }
 export interface Player {
   id: number | string | null; rank: number; name: string; bounty: number; wins: number; losses: number;
-  matches: number; winRate: number; country: string | null; faction: 'Marine' | 'Pirate'; topLeaders: TopLeader[];
+  matches: number; winRate: number; country: string | null; topLeaders: TopLeader[];
 }
 export interface SourceStats { [k: string]: number | string | string[] | null | undefined }
 export interface Leader {

@@ -1,10 +1,17 @@
 ---
+import Info from './Info.astro';
 import { card, fmt, pct, deckGames, deckWinRate, TYPE_ORDER, type Deck } from '../lib/data';
 interface Props { deck: Deck; leader: string; open?: boolean }
 const { deck, leader, open = false } = Astro.props;
 const games = deckGames(deck);
 const wr = deckWinRate(deck);
 const SRC_LABEL: Record<string, string> = { opbounty: 'OPBounty ladder', kaizokuBest: 'Kaizoku best', kaizokuPlayed: 'Kaizoku most played', optcgone: 'optcg.one ranked' };
+const SRC_HELP: Record<string, string> = {
+  opbounty: 'Games and win rate for this exact 50-card list on the OPBounty Standard ladder, last week.',
+  kaizokuBest: 'Card Kaizoku ranks this list among the best for the leader, weighting win rate by sample size and how many different pilots played it.',
+  kaizokuPlayed: 'Card Kaizoku lists this as one of the most-played lists for the leader last week.',
+  optcgone: 'optcg.one ranked feed. WEST / WEST+ are Elo tiers; WEST+ is the higher bracket.',
+};
 const sorted = [...deck.cards].sort((a, b) => {
   const ca = card(a.id), cb = card(b.id);
   const t = TYPE_ORDER.indexOf(ca.type) - TYPE_ORDER.indexOf(cb.type);
@@ -17,26 +24,26 @@ const simText = [`1x${leader}`, ...deck.cards.map((c) => `${c.qty}x${c.id}`)].jo
 <details class="deck" open={open} id={deck.hash}>
   <summary>
     <span>
-      {Object.keys(deck.sources).map((s) => <span class:list={['src', s]} title={SRC_LABEL[s]}>{SRC_LABEL[s]}</span>)}
-      {deck.size !== 50 && <span class="muted" style="font-size:.75rem"> · {deck.size} cards</span>}
+      {Object.keys(deck.sources).map((s) => <span class:list={['src', s]} title={SRC_HELP[s]}>{SRC_LABEL[s]}</span>)}
+      {deck.size !== 50 && <span class="muted small"> · {deck.size} cards</span>}
     </span>
-    <span class="num"><span class="muted" style="font-size:.75rem">games</span> {fmt(games, 0)}</span>
-    <span class:list={['num', wr != null && wr >= 50 ? 'good' : 'bad']}><span class="muted" style="font-size:.75rem">win</span> {pct(wr)}</span>
-    <button class="copy" data-copy={simText} onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied';setTimeout(()=>this.textContent='Copy for sim',1200);event.preventDefault()">Copy for sim</button>
+    <span class="num"><span class="muted small">games </span><b>{fmt(games, 0)}</b> <Info text="Games summed across every source that published this exact list. The same game can appear in more than one source." /></span>
+    <span class:list={['num', wr != null && wr >= 50 ? 'good' : 'bad']}><span class="muted small">win </span><b>{pct(wr)}</b> <Info text="Win rate from the most direct source available: OPBounty ladder first, then Card Kaizoku, then optcg.one." /></span>
+    <button class="copy" data-copy={simText} onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied';setTimeout(()=>this.textContent='Copy for sim',1200);event.preventDefault()" title="Copies the list in the text format OPTCG Sim imports">Copy for sim</button>
   </summary>
   <div class="cards">
     {sorted.map((c) => { const k = card(c.id); return (
-      <div class="card" title={`${k.name} (${c.id})`}>
-        {k.img ? <img src={k.img} alt={k.name} loading="lazy" /> : <div style="aspect-ratio:5/7;background:var(--panel-2);border-radius:5px"></div>}
+      <div class="card" title={`${k.name} (${c.id})${k.cost ? ` · cost ${k.cost}` : ''}${k.power && k.power !== '0' ? ` · ${k.power} power` : ''}`}>
+        {k.img ? <img src={k.img} alt={k.name} loading="lazy" decoding="async" /> : <div class="blank">{k.name}</div>}
         <span class="qty">{c.qty}</span>
         <div class="cname">{k.name}</div>
       </div>
     ); })}
   </div>
-  <div style="padding:.4rem .8rem .7rem;font-size:.8rem" class="muted">
+  <div style="padding:.5rem 1rem .9rem;font-size:.82rem" class="muted">
     {Object.entries(deck.sources).map(([s, v]) => (
       <div><b style="color:var(--text)">{SRC_LABEL[s]}</b>: {fmt(v.games as number, 0)} games, {pct(v.winRate as number)} win
-        {v.pilots != null && <> · {fmt(v.pilots as number, 0)} pilots</>}{v.adjWinRate != null && <> · adj {pct(v.adjWinRate as number)}</>}
+        {v.pilots != null && <> · {fmt(v.pilots as number, 0)} pilots</>}{v.adjWinRate != null && <> · adjusted {pct(v.adjWinRate as number)} <Info text="Card Kaizoku's win rate after shrinking small samples toward the leader's average, so a 5-0 list does not outrank a 300-game list." /></>}
         {Array.isArray(v.regions) && v.regions.length > 0 && <> · {v.regions.join(', ')}</>}</div>
     ))}
   </div>
