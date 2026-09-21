@@ -51,6 +51,7 @@ jobs:
           git add data
           git diff --cached --quiet && echo "no changes" && exit 0
           git commit -m "chore: data snapshot $(date -u +%F)"
+          git pull --rebase -X theirs origin main
           git push
 
       - name: Open issue on failure
