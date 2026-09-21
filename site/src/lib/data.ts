@@ -109,10 +109,14 @@ export const leaderStats = (l: Leader) => {
   const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {}, r = l.sources.ranked;
   // games, win rate and play rate come from the complete ranked archive when we have it; 1st/2nd only exist in the sim-wide feed
   const main = r ?? k;
+  const games = r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0);
+  // shrink toward 50% with a 1,000-game prior: a leader with 100 games at 58% lands near 50.7%, one with 40,000 games is untouched
+  const wins = main.wins == null ? null : Number(main.wins);
+  const weighted = wins != null && games ? Math.round(1000 * (wins + 500) / (games + 1000)) / 10 : main.weightedWinRate == null ? null : Number(main.weightedWinRate);
   return {
-    games: r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0),
+    games,
     winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
-    weighted: main.weightedWinRate == null ? null : Number(main.weightedWinRate),
+    weighted,
     playRate: main.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(main.playRate),
     first: k.firstWinRate == null ? null : Number(k.firstWinRate),
     second: k.secondWinRate == null ? null : Number(k.secondWinRate),
