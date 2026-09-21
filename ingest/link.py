@@ -27,6 +27,11 @@ LATEST = ROOT / "data" / "latest"
 DISC_RE = re.compile(r"​?#\d+\s*$")
 BOUNTY_TOL = 40.0   # max |rating - last bounty| considered at all
 EXACT_DAYS = 5      # look for exact rating hits in the most recent N days of games
+PLACEHOLDERS = {"your client", "opponent", "mobile", ""}  # some client builds log these instead of the real handle
+
+
+def real_handle(h) -> bool:
+    return isinstance(h, str) and h.strip().casefold() not in PLACEHOLDERS
 
 
 def base(h: str) -> str:
@@ -59,6 +64,8 @@ def handle_series(dailies: list[dict]) -> tuple[dict[str, list[dict]], dict[str,
                 continue  # missing, or an older handle file without seat leaders
             w, l = m["w"], m["l"]
             (h1, l1), (h2, l2) = seats
+            if not (real_handle(h1) and real_handle(h2)):
+                continue
             if w["l"] != l["l"]:
                 sides = {h1: "w" if l1 == w["l"] else "l", h2: "w" if l2 == w["l"] else "l"}
             else:
@@ -161,7 +168,7 @@ def link(players: list[dict], series: dict[str, list[dict]], snapshot_ts: str, p
         ts, b, _ = last[prev["handle"]]
         if abs(b - float(p.get("bounty") or 0)) <= BOUNTY_TOL:
             used.add(prev["handle"])
-            out[pid] = {**prev, "confidence": prev.get("confidence", "exact") + "*", "gap": round(abs(b - float(p.get("bounty") or 0)), 2),
+            out[pid] = {**prev, "confidence": prev.get("confidence", "exact").rstrip("*") + "*", "gap": round(abs(b - float(p.get("bounty") or 0)), 2),
                         "lastSeen": ts, "lastBounty": round(b, 2), "games": len(series[prev["handle"]])}
     return out
 
