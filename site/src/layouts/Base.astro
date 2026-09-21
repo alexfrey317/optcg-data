@@ -50,6 +50,20 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       document.addEventListener('scroll', hide, { passive: true });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
 
+      // Card zoom: click any card image that is not already a link to see it large.
+      const zoom = document.getElementById('zoom')!, zimg = zoom.querySelector('img')!, zcap = zoom.querySelector('figcaption')!;
+      const closeZoom = () => { zoom.hidden = true; zimg.removeAttribute('src'); document.body.style.overflow = ''; };
+      document.addEventListener('click', (e) => {
+        const img = (e.target as HTMLElement).closest<HTMLImageElement>('img[src*="limitlesstcg"]');
+        if (!img || img.closest('a')) return;
+        e.preventDefault();
+        const holder = img.closest<HTMLElement>('[title]');
+        zimg.src = img.currentSrc || img.src; zcap.textContent = img.alt || holder?.title || '';
+        zoom.hidden = false; document.body.style.overflow = 'hidden';
+      });
+      zoom.addEventListener('click', closeZoom);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
+
       // Deck lists: "Show more" keeps the first data-limit lists visible; the sort bar reorders by a data-* key and renumbers.
       document.querySelectorAll<HTMLElement>('.decklist').forEach((box) => {
         const limit = Number(box.dataset.limit ?? 5), noun = box.dataset.noun ?? 'lists';
