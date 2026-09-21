@@ -82,6 +82,8 @@ const ladderPlayer = (name: string) => byName.get(name.toLowerCase());
               <td class="num muted">{p.games}</td><td class:list={['num', cls(p.winRate)]}>{pct(p.winRate)}</td></tr>); })}</tbody></table></>}
       </div>
 
+    </section>
+    <section>
       <h2>Card usage <span class="sub">{fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists</span> <Info text="Per card across every ranked list for this leader last week. Usage is the share of lists running it; copies is the average count when included; lift is how much lists with the card outperform the leader's average win rate." /></h2>
       <div class="panel scroll" style="max-height:720px">
         <table>
