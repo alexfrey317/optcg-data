@@ -50,7 +50,21 @@ for (const [code, l] of Object.entries(leaders)) l.img = imgUrl(code);
 
 export const deckFile = (code: string) => readJson<DeckFile>(join(LATEST, 'decks', `${code}.json`), { leader: code, decks: [], topPilots: [] });
 export const cardFile = (code: string) => readJson<CardFile>(join(LATEST, 'cards', `${code}.json`), { leader: code, cards: [], openingHand: [], tech: {} });
-export const bountyHistory = (id: string | number) => readJson<[string, number, number][]>(join(HISTORY, 'bounty', `${id}.json`), []);
+/** Per-player exact decklists from the Card Kaizoku player routes (ranked, private-lobby bucket). */
+export interface PlayerMatchup { opp: string; games: number; winRate: number | null }
+export interface PlayerDeck extends Deck { leader: string; leaderName: string | null; games: number; wins: number; winRate: number | null; matchups: PlayerMatchup[] }
+export interface PlayerTurns { firstGames: number; firstWinRate: number | null; secondGames: number; secondWinRate: number | null }
+export interface PlayerLeaderStat { code: string; name: string | null; games: number; wins: number; winRate: number | null; turns: PlayerTurns | null; matchups: PlayerMatchup[] }
+export interface PlayerDecks {
+  opbId: string; kzId: string; handle: string; window: { start: string; end: string; days: number }; isPrivate: boolean;
+  matches: number; wins: number; winRate: number | null; avgTurns: number | null; turns: PlayerTurns | null;
+  coinflip: { won: number; lost: number; winRateAfterWin: number | null; winRateAfterLoss: number | null };
+  leaders: PlayerLeaderStat[]; decks: PlayerDeck[];
+}
+export const playerDecks = (id: string | number) => readJson<PlayerDecks | null>(join(LATEST, 'players', `${id}.json`), null);
+export const playersWithDecks = (): Set<string> => new Set(existsSync(join(LATEST, 'players')) ? readdirSync(join(LATEST, 'players')).map((f) => f.replace(/\.json$/, '')) : []);
+
+export const bountyHistory =(id: string | number) => readJson<[string, number, number][]>(join(HISTORY, 'bounty', `${id}.json`), []);
 export const leaderHistory = (code: string) => readJson<(string | number | null)[][]>(join(HISTORY, 'leaders', `${code}.json`), []);
 
 export const card = (id: string): Card => cards[id] ?? { name: id, type: '', cost: '', color: '', power: '', counter: '', rarity: '', img: imgUrl(id), set: id.split('-')[0] };
@@ -64,6 +78,7 @@ export const volume = (l: Leader) => Number(l.sources.kaizoku?.matches ?? 0) + N
 /** Consolidated deck stats. The ladder feed and the ranked-decklist feed describe the same match pool, so we take the
  *  larger of the two rather than adding them; the sim-wide pool is a separate set of games and is added. Win rate is games-weighted. */
 export const deckStats = (d: Deck): { games: number; winRate: number | null; pilots: number | null } => {
+  if (d.sources.player) return { games: Number(d.sources.player.games ?? 0), winRate: d.sources.player.winRate == null ? null : Number(d.sources.player.winRate), pilots: null };
   const o = d.sources.opbounty, n = d.sources.optcgone, k = d.sources.kaizokuBest ?? d.sources.kaizokuPlayed;
   const ladder = (Number(o?.games ?? 0) >= Number(n?.games ?? 0) ? o : n) ?? null;
   const pools = [ladder, k].filter(Boolean) as SourceStats[];

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import normalize as N
 from .http import get_json
-from .sources import kaizoku, opbounty, optcgone
+from .sources import kaizoku, kaizoku_players, opbounty, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
@@ -36,7 +36,7 @@ def load(path: Path, default):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,optcgone,cards")
+    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,optcgone,cards,players")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
 
@@ -91,6 +91,28 @@ def main(argv=None):
         for t in p["topLeaders"]:
             used_cards.add(t["code"])
 
+    # per-player exact decklists (Card Kaizoku player routes)
+    player_stats = None
+    if "players" in skip:
+        status["players"] = "skipped"
+    else:
+        try:
+            player_stats = kaizoku_players.fetch_all(players, LATEST / "player_ids.json", LATEST / "players", today)
+            status["players"] = "ok"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["players"] = f"error: {e}"
+        print(f"[players] {status['players']} {json.dumps(player_stats) if player_stats else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    # drop per-player files for players no longer in the pulled range, so stale decks never linger
+    keep = {str(p["id"]) for p in players if p.get("id")}
+    if (LATEST / "players").exists():
+        for f in (LATEST / "players").glob("*.json"):
+            if f.stem not in keep:
+                f.unlink()
+    for f in (LATEST / "players").glob("*.json") if (LATEST / "players").exists() else []:
+        for d in load(f, {}).get("decks", []):
+            used_cards.update(c["id"] for c in d["cards"])
+
     dump(LATEST / "players.json", players)
     dump(LATEST / "leaders.json", leaders)
     dump(LATEST / "cards.json", {cid: card_db[cid] for cid in sorted(used_cards) if cid in card_db})
@@ -115,6 +137,7 @@ def main(argv=None):
         "opbounty": {"set": opb.get("set"), "sets": opb.get("sets")},
         "kaizoku": {"dataset": kz.get("dataset"), "manifestDate": kz.get("manifest_date"), "files": kz.get("files")},
         "optcgone": {"fetchedAt": one.get("fetched_at"), "rankedCount": one.get("ranked_count")},
+        "playerDecks": player_stats,
         "sources": [
             {"name": "OPBounty", "url": "https://stats.tcgmatchmaking.com/", "support": "https://www.patreon.com/tcgmm"},
             {"name": "Card Kaizoku", "url": "https://www.cardkaizoku.com/", "support": "https://www.patreon.com/cardkaizoku"},

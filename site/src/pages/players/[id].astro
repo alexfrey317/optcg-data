@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import Info from '../../components/Info.astro';
-import { players, leaders, deckFile, bountyHistory, fmt, pct, berry, flag, type Player } from '../../lib/data';
+import { players, leaders, deckFile, bountyHistory, playerDecks, fmt, pct, berry, flag, heat, type Player } from '../../lib/data';
 
 export function getStaticPaths() {
   return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
@@ -24,6 +24,9 @@ const leaderDecks = player.topLeaders.map((t) => {
   return { ...t, name: leaders[t.code]?.name ?? t.code, decks: f.decks.slice(0, 3), pilot: f.topPilots.find((p) => p.name === player.name) };
 });
 const main = player.topLeaders[0];
+const own = playerDecks(player.id!);
+const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filter((d) => d.leader === l.code) })).filter((l) => l.decks.length) : [];
+const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
 ---
 <Base title={`${player.name} · #${player.rank}`}>
   <p style="margin:0 0 .75rem"><a href="/">← Ladder</a></p>
@@ -69,8 +72,38 @@ const main = player.topLeaders[0];
     </table>
   </div>
 
-  <h2>What these leaders are winning with <Info text="No free source publishes a player's exact decklist. Shown instead: the top ranked lists for each leader this player pilots." /></h2>
-  {leaderDecks.map((L) => (
+  {own && ownByLeader.length > 0 ? (
+    <>
+      <h2>Decks played <span class="sub">ranked · {own.window.start} → {own.window.end} · {fmt(own.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked private-lobby games over the last ${own.window.days} days, from the sim's match records. Games and win rate are this player's own results with each list.`} /></h2>
+      <div class="grid stats" style="margin-bottom:1rem">
+        <div class="stat"><div class="label">Win rate <Info text="This player's ranked win rate over the window." /></div><div class:list={['value', cls(own.winRate)]}>{pct(own.winRate)}</div></div>
+        <div class="stat"><div class="label">Going 1st <Info text="Win rate in games where this player took the first turn." /></div><div class:list={['value', cls(own.turns?.firstWinRate)]}>{pct(own.turns?.firstWinRate)} <span class="muted small">/ {own.turns?.firstGames ?? 0}</span></div></div>
+        <div class="stat"><div class="label">Going 2nd</div><div class:list={['value', cls(own.turns?.secondWinRate)]}>{pct(own.turns?.secondWinRate)} <span class="muted small">/ {own.turns?.secondGames ?? 0}</span></div></div>
+        <div class="stat"><div class="label">After winning the flip <Info text="Win rate when this player won the coin flip and chose turn order." /></div><div class:list={['value', cls(own.coinflip.winRateAfterWin)]}>{pct(own.coinflip.winRateAfterWin)}</div></div>
+        <div class="stat"><div class="label">Avg game length</div><div class="value">{own.avgTurns ? `${fmt(own.avgTurns, 1)} turns` : '–'}</div></div>
+      </div>
+      {ownByLeader.map((L) => (
+        <section style="margin-bottom:1.75rem">
+          <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
+            <LeaderArt code={L.code} size="lg" sub={`${pct(L.winRate)} · ${L.games} games · ${L.decks.length} list${L.decks.length === 1 ? '' : 's'}`} />
+            {L.turns && <span class="chip">1st {pct(L.turns.firstWinRate)} <span class="muted">/ {L.turns.firstGames}</span></span>}
+            {L.turns && <span class="chip">2nd {pct(L.turns.secondWinRate)} <span class="muted">/ {L.turns.secondGames}</span></span>}
+          </div>
+          {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
+            <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
+            <tbody>
+              <tr><th>Win rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
+              <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
+            </tbody></table></div>}
+          {L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}
+          <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? leaders[L.code]?.name ?? L.code} lists, matchups and card stats →</a></p>
+        </section>
+      ))}
+    </>
+  ) : (
+    <h2>What these leaders are winning with <Info text="We could not link this ladder name to a sim account with recent ranked games, so exact lists are unavailable. Shown instead: the top ranked lists for each leader this player pilots." /></h2>
+  )}
+  {!(own && ownByLeader.length > 0) && leaderDecks.map((L) => (
     <section style="margin-bottom:1.5rem">
       <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
         <LeaderArt code={L.code} size="lg" sub={`this player: ${pct(L.winRate)} · ${L.matches} games`} />
