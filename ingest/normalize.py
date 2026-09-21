@@ -236,6 +236,7 @@ def build_card_db(raw: list[dict]) -> dict:
 
 # ---------------------------------------------------------------- history
 def append_history(path: Path, point: list, max_points: int = 400):
+    path.parent.mkdir(parents=True, exist_ok=True)
     series = json.loads(path.read_text()) if path.exists() else []
     if series and series[-1][0] == point[0]:
         series[-1] = point
