@@ -1,7 +1,7 @@
 ---
 import { card, fmt, pct, deckStats, deckScore, imgUrl, imgOnError, TYPE_ORDER, type Deck } from '../lib/data';
-interface Props { deck: Deck; leader: string; open?: boolean; rank?: number; baseline?: Deck }
-const { deck, leader, open = false, rank, baseline } = Astro.props;
+interface Props { deck: Deck; leader: string; open?: boolean; rank?: number }
+const { deck, leader, open = false, rank } = Astro.props;
 const s = deckStats(deck);
 const sorted = [...deck.cards].sort((a, b) => {
   const ca = card(a.id), cb = card(b.id);
@@ -14,17 +14,6 @@ const simText = [`1x${leader}`, ...deck.cards.map((c) => `${c.qty}x${c.id}`)].jo
 
 // Header preview: the list's highest-cost cards, most copies first, so the "core" is visible while collapsed.
 const preview = [...deck.cards].sort((a, b) => b.qty - a.qty || Number(card(b.id).cost || 0) - Number(card(a.id).cost || 0)).slice(0, 9);
-
-// Differences from the baseline (the #1 list): what this list adds and cuts.
-let diff: { add: string[]; cut: string[] } | null = null;
-if (baseline && baseline.hash !== deck.hash) {
-  const a = new Map(deck.cards.map((c) => [c.id, c.qty])), b = new Map(baseline.cards.map((c) => [c.id, c.qty]));
-  const add: string[] = [], cut: string[] = [];
-  for (const [id, q] of a) { const d = q - (b.get(id) ?? 0); if (d > 0) add.push(`+${d} ${card(id).name}`); }
-  for (const [id, q] of b) { const d = q - (a.get(id) ?? 0); if (d > 0) cut.push(`−${d} ${card(id).name}`); }
-  diff = { add, cut };
-}
-const diffCount = diff ? diff.add.reduce((n, s) => n + Number(s.match(/^\+(\d+)/)?.[1] ?? 0), 0) : 0;
 ---
 <details class="deck" open={open} id={deck.hash} data-games={s.games} data-wr={s.winRate ?? 0} data-pilots={s.pilots ?? 0} data-score={deckScore(s)}>
   <summary>
@@ -34,9 +23,6 @@ const diffCount = diff ? diff.add.reduce((n, s) => n + Number(s.match(/^\+(\d+)/
         <span>
           <span style="font-weight:600">{s.pilots != null ? `${fmt(s.pilots, 0)} pilots` : 'Ranked list'}</span>
           {deck.size !== 50 && <span class="muted small"> · {deck.size} cards</span>}
-          <div class="muted small deck-diff">
-            {diff == null ? (baseline ? 'Baseline list' : '') : diffCount === 0 ? 'Same 50 as baseline' : `${diffCount} card${diffCount === 1 ? '' : 's'} off baseline: ${[...diff.add, ...diff.cut].slice(0, 4).join(', ')}${diff.add.length + diff.cut.length > 4 ? ', …' : ''}`}
-          </div>
         </span>
       </span>
     </span>

@@ -71,9 +71,9 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
 
 <section>
   <h2>Decklists <span class="sub">{decks.decks.length} distinct lists · {WINDOWS[W].label.toLowerCase()}</span> <Info text="Distinct 50-card lists seen in ranked over the window. Most Successful ranks by win rate shrunk toward 50% for lists with few games, so a lucky 3-0 does not beat a proven 58% list; you can re-sort by games, raw win rate, or number of pilots. Games and win rate combine every ranked game we have for the exact list." /></h2>
-  <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards. Differences are measured against the most successful list.</p>
+  <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards.</p>
   <DeckList limit={DECKS_SHOWN} total={Math.min(DECKS_MAX, decks.decks.length)} sortable>
-    {decks.decks.slice(0, DECKS_MAX).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={decks.decks[0]} />)}
+    {decks.decks.slice(0, DECKS_MAX).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} />)}
   </DeckList>
 </section>
 

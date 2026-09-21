@@ -92,7 +92,7 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
               <tr><th>Win rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
               <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
             </tbody></table></div>}
-          <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList>
+          <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} />)}</DeckList>
           <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? leaders[L.code]?.name ?? L.code} lists, matchups and card stats →</a></p>
         </section>
       ))}
