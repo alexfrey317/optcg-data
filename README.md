@@ -12,7 +12,7 @@ Sources (used with permission): [OPBounty](https://stats.tcgmatchmaking.com/),
 
 ```
 ingest/            Python 3.12+, stdlib only.  python -m ingest.run
-  sources/         one module per upstream (opbounty ladder, opbounty_matches archive, kaizoku, kaizoku_players, optcgone)
+  sources/         one module per upstream (opbounty ladder, opbounty_matches archive, opbounty_profiles, kaizoku, kaizoku_players, optcgone)
   link.py          ladder row -> sim handle linking via the match archive (exact bounty equality, then name)
   normalize.py     merge + hash decks, build per-leader files
 data/latest/       players.json, leaders.json, cards.json, decks/<LEADER>.json, cards/<LEADER>.json, meta.json
@@ -67,3 +67,11 @@ player is above bounty 1,900 the first 4 KB of the combat log is read to get bot
 (`data/matches/handles/`). Files are never deleted; windows (`data/windows/7d`, `30d`) are summed from
 them. Requires `OPB_FS_EMAIL` / `OPB_FS_PASSWORD` (GitHub secrets); without them the step is skipped.
 Backfill: `OPB_MATCH_DAYS=31 python -m ingest.sources.opbounty_matches 31`.
+
+The archive only holds games where the room host runs the OPBounty app, about 47% of ranked games, so
+it is a sample. `ingest/sources/opbounty_profiles.py` adds the complete side: each ladder player's own
+profile document (`PublicUsers/<id>`, field `Western`) with season wins/losses, top-3 leader stats
+(with first/second splits), bounty after every game and the newest 9 public matches with both decklists.
+Written to `data/latest/profiles/<id>.json`; public match rows accumulate forever in
+`data/matches/public/YYYY-MM-DD.json`. Player pages show season totals from the profile and decklists
+from the recorded games (archive + profile rows), labelled as such.

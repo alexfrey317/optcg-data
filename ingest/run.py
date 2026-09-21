@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import link, normalize as N
 from .http import get_json
-from .sources import kaizoku, kaizoku_players, opbounty, opbounty_matches, optcgone
+from .sources import kaizoku, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
@@ -38,7 +38,7 @@ def load(path: Path, default):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players,matches")
+    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players,matches,profiles")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
 
@@ -96,6 +96,19 @@ def main(argv=None):
     card_db = N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
 
     players = N.build_players(opb)
+
+    # OPBounty personal profiles (Firestore PublicUsers): complete season record + per-leader stats per ladder player
+    profiles_status = None
+    if "profiles" in skip or not opbounty_matches.EMAIL:
+        status["profiles"] = "skipped"
+    else:
+        try:
+            profiles_status = opbounty_profiles.fetch_all(players)
+            status["profiles"] = "ok"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["profiles"] = f"error: {e}"
+        print(f"[profiles] {status['profiles']} {json.dumps(profiles_status) if profiles_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
     leaders = N.build_leaders(opb, kz, card_db)
     used_cards: set[str] = set(leaders)
 
@@ -209,6 +222,7 @@ def main(argv=None):
         "playerDecks": player_stats,
         "daily": daily_status,
         "matches": matches_status,
+        "profiles": profiles_status,
         "linked": len(links),
         "windows": window_meta,
         "sources": [

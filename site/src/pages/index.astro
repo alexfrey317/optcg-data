@@ -2,11 +2,12 @@
 import Base from '../layouts/Base.astro';
 import LeaderArt from '../components/LeaderArt.astro';
 import Info from '../components/Info.astro';
-import { players, leaders, fmt, pct, berry, flag } from '../lib/data';
+import { players, leaders, seasonRecord, fmt, pct, berry, flag } from '../lib/data';
 
 const countries = [...new Set(players.map((p) => p.country).filter(Boolean))].sort() as string[];
 const leaderCodes = [...new Set(players.flatMap((p) => p.topLeaders.map((t) => t.code)))].sort((a, b) => (leaders[a]?.name ?? a).localeCompare(leaders[b]?.name ?? b));
-const totalMatches = players.reduce((n, p) => n + (p.matches || 0), 0);
+const rec = new Map(players.map((p) => [p, seasonRecord(p)]));
+const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
 ---
 <Base title="Ranked Ladder" wide>
   <div class="hero">
@@ -19,7 +20,7 @@ const totalMatches = players.reduce((n, p) => n + (p.matches || 0), 0);
   <div class="grid stats">
     <div class="stat"><div class="label">Top Bounty <Info text="Bounty is your ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{berry(players[0]?.bounty)}</div></div>
     <div class="stat"><div class="label">#{fmt(players.length, 0)} Bounty <Info text="The bounty of the lowest player shown. Anyone above it is on this page." /></div><div class="value">{berry(players.at(-1)?.bounty)}</div></div>
-    <div class="stat"><div class="label">Ranked Games <Info text="Sum of ranked games recorded for the players on this page." /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
+    <div class="stat"><div class="label">Ranked Games <Info text="Sum of season ranked games for the players on this page, from their OPBounty profiles where available." /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
     <div class="stat"><div class="label">Leaders in Play <Info text="Distinct leaders that appear among the top three of at least one player on this page." /></div><div class="value">{leaderCodes.length}</div></div>
   </div>
 
@@ -41,18 +42,17 @@ const totalMatches = players.reduce((n, p) => n + (p.matches || 0), 0);
         <th>Top Leaders <Info text="The three leaders this player has played most, with their personal win rate and game count on each." /></th>
       </tr></thead>
       <tbody>
-        {players.map((p) => (
+        {players.map((p) => { const r = rec.get(p)!; return (
           <tr class:list={{ top1: p.rank === 1, top3: p.rank > 1 && p.rank <= 3 }} data-name={p.name.toLowerCase()} data-country={p.country ?? ''} data-leaders={p.topLeaders.map((t) => t.code).join(' ')}
-              data-rank={p.rank} data-bounty={p.bounty} data-matches={p.matches} data-winrate={p.winRate}>
+              data-rank={p.rank} data-bounty={p.bounty} data-matches={r.games} data-winrate={r.winRate ?? 0}>
             <td class="num"><span class="pill-rank">{p.rank}</span></td>
             <td><a href={p.id != null ? `/players/${p.id}/` : undefined} style="font-weight:600;color:var(--text)">{p.name}</a>
               {p.country && <div class="muted small">{flag(p.country)} {p.country}</div>}</td>
             <td class="num gold" style="font-weight:700;font-size:1.02rem">{berry(p.bounty)}</td>
-            <td class="num">{p.matches ? <>{fmt(p.matches, 0)}<div class="muted small">{p.wins}–{p.losses}</div></> : <span class="dim">–</span>}</td>
-            <td class:list={['num', p.winRate >= 50 ? 'good' : 'bad']} style="font-weight:600">{p.matches ? pct(p.winRate) : <span class="dim">–</span>}</td>
+            <td class="num">{r.games ? <>{fmt(r.games, 0)}<div class="muted small">{r.wins}–{r.losses}</div></> : <span class="dim">–</span>}</td>
+            <td class:list={['num', (r.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{r.games ? pct(r.winRate) : <span class="dim">–</span>}</td>
             <td><div class="leader-row">{p.topLeaders.slice(0, 3).map((t) => <LeaderArt code={t.code} size="sm" sub={`${fmt(t.winRate)}% · ${t.matches} games`} />)}</div></td>
-          </tr>
-        ))}
+          </tr>); })}
       </tbody>
     </table>
   </div>

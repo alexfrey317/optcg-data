@@ -4,46 +4,98 @@ import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import DeckList from '../../components/DeckList.astro';
 import Info from '../../components/Info.astro';
-import { players, leaders, bountyHistory, playerDecks, playerMatches, parseCompactDeck, fmt, pct, berry, flag, heat, type Player, type Deck } from '../../lib/data';
+import { players, leaders, bountyHistory, playerDecks, playerMatches, playerProfile, publicMatches, parseCompactDeck, fmt, pct, berry, flag, heat, type Player, type Deck } from '../../lib/data';
 
 export function getStaticPaths() {
   return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
 }
 const { player } = Astro.props as { player: Player };
+const pid = String(player.id);
 const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
-const main = player.topLeaders[0];
+const lname = (c: string | null | undefined) => (c ? leaders[c]?.name ?? c : '?');
 
-/* ---- ranked match archive (preferred): every game this player's sim handle played in the window ---- */
-const pm = playerMatches(player.id!);
-const games = pm?.games ?? [];
-const arcWins = games.filter((g) => g.won).length;
-const arcWR = games.length ? Math.round((1000 * arcWins) / games.length) / 10 : null;
+/* ---- season truth: the player's own OPBounty profile (complete record, top-3 leaders) ---- */
+const profRaw = playerProfile(pid);
+// the ladder's game count is the top-3 subset of the same data: a profile reporting fewer games is stale, so the ladder wins then
+const prof = profRaw && profRaw.games >= (player.matches || 0) ? profRaw : null;
+const seasonGames = prof?.games ?? player.matches;
+const seasonWins = prof?.wins ?? player.wins;
+const seasonLosses = prof?.losses ?? player.losses;
+const seasonWR = prof?.winRate ?? player.winRate;
+
+/* ---- recorded games: replay archive (by sim handle) + public match rows from profiles, deduplicated ---- */
+type Rec = { ts: string; leader: string; opp: string; won: boolean; b: number; oppB: number; deck: string | null; oppDeck: string | null; oppName?: string; src: 'archive' | 'public' };
+const pm = playerMatches(pid);
+const pub = publicMatches();
+const decks: Record<string, string> = { ...(pm?.decks ?? {}), ...pub.decks, ...(prof?.decks ?? {}) };
+const rec: Rec[] = (pm?.games ?? []).map((g) => ({ ts: (g as any).ct || g.ts, leader: g.leader, opp: g.opp, won: g.won, b: g.b, oppB: g.oppB, deck: g.deck, oppDeck: g.oppDeck, src: 'archive' }));
+const near = (a: string, b: string) => Math.abs(new Date(a + 'Z').getTime() - new Date(b + 'Z').getTime()) < 20 * 60 * 1000;
+for (const m of pub.byPlayer.get(pid) ?? []) {
+  if (m.winner == null) continue; // cancelled / never started
+  const meSide = m.p1.id === pid ? 'p1' : 'p2', opSide = meSide === 'p1' ? 'p2' : 'p1';
+  const me = m[meSide], op = m[opSide];
+  if (!me.leader || !op.leader) continue;
+  if (rec.some((r) => r.src === 'archive' && r.leader === me.leader && r.opp === op.leader && near(r.ts, m.ts))) continue;
+  rec.push({ ts: m.ts, leader: me.leader, opp: op.leader, won: m.winner === meSide, b: Math.round((me.b + me.delta) * 100) / 100, oppB: op.b, deck: me.deck, oppDeck: op.deck, oppName: op.nick, src: 'public' });
+}
+rec.sort((a, b) => a.ts.localeCompare(b.ts));
+const recWins = rec.filter((g) => g.won).length;
+const recWR = rec.length ? Math.round((1000 * recWins) / rec.length) / 10 : null;
 const byLeader = new Map<string, { code: string; games: number; wins: number; opps: Map<string, { games: number; wins: number }>; decks: Map<string, { games: number; wins: number }> }>();
-for (const g of games) {
+for (const g of rec) {
   const L = byLeader.get(g.leader) ?? { code: g.leader, games: 0, wins: 0, opps: new Map(), decks: new Map() };
   L.games++; if (g.won) L.wins++;
   const o = L.opps.get(g.opp) ?? { games: 0, wins: 0 }; o.games++; if (g.won) o.wins++; L.opps.set(g.opp, o);
   if (g.deck) { const d = L.decks.get(g.deck) ?? { games: 0, wins: 0 }; d.games++; if (g.won) d.wins++; L.decks.set(g.deck, d); }
   byLeader.set(g.leader, L);
 }
-const arcLeaders = [...byLeader.values()].sort((a, b) => b.games - a.games).map((L) => ({
+const recLeaders = [...byLeader.values()].map((L) => ({
   ...L,
   winRate: Math.round((1000 * L.wins) / L.games) / 10,
   matchups: [...L.opps.entries()].map(([opp, s]) => ({ opp, games: s.games, winRate: Math.round((1000 * s.wins) / s.games) / 10 })).sort((a, b) => b.games - a.games).slice(0, 14),
   deckList: [...L.decks.entries()].map(([hash, s]): Deck & { games: number } => {
-    const cards = parseCompactDeck(pm!.decks[hash] ?? '');
+    const cards = parseCompactDeck(decks[hash] ?? '');
     return { hash, cards, size: cards.reduce((n, c) => n + c.qty, 0), games: s.games, sources: { player: { games: s.games, wins: s.wins, winRate: Math.round((1000 * s.wins) / s.games) / 10 } } };
   }).filter((d) => d.cards.length).sort((a, b) => b.games - a.games).slice(0, 15),
 }));
-const noDeckGames = games.filter((g) => !g.deck).length;
-const recent = [...games].reverse().slice(0, 30);
-const arcSpan = games.length ? `${games[0].ts.slice(0, 10)} → ${games[games.length - 1].ts.slice(0, 10)}` : '';
+const recByCode = new Map(recLeaders.map((L) => [L.code, L]));
 
-/* ---- bounty curve: per-game bounties from the archive when we have them, else daily ladder snapshots ---- */
-type Pt = { t: string; b: number; leader?: string; opp?: string; won?: boolean };
-const curve: Pt[] = games.length >= 2
-  ? games.map((g) => ({ t: (g as any).ct || g.ts, b: g.b, leader: g.leader, opp: g.opp, won: g.won }))
-  : bountyHistory(player.id!).map((h) => ({ t: h[0], b: h[1] }));
+/* ---- leaders table: season rows from the profile (or the ladder's top 3), then leaders only seen in recordings ---- */
+type Row = { code: string; games: number | null; winRate: number | null; first: number | null; second: number | null; recorded: number; recWR: number | null; season: boolean };
+const seasonRows: Row[] = prof
+  ? prof.leaders.map((l) => ({ code: l.code, games: l.games, winRate: l.winRate, first: l.first?.winRate ?? null, second: l.second?.winRate ?? null, recorded: recByCode.get(l.code)?.games ?? 0, recWR: recByCode.get(l.code)?.winRate ?? null, season: true }))
+  : player.topLeaders.map((t) => ({ code: t.code, games: t.matches, winRate: t.winRate, first: null, second: null, recorded: recByCode.get(t.code)?.games ?? 0, recWR: recByCode.get(t.code)?.winRate ?? null, season: true }));
+const extraRows: Row[] = recLeaders.filter((L) => !seasonRows.some((r) => r.code === L.code)).sort((a, b) => b.games - a.games)
+  .map((L) => ({ code: L.code, games: null, winRate: null, first: null, second: null, recorded: L.games, recWR: L.winRate, season: false }));
+const rows = [...seasonRows, ...extraRows];
+const topGames = seasonRows.reduce((n, r) => n + (r.games ?? 0), 0);
+const otherGames = seasonGames && topGames ? Math.max(0, seasonGames - topGames) : 0;
+const main = seasonRows[0] ? { code: seasonRows[0].code, winRate: seasonRows[0].winRate, matches: seasonRows[0].games } : null;
+const noDeckGames = rec.filter((g) => !g.deck).length;
+const recent = [...rec].reverse().slice(0, 30);
+const recSpan = rec.length ? `${rec[0].ts.slice(0, 10)} → ${rec[rec.length - 1].ts.slice(0, 10)}` : '';
+const coverage = seasonGames && rec.length ? Math.min(100, Math.round((100 * rec.length) / seasonGames)) : null;
+
+/* ---- bounty curve: the profile's bounty-after-every-game series (complete, unstamped), with recorded games attached where the values line up;
+        else recorded games alone; else daily ladder snapshots ---- */
+type Pt = { t: string | null; b: number; leader?: string; opp?: string; won?: boolean; n?: number };
+let curve: Pt[] = [];
+let curveSrc: 'profile' | 'recorded' | 'daily' = 'daily';
+if (prof && prof.graph.length >= 2) {
+  curveSrc = 'profile';
+  curve = prof.graph.map((b, i) => ({ t: null, b, n: i + 1 }));
+  let j = 0;
+  for (const g of rec) {
+    const want = Math.round(g.b * 10) / 10;
+    for (let k = j; k < curve.length && k < j + 400; k++) if (Math.abs(curve[k].b - want) < 0.06) { Object.assign(curve[k], { t: g.ts, leader: g.leader, opp: g.opp, won: g.won }); j = k + 1; break; }
+  }
+} else if (rec.length >= 2) {
+  curveSrc = 'recorded';
+  curve = rec.map((g) => ({ t: g.ts, b: g.b, leader: g.leader, opp: g.opp, won: g.won }));
+} else {
+  curve = bountyHistory(pid).map((h) => ({ t: h[0], b: h[1] }));
+}
+const stamped = curve.filter((c) => c.t);
 const W = 720, H = 180;
 let path = '', area = '', minB = 0, maxB = 0;
 let pts: { x: number; y: number }[] = [];
@@ -54,11 +106,15 @@ if (curve.length >= 2) {
   path = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   area = `${path} L${pts.at(-1)!.x.toFixed(1)},${H - 24} L10,${H - 24} Z`;
 }
-const curveData = JSON.stringify(curve.map((c, i) => ({ ...c, x: +pts[i]?.x.toFixed(1), y: +pts[i]?.y.toFixed(1), ln: c.leader ? leaders[c.leader]?.name ?? c.leader : undefined, on: c.opp ? leaders[c.opp]?.name ?? c.opp : undefined })));
+const curveData = JSON.stringify(curve.map((c, i) => ({ t: c.t, b: c.b, n: c.n, won: c.won, x: +pts[i]?.x.toFixed(1), y: +pts[i]?.y.toFixed(1), ln: c.leader ? lname(c.leader) : undefined, on: c.opp ? lname(c.opp) : undefined })));
+const curveLabel = curveSrc === 'profile'
+  ? `${stamped.length ? `${stamped[0].t!.slice(0, 10)} → ${stamped.at(-1)!.t!.slice(0, 10)} · ` : ''}${curve.length} games`
+  : curveSrc === 'recorded' ? `${curve[0].t!.slice(0, 10)} → ${curve.at(-1)!.t!.slice(0, 10)} · ${curve.length} recorded games` : `${curve[0]?.t?.slice(0, 10)} → ${curve.at(-1)?.t?.slice(0, 10)}`;
 
-/* ---- fallback: Card Kaizoku per-account lists ---- */
-const own = pm ? null : playerDecks(player.id!);
+/* ---- last resort: Card Kaizoku per-account lists ---- */
+const own = rec.length ? null : playerDecks(pid);
 const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filter((d) => d.leader === l.code) })).filter((l) => l.decks.length) : [];
+const hasDeckSection = recLeaders.length > 0 || ownByLeader.length > 0;
 ---
 <Base title={`${player.name} · #${player.rank}`}>
   <p style="margin:0 0 .75rem"><a href="/">← Ladder</a></p>
@@ -67,20 +123,21 @@ const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filte
     <div style="flex:1">
       <div class="muted small">Rank #{player.rank} · {flag(player.country)} {player.country ?? 'Unknown region'}{pm && <> · sim handle <b style="color:var(--text)">{pm.name}</b></>}</div>
       <h1>{player.name}</h1>
-      <div class="meta">Mains <b style="color:var(--text)">{main ? leaders[main.code]?.name ?? main.code : arcLeaders[0] ? leaders[arcLeaders[0].code]?.name ?? arcLeaders[0].code : '–'}</b>{main && <> at {pct(main.winRate)} over {main.matches} games</>}.</div>
+      <div class="meta">Mains <b style="color:var(--text)">{main ? lname(main.code) : '–'}</b>{main && main.matches ? <> at {pct(main.winRate)} over {fmt(main.matches, 0)} games</> : null}.</div>
       <div class="grid stats" style="margin-top:1rem">
         <div class="stat"><div class="label">Bounty <Info text="Ranked rating. Rises with wins and falls with losses, scaled by opponent strength." /></div><div class="value gold">{berry(player.bounty)}</div></div>
-        <div class="stat"><div class="label">Record</div><div class="value">{player.matches ? <>{player.wins}–{player.losses}</> : games.length ? <>{arcWins}–{games.length - arcWins}</> : '–'}</div></div>
-        <div class="stat"><div class="label">Win Rate</div><div class:list={['value', cls(player.matches ? player.winRate : arcWR)]}>{player.matches ? pct(player.winRate) : pct(arcWR)}</div></div>
-        <div class="stat"><div class="label">Ranked Games</div><div class="value">{player.matches ? fmt(player.matches, 0) : games.length ? fmt(games.length, 0) : '–'}</div></div>
+        <div class="stat"><div class="label">Season Record <Info text={prof ? 'Every ranked game this season, from the player\'s own OPBounty profile.' : 'From the OPBounty ladder, which counts the player\'s three most-played leaders.'} /></div><div class="value">{seasonGames ? <>{seasonWins}–{seasonLosses}</> : rec.length ? <>{recWins}–{rec.length - recWins}</> : '–'}</div></div>
+        <div class="stat"><div class="label">Win Rate</div><div class:list={['value', cls(seasonGames ? seasonWR : recWR)]}>{seasonGames ? pct(seasonWR) : pct(recWR)}</div></div>
+        <div class="stat"><div class="label">{prof?.avgDuration ? 'Avg. Game' : 'Ranked Games'}</div><div class="value">{prof?.avgDuration ? `${Math.round(prof.avgDuration / 60)} min` : seasonGames ? fmt(seasonGames, 0) : rec.length ? fmt(rec.length, 0) : '–'}</div></div>
       </div>
+      {prof && <div class="muted small" style="margin-top:.6rem">Season stats as of {prof.writtenAt?.replace('T', ' ').slice(0, 16) ?? prof.updated.slice(0, 10)} UTC, refreshed whenever the player opens their OPBounty profile.{coverage != null && <> Decklists are known for <b style="color:var(--text)">{fmt(rec.length, 0)}</b> of their {fmt(seasonGames, 0)} games ({coverage}%).</>}</div>}
     </div>
   </div>
 
-  <h2>Bounty History <Info text={games.length >= 2 ? 'Bounty after each ranked game in the window, from the match archive.' : 'One point per daily snapshot. The chart appears after a second daily snapshot.'} /></h2>
+  <h2>Bounty History <Info text={curveSrc === 'profile' ? 'Bounty after every ranked game this season, from the player\'s OPBounty profile. Dates and matchups appear on games we also have a recording of.' : curveSrc === 'recorded' ? 'Bounty after each recorded ranked game.' : 'One point per daily snapshot. The chart appears after a second daily snapshot.'} /></h2>
   <div class="panel">
     {curve.length >= 2 ? (
-      <div class="bcurve" data-points={curveData}>
+      <div class="bcurve" data-points={curveData} data-total={curve.length}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:220px;display:block" role="img" aria-label="Bounty over time">
           <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
           <path d={area} fill="url(#g)" />
@@ -89,91 +146,86 @@ const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filte
           <circle class="bc-dot" r="4" fill="var(--accent)" stroke="#1a1405" stroke-width="1.5" style="display:none" />
           <text x="10" y="14" fill="var(--muted)" font-size="11">{fmt(maxB, 0)}</text>
           <text x="10" y={H - 6} fill="var(--muted)" font-size="11">{fmt(minB, 0)}</text>
-          <text x={W - 10} y={H - 6} fill="var(--muted)" font-size="11" text-anchor="end">{curve[0].t.slice(0, 10)} → {curve.at(-1)!.t.slice(0, 10)} · {curve.length} points</text>
+          <text x={W - 10} y={H - 6} fill="var(--muted)" font-size="11" text-anchor="end">{curveLabel}</text>
         </svg>
         <div class="bc-tip" style="display:none"></div>
       </div>
     ) : <p class="muted" style="margin:0">Tracking started {curve[0]?.t?.slice(0, 10) ?? 'today'}. The chart appears after a second daily snapshot.</p>}
   </div>
 
-  {pm ? (
-    <>
-      <h2>Leaders Played <span class="sub">{fmt(games.length, 0)} ranked games · {arcSpan}</span> <Info text="Every ranked game this player's sim handle played in the window, from the match archive. Win rate is their own." /></h2>
-      <div class="panel tight">
-        <table>
-          <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Share</th><th class="num">Leader's Ranked Win % <Info text="How this leader performs across all ranked games in the window, for comparison." /></th></tr></thead>
-          <tbody>{arcLeaders.map((L) => { const lw = leaders[L.code]?.sources.ranked?.winRate ?? leaders[L.code]?.sources.kaizoku?.winRate; return (
-            <tr><td><LeaderArt code={L.code} size="md" /></td><td class="num">{fmt(L.games, 0)}</td>
-              <td class:list={['num', cls(L.winRate)]} style="font-weight:600">{pct(L.winRate)}</td>
-              <td class="num">{pct((100 * L.games) / games.length)}</td>
-              <td class="num muted">{pct(lw as number)}</td></tr>); })}</tbody>
-        </table>
-      </div>
+  <h2>Leaders Played {seasonGames ? <span class="sub">{fmt(seasonGames, 0)} ranked games this season</span> : null} <Info text={prof ? 'Season games and win rates for the player\'s three most-played leaders come from their OPBounty profile and cover every game. Recorded games are the subset we have a decklist-bearing record of.' : 'The ladder reports each player\'s three most-played leaders. Recorded games are the subset we have a record of.'} /></h2>
+  <div class="panel tight">
+    <table>
+      <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">1st <Info text="Win rate when going first." /></th><th class="num">2nd <Info text="Win rate when going second." /></th><th class="num">Share</th><th class="num">Recorded <Info text="Games we hold a full record of (replay archive plus profile match rows). Their win rate in those games follows in brackets." /></th><th class="num">Leader's Ranked Win % <Info text="How this leader performs across all ranked games in the last 7 days, for comparison." /></th></tr></thead>
+      <tbody>{rows.map((r) => { const lw = leaders[r.code]?.sources.ranked?.winRate ?? leaders[r.code]?.sources.kaizoku?.winRate; return (
+        <tr>
+          <td><LeaderArt code={r.code} size="md" /></td>
+          <td class="num">{r.season ? fmt(r.games, 0) : <span class="muted" title="Not among the player's three most-played leaders, so the season total is unknown.">–</span>}</td>
+          <td class:list={['num', cls(r.winRate)]} style="font-weight:600">{r.season ? pct(r.winRate) : <span class="muted">–</span>}</td>
+          <td class:list={['num', cls(r.first)]}>{pct(r.first)}</td>
+          <td class:list={['num', cls(r.second)]}>{pct(r.second)}</td>
+          <td class="num">{r.season && seasonGames && r.games != null ? pct((100 * r.games) / seasonGames) : '–'}</td>
+          <td class="num muted">{r.recorded ? <>{fmt(r.recorded, 0)} <span class="small">({pct(r.recWR)})</span></> : '–'}</td>
+          <td class="num muted">{pct(lw as number)}</td>
+        </tr>); })}
+        {otherGames > 0 && <tr><td class="muted">Other leaders</td><td class="num muted">{fmt(otherGames, 0)}</td><td class="num muted">–</td><td class="num muted">–</td><td class="num muted">–</td><td class="num">{pct((100 * otherGames) / seasonGames)}</td><td class="num muted">–</td><td></td></tr>}
+      </tbody>
+    </table>
+  </div>
 
-      <h2>Decks Played <Info text="Exact lists this player ran, grouped by leader, most games first. Games and win rate are this player's own results with each list." /></h2>
-      {noDeckGames > 0 && <p class="muted small" style="margin:-.4rem 0 .6rem">{fmt(noDeckGames, 0)} of {fmt(games.length, 0)} games were recorded without this player's list, so those games count toward leader stats but not toward any list.</p>}
-      {arcLeaders.map((L) => (
-        <section style="margin-bottom:1.75rem">
-          <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
-            <LeaderArt code={L.code} size="lg" sub={`${pct(L.winRate)} · ${L.games} games · ${L.decks.size} list${L.decks.size === 1 ? '' : 's'}`} />
-          </div>
-          {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
-            <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
-            <tbody>
-              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
-              <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
-            </tbody></table></div>}
-          {L.deckList.length ? <DeckList limit={3} total={L.deckList.length}>{L.deckList.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.deckList[0]} />)}</DeckList>
-            : <p class="muted small">No lists recorded for this leader.</p>}
-          <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {leaders[L.code]?.name ?? L.code} lists, matchups and card stats →</a></p>
-        </section>
-      ))}
-
-      <h2>Recent Games <Info text="Most recent ranked games first. Bounty is this player's rating recorded on that game." /></h2>
-      <div class="panel scroll" style="max-height:560px">
-        <table>
-          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num">Opp. Bounty</th></tr></thead>
-          <tbody>{recent.map((g) => (
-            <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
-              <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" /></td>
-              <td class={g.won ? 'good' : 'bad'} style="font-weight:600">{g.won ? 'Win' : 'Loss'}</td>
-              <td class="num gold">{berry(g.b)}</td><td class="num muted">{berry(g.oppB)}</td></tr>))}</tbody>
-        </table>
-      </div>
-    </>
-  ) : (
+  {hasDeckSection ? (
     <>
-      <h2>Leaders Played <Info text="The ladder reports each player's three most-played leaders. Share is that leader's portion of the player's ranked games." /></h2>
-      <div class="panel tight">
-        <table>
-          <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Share</th><th class="num">Leader's Ladder Win % <Info text="How this leader performs across all ladder players, for comparison with this player's own rate." /></th></tr></thead>
-          <tbody>{player.topLeaders.map((t) => { const lw = leaders[t.code]?.sources.ranked?.winRate ?? leaders[t.code]?.sources.kaizoku?.winRate; return (
-            <tr><td><LeaderArt code={t.code} size="md" /></td><td class="num">{fmt(t.matches, 0)}</td>
-              <td class:list={['num', (t.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{pct(t.winRate)}</td>
-              <td class="num">{player.matches ? pct((100 * (t.matches ?? 0)) / player.matches) : '–'}</td>
-              <td class="num muted">{pct(lw as number)}</td></tr>
-          ); })}</tbody>
-        </table>
-      </div>
-      {own && ownByLeader.length > 0 ? (
+      {recLeaders.length > 0 ? (
         <>
-          <h2>Decks Played <span class="sub">ranked · {own.window.start} → {own.window.end} · {fmt(own.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked over the last ${own.window.days} days, from the sim's match records. Games and win rate are this player's own results with each list.`} /></h2>
+          <h2>Decks Played <span class="sub">{fmt(rec.length, 0)} recorded games · {recSpan}</span> <Info text="Exact lists this player ran, grouped by leader, most games first. Games and win rate are this player's own results with each list, counted over recorded games only. Season totals per leader are in the table above." /></h2>
+          {noDeckGames > 0 && <p class="muted small" style="margin:-.4rem 0 .6rem">{fmt(noDeckGames, 0)} of {fmt(rec.length, 0)} recorded games are missing this player's list, so they count toward the leader but not toward any list.</p>}
+          {[...recLeaders].sort((a, b) => (seasonRows.find((r) => r.code === b.code)?.games ?? b.games) - (seasonRows.find((r) => r.code === a.code)?.games ?? a.games)).map((L) => { const s = seasonRows.find((r) => r.code === L.code); return (
+            <section style="margin-bottom:1.75rem">
+              <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
+                <LeaderArt code={L.code} size="lg" sub={`${s?.games ? `${pct(s.winRate)} over ${fmt(s.games, 0)} season games · ` : ''}${fmt(L.games, 0)} recorded at ${pct(L.winRate)} · ${L.decks.size} list${L.decks.size === 1 ? '' : 's'}`} />
+              </div>
+              {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
+                <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
+                <tbody>
+                  <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
+                  <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
+                </tbody></table></div>}
+              {L.deckList.length ? <DeckList limit={3} total={L.deckList.length}>{L.deckList.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.deckList[0]} />)}</DeckList>
+                : <p class="muted small">No lists recorded for this leader.</p>}
+              <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {lname(L.code)} lists, matchups and card stats →</a></p>
+            </section>); })}
+
+          <h2>Recent Games <Info text="Most recent recorded ranked games first. Bounty is this player's rating after that game." /></h2>
+          <div class="panel scroll" style="max-height:560px">
+            <table>
+              <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num">Opp. Bounty</th></tr></thead>
+              <tbody>{recent.map((g) => (
+                <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
+                  <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" sub={g.oppName} /></td>
+                  <td class={g.won ? 'good' : 'bad'} style="font-weight:600">{g.won ? 'Win' : 'Loss'}</td>
+                  <td class="num gold">{berry(g.b)}</td><td class="num muted">{berry(g.oppB)}</td></tr>))}</tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <>
+          <h2>Decks Played <span class="sub">ranked · {own!.window.start} → {own!.window.end} · {fmt(own!.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked over the last ${own!.window.days} days, from the sim's match records. Games and win rate are this player's own results with each list.`} /></h2>
           {ownByLeader.map((L) => (
             <section style="margin-bottom:1.75rem">
               <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
                 <LeaderArt code={L.code} size="lg" sub={`${pct(L.winRate)} · ${L.games} games · ${L.decks.length} list${L.decks.length === 1 ? '' : 's'}`} />
               </div>
               <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList>
-              <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? leaders[L.code]?.name ?? L.code} lists, matchups and card stats →</a></p>
+              <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? lname(L.code)} lists, matchups and card stats →</a></p>
             </section>
           ))}
         </>
-      ) : (
-        <>
-          <h2>Decks Played <Info text="Exact lists come from the ranked match archive and need this ladder row to be matched to a sim handle by bounty and leader. No match yet for this player." /></h2>
-          <div class="panel"><p class="muted" style="margin:0">No exact lists for this player yet. See what everyone is winning with on the leader pages: {player.topLeaders.map((t, i) => <>{i > 0 && ' · '}<a href={`/leaders/${t.code}/`}>{leaders[t.code]?.name ?? t.code}</a></>)}</p></div>
-        </>
       )}
+    </>
+  ) : (
+    <>
+      <h2>Decks Played <Info text="Exact lists come from the replay archive and from match rows in players' profiles. Nothing recorded for this player yet." /></h2>
+      <div class="panel"><p class="muted" style="margin:0">No exact lists for this player yet. See what everyone is winning with on the leader pages: {rows.map((t, i) => <>{i > 0 && ' · '}<a href={`/leaders/${t.code}/`}>{lname(t.code)}</a></>)}</p></div>
     </>
   )}
 
@@ -184,7 +236,8 @@ const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filte
   </style>
   <script>
     document.querySelectorAll<HTMLElement>('.bcurve').forEach((box) => {
-      const pts = JSON.parse(box.dataset.points || '[]') as { t: string; b: number; x: number; y: number; ln?: string; on?: string; won?: boolean }[];
+      const pts = JSON.parse(box.dataset.points || '[]') as { t: string | null; b: number; n?: number; x: number; y: number; ln?: string; on?: string; won?: boolean }[];
+      const total = Number(box.dataset.total || pts.length);
       const svg = box.querySelector('svg')!, cur = box.querySelector<SVGLineElement>('.bc-cursor')!, dot = box.querySelector<SVGCircleElement>('.bc-dot')!, tip = box.querySelector<HTMLElement>('.bc-tip')!;
       const W = svg.viewBox.baseVal.width;
       const fmtT = (t: string) => { const d = new Date(t.endsWith('Z') || t.includes('+') ? t : t + 'Z'); return isNaN(+d) ? t : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
@@ -195,7 +248,8 @@ const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filte
         cur.setAttribute('x1', String(p.x)); cur.setAttribute('x2', String(p.x)); cur.style.display = '';
         dot.setAttribute('cx', String(p.x)); dot.setAttribute('cy', String(p.y)); dot.style.display = '';
         const prev = pts[best - 1]; const delta = prev ? p.b - prev.b : null;
-        tip.innerHTML = `<b>฿${Math.round(p.b).toLocaleString()}</b>${delta == null ? '' : ` <span style="color:${delta >= 0 ? 'var(--good)' : 'var(--bad)'}">${delta >= 0 ? '+' : ''}${delta.toFixed(0)}</span>`}<br>${fmtT(p.t)}${p.ln ? `<br>${p.ln} vs ${p.on ?? '?'} · <span style="color:${p.won ? 'var(--good)' : 'var(--bad)'}">${p.won ? 'Win' : 'Loss'}</span>` : ''}`;
+        const when = p.t ? fmtT(p.t) : p.n ? `Game ${p.n} of ${total}` : '';
+        tip.innerHTML = `<b>฿${Math.round(p.b).toLocaleString()}</b>${delta == null ? '' : ` <span style="color:${delta >= 0 ? 'var(--good)' : 'var(--bad)'}">${delta >= 0 ? '+' : ''}${delta.toFixed(0)}</span>`}<br>${when}${p.ln ? `<br>${p.ln} vs ${p.on ?? '?'} · <span style="color:${p.won ? 'var(--good)' : 'var(--bad)'}">${p.won ? 'Win' : 'Loss'}</span>` : ''}`;
         tip.style.display = '';
         const px = (p.x / W) * r.width; const tw = tip.offsetWidth;
         tip.style.left = `${Math.min(Math.max(px - tw / 2, 0), r.width - tw)}px`; tip.style.top = `${(p.y / svg.viewBox.baseVal.height) * r.height - tip.offsetHeight - 14}px`;

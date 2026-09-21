@@ -186,7 +186,36 @@ export interface PlayerMatches { handle: string; name: string; games: PlayerGame
 export const playerMatches = (id: string | number) => readJson<PlayerMatches | null>(join(LATEST, 'matches', `${id}.json`), null);
 export const handleLinks = readJson<Record<string, { handle: string; name: string; confidence: string; gap: number; lastSeen: string; lastBounty: number; games: number }>>(join(LATEST, 'handles.json'), {});
 /** Parse a compact "4xOP01-016 3xOP01-024" list into cards. */
-export const parseCompactDeck = (txt: string) => txt.split(/\s+/).filter(Boolean).map((t) => { const [q, id] = t.split('x'); return { id, qty: Number(q) }; }).sort((a, b) => a.id.localeCompare(b.id));
+/** OPBounty personal profile (Firestore PublicUsers): complete season record, top-3 leader stats, bounty-per-game series, newest public matches. */
+export interface ProfileLeader { code: string; games: number; wins: number; losses: number; winRate: number | null; avgDuration: number | null; first: { games: number; winRate: number | null } | null; second: { games: number; winRate: number | null } | null }
+export interface ProfileSide { id: string; nick: string; b: number; delta: number; status: string; leader: string | null; deck: string | null }
+export interface ProfileMatch { idx: number; ts: string; dur: number; mode: number; p1: ProfileSide; p2: ProfileSide; winner: 'p1' | 'p2' | null }
+export interface PlayerProfile { id: string; updated: string; writtenAt: string | null; wins: number; losses: number; games: number; winRate: number | null; avgDuration: number | null; leaders: ProfileLeader[]; graph: number[]; recent: ProfileMatch[]; decks: Record<string, string> }
+export const playerProfile = (id: string | number) => readJson<PlayerProfile | null>(join(LATEST, 'profiles', `${id}.json`), null);
+/** Season record for a ladder row: the player's own profile when we have it (complete), else the ladder's top-3 sum. */
+export const seasonRecord = (p: Player) => {
+  const pr = p.id == null ? null : playerProfile(p.id);
+  // the ladder's count is the top-3-leader subset of the same data, so a profile reporting fewer games is stale: keep the ladder then
+  return pr && pr.games && pr.games >= (p.matches || 0) ? { wins: pr.wins, losses: pr.losses, games: pr.games, winRate: pr.winRate, src: 'profile' as const }
+    : { wins: p.wins, losses: p.losses, games: p.matches, winRate: p.winRate, src: 'ladder' as const };
+};
+export const profileCount =(): number => existsSync(join(LATEST, 'profiles')) ? readdirSync(join(LATEST, 'profiles')).length : 0;
+/** Every public match row ever collected from profiles, grouped by ladder id (both sides). Loaded once per build. */
+let _public: { byPlayer: Map<string, ProfileMatch[]>; decks: Record<string, string> } | null = null;
+export const publicMatches = () => {
+  if (_public) return _public;
+  const dir = join(ROOT, 'matches', 'public');
+  const byPlayer = new Map<string, ProfileMatch[]>(); const decks: Record<string, string> = {};
+  if (existsSync(dir)) for (const f of readdirSync(dir).filter((f) => f.endsWith('.json')).sort()) {
+    const day = readJson<{ matches: Record<string, ProfileMatch>; decks: Record<string, string> }>(join(dir, f), { matches: {}, decks: {} });
+    Object.assign(decks, day.decks);
+    for (const m of Object.values(day.matches)) for (const side of ['p1', 'p2'] as const) {
+      const arr = byPlayer.get(m[side].id) ?? []; arr.push(m); byPlayer.set(m[side].id, arr);
+    }
+  }
+  return (_public = { byPlayer, decks });
+};
+export const parseCompactDeck =(txt: string) => txt.split(/\s+/).filter(Boolean).map((t) => { const [q, id] = t.split('x'); return { id, qty: Number(q) }; }).sort((a, b) => a.id.localeCompare(b.id));
 export const matchupIn = (ls: Record<string, Leader>, a: string, b: string) => {
   const m = ls[a]?.matchups?.[b];
   const s = m?.ranked ?? m?.kaizoku ?? m?.opbounty, k = m?.kaizoku;
