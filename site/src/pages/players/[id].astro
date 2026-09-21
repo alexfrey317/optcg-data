@@ -111,10 +111,11 @@ const curveLabel = curveSrc === 'profile'
   ? `${stamped.length ? `${stamped[0].t!.slice(0, 10)} → ${stamped.at(-1)!.t!.slice(0, 10)} · ` : ''}${curve.length} games`
   : curveSrc === 'recorded' ? `${curve[0].t!.slice(0, 10)} → ${curve.at(-1)!.t!.slice(0, 10)} · ${curve.length} recorded games` : `${curve[0]?.t?.slice(0, 10)} → ${curve.at(-1)?.t?.slice(0, 10)}`;
 
-/* ---- last resort: Card Kaizoku per-account lists ---- */
-const own = rec.length ? null : playerDecks(pid);
+/* ---- complete per-list records: Card Kaizoku's sim records for this account (exact when linked by sim handle) ---- */
+const own = playerDecks(pid);
+const ownExact = own?.via === 'handle';
 const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filter((d) => d.leader === l.code) })).filter((l) => l.decks.length) : [];
-const hasDeckSection = recLeaders.length > 0 || ownByLeader.length > 0;
+const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
 ---
 <Base title={`${player.name} · #${player.rank}`}>
   <p style="margin:0 0 .75rem"><a href="/">← Ladder</a></p>
@@ -173,59 +174,64 @@ const hasDeckSection = recLeaders.length > 0 || ownByLeader.length > 0;
     </table>
   </div>
 
-  {hasDeckSection ? (
+  {useOwn ? (
     <>
-      {recLeaders.length > 0 ? (
-        <>
-          <h2>Decks Played <span class="sub">{fmt(rec.length, 0)} recorded games · {recSpan}</span> <Info text="Exact lists this player ran, grouped by leader, most games first. Games and win rate are this player's own results with each list, counted over recorded games only. Season totals per leader are in the table above." /></h2>
-          {noDeckGames > 0 && <p class="muted small" style="margin:-.4rem 0 .6rem">{fmt(noDeckGames, 0)} of {fmt(rec.length, 0)} recorded games are missing this player's list, so they count toward the leader but not toward any list.</p>}
-          {[...recLeaders].sort((a, b) => (seasonRows.find((r) => r.code === b.code)?.games ?? b.games) - (seasonRows.find((r) => r.code === a.code)?.games ?? a.games)).map((L) => { const s = seasonRows.find((r) => r.code === L.code); return (
-            <section style="margin-bottom:1.75rem">
-              <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
-                <LeaderArt code={L.code} size="lg" sub={`${s?.games ? `${pct(s.winRate)} over ${fmt(s.games, 0)} season games · ` : ''}${fmt(L.games, 0)} recorded at ${pct(L.winRate)} · ${L.decks.size} list${L.decks.size === 1 ? '' : 's'}`} />
-              </div>
-              {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
-                <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
-                <tbody>
-                  <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
-                  <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
-                </tbody></table></div>}
-              {L.deckList.length ? <DeckList limit={3} total={L.deckList.length}>{L.deckList.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.deckList[0]} />)}</DeckList>
-                : <p class="muted small">No lists recorded for this leader.</p>}
-              <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {lname(L.code)} lists, matchups and card stats →</a></p>
-            </section>); })}
-
-          <h2>Recent Games <Info text="Most recent recorded ranked games first. Bounty is this player's rating after that game." /></h2>
-          <div class="panel scroll" style="max-height:560px">
-            <table>
-              <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num">Opp. Bounty</th></tr></thead>
-              <tbody>{recent.map((g) => (
-                <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
-                  <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" sub={g.oppName} /></td>
-                  <td class={g.won ? 'good' : 'bad'} style="font-weight:600">{g.won ? 'Win' : 'Loss'}</td>
-                  <td class="num gold">{berry(g.b)}</td><td class="num muted">{berry(g.oppB)}</td></tr>))}</tbody>
-            </table>
+      <h2>Decks Played <span class="sub">every ranked game · {own!.window.start} → {own!.window.end} · {fmt(own!.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked over the last ${own!.window.days} days, from the sim's own match records via Card Kaizoku, so every played-out game is counted. Games and win rate are this player's own results with each list.${ownExact ? ' The account was matched by its exact sim handle.' : ' The account was matched by name and leaders.'}`} /></h2>
+      {[...ownByLeader].sort((a, b) => b.games - a.games).map((L) => { const s = seasonRows.find((r) => r.code === L.code); return (
+        <section style="margin-bottom:1.75rem">
+          <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
+            <LeaderArt code={L.code} size="lg" sub={`${pct(L.winRate)} over ${fmt(L.games, 0)} games in the window${s?.games ? ` · ${fmt(s.games, 0)} this season` : ''} · ${L.decks.length} list${L.decks.length === 1 ? '' : 's'}`} />
           </div>
-        </>
-      ) : (
-        <>
-          <h2>Decks Played <span class="sub">ranked · {own!.window.start} → {own!.window.end} · {fmt(own!.matches, 0)} games</span> <Info text={`Exact lists this player ran in ranked over the last ${own!.window.days} days, from the sim's match records. Games and win rate are this player's own results with each list.`} /></h2>
-          {ownByLeader.map((L) => (
-            <section style="margin-bottom:1.75rem">
-              <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
-                <LeaderArt code={L.code} size="lg" sub={`${pct(L.winRate)} · ${L.games} games · ${L.decks.length} list${L.decks.length === 1 ? '' : 's'}`} />
-              </div>
-              <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList>
-              <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? lname(L.code)} lists, matchups and card stats →</a></p>
-            </section>
-          ))}
-        </>
-      )}
+          {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
+            <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
+            <tbody>
+              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
+              <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
+            </tbody></table></div>}
+          <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList>
+          <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {L.name ?? lname(L.code)} lists, matchups and card stats →</a></p>
+        </section>); })}
+    </>
+  ) : recLeaders.length > 0 ? (
+    <>
+      <h2>Decks Played <span class="sub">{fmt(rec.length, 0)} recorded games · {recSpan}</span> <Info text="Exact lists this player ran, grouped by leader, most games first. Games and win rate are this player's own results with each list, counted over recorded games only. Season totals per leader are in the table above." /></h2>
+      {noDeckGames > 0 && <p class="muted small" style="margin:-.4rem 0 .6rem">{fmt(noDeckGames, 0)} of {fmt(rec.length, 0)} recorded games are missing this player's list, so they count toward the leader but not toward any list.</p>}
+      {[...recLeaders].sort((a, b) => (seasonRows.find((r) => r.code === b.code)?.games ?? b.games) - (seasonRows.find((r) => r.code === a.code)?.games ?? a.games)).map((L) => { const s = seasonRows.find((r) => r.code === L.code); return (
+        <section style="margin-bottom:1.75rem">
+          <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
+            <LeaderArt code={L.code} size="lg" sub={`${s?.games ? `${pct(s.winRate)} over ${fmt(s.games, 0)} season games · ` : ''}${fmt(L.games, 0)} recorded at ${pct(L.winRate)} · ${L.decks.size} list${L.decks.size === 1 ? '' : 's'}`} />
+          </div>
+          {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
+            <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
+            <tbody>
+              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
+              <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
+            </tbody></table></div>}
+          {L.deckList.length ? <DeckList limit={3} total={L.deckList.length}>{L.deckList.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.deckList[0]} />)}</DeckList>
+            : <p class="muted small">No lists recorded for this leader.</p>}
+          <p class="small"><a href={`/leaders/${L.code}/`}>Everyone's {lname(L.code)} lists, matchups and card stats →</a></p>
+        </section>); })}
     </>
   ) : (
     <>
-      <h2>Decks Played <Info text="Exact lists come from the replay archive and from match rows in players' profiles. Nothing recorded for this player yet." /></h2>
+      <h2>Decks Played <Info text="Exact lists come from the sim's match records, the replay archive and match rows in players' profiles. Nothing recorded for this player yet." /></h2>
       <div class="panel"><p class="muted" style="margin:0">No exact lists for this player yet. See what everyone is winning with on the leader pages: {rows.map((t, i) => <>{i > 0 && ' · '}<a href={`/leaders/${t.code}/`}>{lname(t.code)}</a></>)}</p></div>
+    </>
+  )}
+
+  {rec.length > 0 && (
+    <>
+      <h2>Recent Games <span class="sub">{fmt(rec.length, 0)} recorded · {recSpan}</span> <Info text="Most recent recorded ranked games first, from the replay archive and profile match rows. Bounty is this player's rating after that game." /></h2>
+      <div class="panel scroll" style="max-height:560px">
+        <table>
+          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num">Opp. Bounty</th></tr></thead>
+          <tbody>{recent.map((g) => (
+            <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
+              <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" sub={g.oppName} /></td>
+              <td class={g.won ? 'good' : 'bad'} style="font-weight:600">{g.won ? 'Win' : 'Loss'}</td>
+              <td class="num gold">{berry(g.b)}</td><td class="num muted">{berry(g.oppB)}</td></tr>))}</tbody>
+        </table>
+      </div>
     </>
   )}
 

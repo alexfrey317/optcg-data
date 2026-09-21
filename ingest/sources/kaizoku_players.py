@@ -54,6 +54,18 @@ def search(term: str) -> list[dict]:
     return rows if isinstance(rows, list) else []
 
 
+def resolve_by_handle(handle: str) -> dict | None:
+    """Exact link: the sim handle from a combat log ('Name#1234') equals Card Kaizoku's playerName
+    once zero-width characters are removed, so a search for the base name that returns that exact
+    handle identifies the account with certainty."""
+    want = handle.replace("​", "").strip()
+    rows = search(base_name(handle) or want)
+    for row in rows:
+        if (row.get("playerName") or "").replace("​", "").strip() == want and row.get("playerId"):
+            return {"kzId": row["playerId"], "handle": row.get("playerName"), "score": 100, "candidates": 1, "via": "handle"}
+    return None
+
+
 def resolve(player: dict) -> dict | None:
     """Return {"kzId", "handle", "score"} for an OPBounty ladder row, or None."""
     names = []
@@ -148,7 +160,7 @@ def shape(entry: dict, kz: dict, window: dict) -> dict:
     leaders.sort(key=lambda l: -l["games"])
     cf = entry.get("coinflip_stats") or {}
     return {
-        "kzId": kz["kzId"], "handle": N.clean_name(kz.get("handle")), "window": window,
+        "kzId": kz["kzId"], "handle": N.clean_name(kz.get("handle")), "via": kz.get("via", "name"), "window": window,
         "isPrivate": bool(entry.get("isPrivate")), "matches": entry.get("total_matches") or 0,
         "wins": entry.get("total_wins") or 0, "winRate": entry.get("total_win_rate"), "avgTurns": entry.get("avg_turns"),
         "turns": _turns(entry.get("turn_order_stats")),
@@ -160,10 +172,12 @@ def shape(entry: dict, kz: dict, window: dict) -> dict:
 
 
 # ---------------------------------------------------------------- driver
-def fetch_all(players: list[dict], ids_path: Path, out_dir: Path, today: str) -> dict:
+def fetch_all(players: list[dict], ids_path: Path, out_dir: Path, today: str, handles: dict | None = None) -> dict:
     """Resolve + pull decks for the top TOP ladder rows. Writes out_dir/<opbId>.json per resolved player.
+    `handles` (ladderId -> {handle}) from the archive linker gives exact resolutions; names are the fallback.
     Returns a status summary. Never raises for a single player."""
     ids: dict[str, dict] = json.loads(ids_path.read_text()) if ids_path.exists() else {}
+    handles = handles or {}
     end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=WINDOW_DAYS)
     window = {"start": start.isoformat(), "end": end.isoformat(), "days": WINDOW_DAYS}
@@ -179,9 +193,17 @@ def fetch_all(players: list[dict], ids_path: Path, out_dir: Path, today: str) ->
         opb_id = str(p.get("id") or "")
         rec = ids.get(opb_id)
         stale = rec and not rec.get("kzId") and (today > (datetime.fromisoformat(rec["checked"]) + timedelta(days=RETRY_UNRESOLVED_DAYS)).date().isoformat())
-        if rec is None or rec.get("name") != p.get("name") or stale:
+        sim = (handles.get(opb_id) or {}).get("handle")
+        need_handle = bool(sim) and (rec is None or rec.get("via") != "handle" or rec.get("simHandle") != sim)
+        if need_handle or rec is None or rec.get("name") != p.get("name") or stale:
             try:
-                r = resolve(p)
+                r = resolve_by_handle(sim) if sim else None
+                if r:
+                    r["simHandle"] = sim
+                elif not (rec and rec.get("kzId") and not stale and rec.get("name") == p.get("name")):
+                    r = resolve(p)
+                else:
+                    r = {k: v for k, v in rec.items() if k not in ("name", "checked")}
                 c["searched"] += 1
             except Exception as e:  # noqa: BLE001
                 c["errors"] += 1

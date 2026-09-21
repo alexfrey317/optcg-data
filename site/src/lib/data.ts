@@ -56,7 +56,7 @@ export interface PlayerDeck extends Deck { leader: string; leaderName: string | 
 export interface PlayerTurns { firstGames: number; firstWinRate: number | null; secondGames: number; secondWinRate: number | null }
 export interface PlayerLeaderStat { code: string; name: string | null; games: number; wins: number; winRate: number | null; turns: PlayerTurns | null; matchups: PlayerMatchup[] }
 export interface PlayerDecks {
-  opbId: string; kzId: string; handle: string; window: { start: string; end: string; days: number }; isPrivate: boolean;
+  opbId: string; kzId: string; handle: string; via?: 'handle' | 'name'; window: { start: string; end: string; days: number }; isPrivate: boolean;
   matches: number; wins: number; winRate: number | null; avgTurns: number | null; turns: PlayerTurns | null;
   coinflip: { won: number; lost: number; winRateAfterWin: number | null; winRateAfterLoss: number | null };
   leaders: PlayerLeaderStat[]; decks: PlayerDeck[];
@@ -192,6 +192,9 @@ export interface ProfileSide { id: string; nick: string; b: number; delta: numbe
 export interface ProfileMatch { idx: number; ts: string; dur: number; mode: number; p1: ProfileSide; p2: ProfileSide; winner: 'p1' | 'p2' | null }
 export interface PlayerProfile { id: string; updated: string; writtenAt: string | null; wins: number; losses: number; games: number; winRate: number | null; avgDuration: number | null; leaders: ProfileLeader[]; graph: number[]; recent: ProfileMatch[]; decks: Record<string, string> }
 export const playerProfile = (id: string | number) => readJson<PlayerProfile | null>(join(LATEST, 'profiles', `${id}.json`), null);
+/** Best pilots per leader from OPBounty's leader-filtered ladder (complete): players with the leader among their most-played, ranked by bounty. */
+export interface Pilot { id: string; name: string; leaderRank: number; rank: number | null; bounty: number; games: number | null; winRate: number | null; country: string | null }
+export const pilotsFor = (code: string) => readJson<Pilot[]>(join(LATEST, 'pilots', `${code}.json`), []);
 /** Season record for a ladder row: the player's own profile when we have it (complete), else the ladder's top-3 sum. */
 export const seasonRecord = (p: Player) => {
   const pr = p.id == null ? null : playerProfile(p.id);

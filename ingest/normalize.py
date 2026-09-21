@@ -76,6 +76,27 @@ def build_players(opb: dict) -> list[dict]:
     return out
 
 
+def build_pilots(opb: dict, players: list[dict]) -> dict[str, list[dict]]:
+    """Leader-filtered ladder pages -> code -> [{id, name, leaderRank, rank, bounty, games, winRate, country}].
+    games/winRate are the player's own with that leader (from their top-3 list); rank is the overall
+    ladder rank when the player is in the pulled top range."""
+    overall = {str(p["id"]): p["rank"] for p in players if p.get("id") is not None}
+    out: dict[str, list[dict]] = {}
+    for code, rows in (opb.get("pilots") or {}).items():
+        if not isinstance(rows, list):
+            continue
+        shaped = []
+        for e in rows:
+            t = next((x for x in (e.get("topLeaders") or []) if strip_prefix(x.get("code")) == code), {})
+            shaped.append({
+                "id": str(e.get("playerId")), "name": clean_name(e.get("displayName") or e.get("username")),
+                "leaderRank": e.get("rank"), "rank": overall.get(str(e.get("playerId"))), "bounty": e.get("rating"),
+                "games": t.get("matches"), "winRate": t.get("winRate"), "country": e.get("country"),
+            })
+        out[strip_prefix(code)] = shaped
+    return out
+
+
 # ---------------------------------------------------------------- leaders
 def build_leaders(opb: dict, kz: dict, card_db: dict) -> dict:
     leaders: dict[str, dict] = {}

@@ -72,7 +72,12 @@ The archive only holds games where the room host runs the OPBounty app, about 47
 it is a sample. `ingest/sources/opbounty_stats.py` pulls OPBounty's own published aggregates (public
 CloudFront bucket, one file per ~6 hours per rank bracket, complete) into `data/stats/YYYY-MM-DD.json.gz`:
 per-leader games, wins, first/second records and matchups, and every distinct decklist with its record.
-Windows use these as the `ranked` numbers; the archive only adds pilots. `ingest/sources/opbounty_profiles.py` adds the complete side: each ladder player's own
+Windows use these as the `ranked` numbers; the archive only adds pilots.
+
+Best pilots per leader come from the ladder filtered by leader (`/api/leaderboard/mode_0?leader=CODE`,
+one request per leader, `data/latest/pilots/<code>.json`). Card Kaizoku per-player pulls resolve the
+account by exact sim handle when the archive linker found one (`kaizoku_players.resolve_by_handle`),
+so those players' "Decks Played" cover every played-out ranked game in the window. `ingest/sources/opbounty_profiles.py` adds the complete side: each ladder player's own
 profile document (`PublicUsers/<id>`, field `Western`) with season wins/losses, top-3 leader stats
 (with first/second splits), bounty after every game and the newest 9 public matches with both decklists.
 Written to `data/latest/profiles/<id>.json`; public match rows accumulate forever in

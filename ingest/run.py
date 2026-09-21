@@ -124,6 +124,14 @@ def main(argv=None):
         print(f"[profiles] {status['profiles']} {json.dumps(profiles_status) if profiles_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
     leaders = N.build_leaders(opb, kz, card_db)
     used_cards: set[str] = set(leaders)
+    pilots = N.build_pilots(opb, players)
+    if pilots:  # keep the previous day's files when the leader-filtered ladder pull failed entirely
+        for f in (LATEST / "pilots").glob("*.json") if (LATEST / "pilots").exists() else []:
+            if f.stem not in pilots:
+                f.unlink()
+        for code, rows in pilots.items():
+            dump(LATEST / "pilots" / f"{code}.json", rows)
+            used_cards.add(code)
 
     for code in leaders:
         decks = N.build_decks(code, opb, kz, one)
@@ -143,28 +151,6 @@ def main(argv=None):
         for t in p["topLeaders"]:
             used_cards.add(t["code"])
 
-    # per-player exact decklists (Card Kaizoku player routes)
-    player_stats = None
-    if "players" in skip:
-        status["players"] = "skipped"
-    else:
-        try:
-            player_stats = kaizoku_players.fetch_all(players, LATEST / "player_ids.json", LATEST / "players", today)
-            status["players"] = "ok"
-        except Exception as e:  # noqa: BLE001
-            traceback.print_exc()
-            status["players"] = f"error: {e}"
-        print(f"[players] {status['players']} {json.dumps(player_stats) if player_stats else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
-    # drop per-player files for players no longer in the pulled range, so stale decks never linger
-    keep = {str(p["id"]) for p in players if p.get("id")}
-    if (LATEST / "players").exists():
-        for f in (LATEST / "players").glob("*.json"):
-            if f.stem not in keep:
-                f.unlink()
-    for f in (LATEST / "players").glob("*.json") if (LATEST / "players").exists() else []:
-        for d in load(f, {}).get("decks", []):
-            used_cards.update(c["id"] for c in d["cards"])
-
     # link ladder rows to sim handles via the match archive, and write per-player match histories
     archive_days = link.load_days(max(WINDOWS.values()) + 1) if link.MATCHES.exists() else []
     links = {}
@@ -182,6 +168,28 @@ def main(argv=None):
             traceback.print_exc()
             status["link"] = f"error: {e}"
         print(f"[link] {status['link']} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    # per-player exact decklists (Card Kaizoku player routes)
+    player_stats = None
+    if "players" in skip:
+        status["players"] = "skipped"
+    else:
+        try:
+            player_stats = kaizoku_players.fetch_all(players, LATEST / "player_ids.json", LATEST / "players", today, links)
+            status["players"] = "ok"
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            status["players"] = f"error: {e}"
+        print(f"[players] {status['players']} {json.dumps(player_stats) if player_stats else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    # drop per-player files for players no longer in the pulled range, so stale decks never linger
+    keep = {str(p["id"]) for p in players if p.get("id")}
+    if (LATEST / "players").exists():
+        for f in (LATEST / "players").glob("*.json"):
+            if f.stem not in keep:
+                f.unlink()
+    for f in (LATEST / "players").glob("*.json") if (LATEST / "players").exists() else []:
+        for d in load(f, {}).get("decks", []):
+            used_cards.update(c["id"] for c in d["cards"])
+
     handles_by_day = {d["date"]: load(link.HANDLES / f"{d['date']}.json", {}) for d in archive_days}
 
     # windows: match archive (games, matchups, decks, pilots) + Card Kaizoku dailies (1st/2nd, card stats stay weekly)

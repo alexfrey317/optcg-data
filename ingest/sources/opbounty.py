@@ -14,6 +14,7 @@ INTERVAL = float(os.environ.get("OPB_INTERVAL", "2.0"))
 LADDER_MODE = os.environ.get("OPB_MODE", "mode_0")  # Standard
 TOP_PAGES = int(os.environ.get("OPB_TOP_PAGES", "5"))  # 5 x 200 = top 1000
 PER_PAGE = 200
+PILOT_LEADERS = int(os.environ.get("OPB_PILOT_LEADERS", "120"))  # leader-filtered ladder pages to pull (one request each)
 
 
 class OPBounty:
@@ -45,6 +46,14 @@ class OPBounty:
     def decklists(self, set_name: str, leader_code: str) -> dict:
         return self._get(f"/api/decklists/{set_name}/{leader_code}")
 
+    def leaderboard_meta(self, mode: str = LADDER_MODE) -> dict:
+        return self._get("/api/leaderboard/meta")
+
+    def leaderboard_for_leader(self, code: str, mode: str = LADDER_MODE, per_page: int = PER_PAGE) -> list[dict]:
+        """Ladder rows whose most-played leaders include `code`, ranked among themselves (one page)."""
+        data = self._get(f"/api/leaderboard/{mode}?page=1&per_page={per_page}&leader={code}")
+        return data.get("entries", [])
+
 
 def fetch_all() -> dict:
     """One daily pull. Returns raw dict; normalize.py turns it into site data."""
@@ -66,4 +75,16 @@ def fetch_all() -> dict:
             out["decklists"][code] = api.decklists(set_name, code)
         except Exception as e:  # one leader failing must not sink the run
             out["decklists"][code] = {"error": str(e)}
+    # best pilots per leader: the ladder filtered by leader (complete, ranked by bounty among that leader's players)
+    out["pilots"] = {}
+    try:
+        codes = [l["code"] for l in api.leaderboard_meta().get("leaders", []) if l.get("code")]
+    except Exception as e:  # noqa: BLE001
+        codes = []
+        out["pilotsError"] = str(e)
+    for code in codes[:PILOT_LEADERS]:
+        try:
+            out["pilots"][code] = api.leaderboard_for_leader(code)
+        except Exception as e:  # noqa: BLE001
+            out["pilots"][code] = {"error": str(e)}
     return out
