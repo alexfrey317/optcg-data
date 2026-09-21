@@ -4,7 +4,7 @@ import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import DeckList from '../../components/DeckList.astro';
 import Info from '../../components/Info.astro';
-import { players, leaders, deckFile, bountyHistory, playerDecks, fmt, pct, berry, flag, heat, type Player } from '../../lib/data';
+import { players, leaders, bountyHistory, playerDecks, fmt, pct, berry, flag, heat, type Player } from '../../lib/data';
 
 export function getStaticPaths() {
   return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
@@ -20,10 +20,6 @@ if (hist.length >= 2) {
   path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   area = `${path} L${pts.at(-1)![0].toFixed(1)},${H - 24} L10,${H - 24} Z`;
 }
-const leaderDecks = player.topLeaders.map((t) => {
-  const f = deckFile(t.code);
-  return { ...t, name: leaders[t.code]?.name ?? t.code, decks: f.decks.slice(0, 10), pilot: f.topPilots.find((p) => p.name === player.name) };
-});
 const main = player.topLeaders[0];
 const own = playerDecks(player.id!);
 const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filter((d) => d.leader === l.code) })).filter((l) => l.decks.length) : [];
@@ -40,8 +36,8 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
       <div class="grid stats" style="margin-top:1rem">
         <div class="stat"><div class="label">Bounty <Info text="Ranked rating. Rises with wins and falls with losses, scaled by opponent strength." /></div><div class="value gold">{berry(player.bounty)}</div></div>
         <div class="stat"><div class="label">Record</div><div class="value">{player.wins}–{player.losses}</div></div>
-        <div class="stat"><div class="label">Win rate</div><div class:list={['value', player.winRate >= 50 ? 'good' : 'bad']}>{pct(player.winRate)}</div></div>
-        <div class="stat"><div class="label">Ranked games</div><div class="value">{fmt(player.matches, 0)}</div></div>
+        <div class="stat"><div class="label">Win Rate</div><div class:list={['value', player.winRate >= 50 ? 'good' : 'bad']}>{pct(player.winRate)}</div></div>
+        <div class="stat"><div class="label">Ranked Games</div><div class="value">{fmt(player.matches, 0)}</div></div>
       </div>
     </div>
   </div>
@@ -102,16 +98,9 @@ const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'go
       ))}
     </>
   ) : (
-    <h2>What These Leaders Are Winning With <Info text="We could not link this ladder name to a sim account with recent ranked games, so exact lists are unavailable. Shown instead: the top ranked lists for each leader this player pilots." /></h2>
+    <>
+      <h2>Decks Played <Info text="Exact lists come from the sim's match records and need the ladder name to match a sim account with recent ranked games. This player's name did not match, so no lists are shown here." /></h2>
+      <div class="panel"><p class="muted" style="margin:0">No exact lists for this player yet. See what everyone is winning with on the leader pages: {player.topLeaders.map((t, i) => <>{i > 0 && ' · '}<a href={`/leaders/${t.code}/`}>{leaders[t.code]?.name ?? t.code}</a></>)}</p></div>
+    </>
   )}
-  {!(own && ownByLeader.length > 0) && leaderDecks.map((L) => (
-    <section style="margin-bottom:1.5rem">
-      <div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 .75rem;flex-wrap:wrap">
-        <LeaderArt code={L.code} size="lg" sub={`this player: ${pct(L.winRate)} · ${L.matches} games`} />
-        {L.pilot && <span class="chip" style="border-color:var(--accent);color:var(--accent-2)">#{L.pilot.rank} {L.name} pilot last week <Info text="Top pilots of each leader are ranked by weighted win rate over the last week. This player made that list." /></span>}
-      </div>
-      {L.decks.length ? <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList> : <p class="muted">No decklists published for this leader.</p>}
-      <p class="small"><a href={`/leaders/${L.code}/`}>All {L.name} decks, matchups and card stats →</a></p>
-    </section>
-  ))}
 </Base>
