@@ -76,7 +76,7 @@ const main = player.topLeaders[0];
         <LeaderArt code={L.code} size="lg" sub={`this player: ${pct(L.winRate)} · ${L.matches} games`} />
         {L.pilot && <span class="chip" style="border-color:var(--accent);color:var(--accent-2)">#{L.pilot.rank} {L.name} pilot last week <Info text="Top pilots of each leader are ranked by weighted win rate over the last week. This player made that list." /></span>}
       </div>
-      {L.decks.length ? L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} />) : <p class="muted">No decklists published for this leader.</p>}
+      {L.decks.length ? L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />) : <p class="muted">No decklists published for this leader.</p>}
       <p class="small"><a href={`/leaders/${L.code}/`}>All {L.name} decks, matchups and card stats →</a></p>
     </section>
   ))}

@@ -1,8 +1,7 @@
 ---
-import Info from './Info.astro';
 import { card, fmt, pct, deckStats, imgUrl, imgOnError, TYPE_ORDER, type Deck } from '../lib/data';
-interface Props { deck: Deck; leader: string; open?: boolean; rank?: number }
-const { deck, leader, open = false, rank } = Astro.props;
+interface Props { deck: Deck; leader: string; open?: boolean; rank?: number; baseline?: Deck }
+const { deck, leader, open = false, rank, baseline } = Astro.props;
 const s = deckStats(deck);
 const sorted = [...deck.cards].sort((a, b) => {
   const ca = card(a.id), cb = card(b.id);
@@ -12,17 +11,42 @@ const sorted = [...deck.cards].sort((a, b) => {
   return cost || a.id.localeCompare(b.id);
 });
 const simText = [`1x${leader}`, ...deck.cards.map((c) => `${c.qty}x${c.id}`)].join('\n');
+
+// Header preview: the list's highest-cost cards, most copies first, so the "core" is visible while collapsed.
+const preview = [...deck.cards].sort((a, b) => b.qty - a.qty || Number(card(b.id).cost || 0) - Number(card(a.id).cost || 0)).slice(0, 9);
+
+// Differences from the baseline (the #1 list): what this list adds and cuts.
+let diff: { add: string[]; cut: string[] } | null = null;
+if (baseline && baseline.hash !== deck.hash) {
+  const a = new Map(deck.cards.map((c) => [c.id, c.qty])), b = new Map(baseline.cards.map((c) => [c.id, c.qty]));
+  const add: string[] = [], cut: string[] = [];
+  for (const [id, q] of a) { const d = q - (b.get(id) ?? 0); if (d > 0) add.push(`+${d} ${card(id).name}`); }
+  for (const [id, q] of b) { const d = q - (a.get(id) ?? 0); if (d > 0) cut.push(`−${d} ${card(id).name}`); }
+  diff = { add, cut };
+}
+const diffCount = diff ? diff.add.reduce((n, s) => n + Number(s.match(/^\+(\d+)/)?.[1] ?? 0), 0) : 0;
 ---
 <details class="deck" open={open} id={deck.hash}>
   <summary>
-    <span style="display:flex;align-items:center;gap:.6rem">
-      {rank != null && <span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{rank}</span>}
-      <span style="font-weight:600">{s.pilots != null ? `${fmt(s.pilots, 0)} pilots` : 'Ranked list'}</span>
-      {deck.size !== 50 && <span class="muted small">· {deck.size} cards</span>}
+    <span class="deck-head">
+      <span class="deck-title">
+        {rank != null && <span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{rank}</span>}
+        <span>
+          <span style="font-weight:600">{s.pilots != null ? `${fmt(s.pilots, 0)} pilots` : 'Ranked list'}</span>
+          {deck.size !== 50 && <span class="muted small"> · {deck.size} cards</span>}
+          <div class="muted small deck-diff">
+            {diff == null ? (rank === 1 ? 'Most played list' : '') : diffCount === 0 ? 'Same 50 as #1' : `${diffCount} card${diffCount === 1 ? '' : 's'} off #1: ${[...diff.add, ...diff.cut].slice(0, 4).join(', ')}${diff.add.length + diff.cut.length > 4 ? ', …' : ''}`}
+          </div>
+        </span>
+      </span>
+      <span class="deck-preview">{preview.map((c) => <span class="mini" title={`${c.qty}× ${card(c.id).name}`}><img src={imgUrl(c.id)} alt="" loading="lazy" onerror={imgOnError(c.id)} /><b>{c.qty}</b></span>)}</span>
     </span>
     <span class="num"><span class="muted small">games </span><b>{fmt(s.games, 0)}</b></span>
     <span class:list={['num', s.winRate != null && s.winRate >= 50 ? 'good' : 'bad']}><span class="muted small">win </span><b>{pct(s.winRate)}</b></span>
-    <button class="copy" data-copy={simText} onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied';setTimeout(()=>this.textContent='Copy for sim',1200);event.preventDefault()" title="Copies the list in the text format OPTCG Sim imports">Copy for sim</button>
+    <span class="deck-actions">
+      <button class="copy" data-copy={simText} onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Copied';setTimeout(()=>this.textContent='Copy for sim',1200);event.preventDefault()" title="Copies the list in the text format OPTCG Sim imports">Copy for sim</button>
+      <span class="expand-hint"><span class="when-closed">Expand</span><span class="when-open">Collapse</span> <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </span>
   </summary>
   <div class="cards">
     {sorted.map((c) => { const k = card(c.id); return (

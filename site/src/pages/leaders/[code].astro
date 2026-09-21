@@ -59,7 +59,8 @@ const cls = (v: number | null) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad')
   <div class="grid two">
     <section>
       <h2>Decklists <span class="sub">{decks.decks.length} lists · top {Math.min(SHOW, decks.decks.length)} by games</span> <Info text="Distinct 50-card lists seen in ranked last week. Games and win rate combine every ranked game we have for the exact list. Expand a list to see the cards." /></h2>
-      {decks.decks.slice(0, SHOW).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} />)}
+      <p class="muted small" style="margin:-.4rem 0 .6rem">Click a list to expand it and see all 50 cards. Differences are measured against the #1 list.</p>
+      {decks.decks.slice(0, SHOW).map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={decks.decks[0]} />)}
     </section>
     <section>
       <h2>Top pilots <Info text="Top-1,000 ladder players with this leader among their most-played, by bounty." /></h2>
