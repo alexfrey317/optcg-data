@@ -241,10 +241,11 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .matrix th, .matrix td { text-align: center; padding: .35rem; border-bottom: 1px solid var(--line); }
   /* the column leaders stay put while the page scrolls; the panel must not clip (overflow visible) for sticky to follow the window */
   .panel.scroll.matrix-wrap { overflow: visible; }
-  @media (max-width: 1400px) { .panel.scroll.matrix-wrap { overflow: auto; } }
   .matrix thead th { position: sticky; top: 57px; z-index: 6; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
   .matrix tbody th { text-align: center; position: sticky; left: 0; z-index: 5; background: var(--panel); }
   .matrix thead th:first-child { left: 0; z-index: 7; }
+  /* narrower screens need a horizontal scrollbar, which forces the panel to be the scroll container: cap its height so it scrolls vertically too and the header pins inside it */
+  @media (max-width: 1400px) { .panel.scroll.matrix-wrap { overflow: auto; max-height: calc(100vh - 57px - 1rem); } .matrix thead th { top: 0; } }
   .matrix td { min-width: 66px; font-variant-numeric: tabular-nums; border-radius: 6px; } .matrix td.self { background: var(--panel-2); }
   .matrix .leader-frame { margin: 0 auto; }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
