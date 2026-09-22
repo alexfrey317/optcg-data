@@ -239,7 +239,12 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   .hand-card { flex: none; width: 104px; } .hand-card img { width: 100%; aspect-ratio: 5/7; object-fit: cover; border-radius: 7px; display: block; box-shadow: 0 6px 14px -8px rgba(0,0,0,.9); margin-bottom: .3rem; }
   /* full matrix */
   .matrix th, .matrix td { text-align: center; padding: .35rem; border-bottom: 1px solid var(--line); }
-  .matrix thead th { background: transparent; position: static; } .matrix tbody th { text-align: center; }
+  /* the column leaders stay put while the page scrolls; the panel must not clip (overflow visible) for sticky to follow the window */
+  .panel.scroll.matrix-wrap { overflow: visible; }
+  @media (max-width: 1400px) { .panel.scroll.matrix-wrap { overflow: auto; } }
+  .matrix thead th { position: sticky; top: 57px; z-index: 6; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+  .matrix tbody th { text-align: center; position: sticky; left: 0; z-index: 5; background: var(--panel); }
+  .matrix thead th:first-child { left: 0; z-index: 7; }
   .matrix td { min-width: 66px; font-variant-numeric: tabular-nums; border-radius: 6px; } .matrix td.self { background: var(--panel-2); }
   .matrix .leader-frame { margin: 0 auto; }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
