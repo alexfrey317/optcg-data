@@ -44,15 +44,33 @@ def deck_hash(cards: list[dict]) -> str:
     return hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
+def deck_text(cards: list[dict]) -> str:
+    """Compact list text stored beside a deck hash: '4xOP01-016 3xOP01-024 ...' (parse_deck order)."""
+    return " ".join(f"{c['qty']}x{c['id']}" for c in cards)
+
+
+DISC_RE = re.compile(r"​?#\d+$")
+
+
 def clean_name(name: str | None) -> str | None:
     """Card Kaizoku pilots look like 'terry​#7367'; drop the discriminator."""
     if not name:
         return name
-    return re.sub(r"​?#\d+$", "", name).strip()
+    return DISC_RE.sub("", name).strip()
+
+
+def loose(name: str | None) -> str:
+    """Name key for fuzzy matching: sim names drop spaces/punctuation that ladder names keep ('B-Roll' vs 'BRoll')."""
+    return re.sub(r"[^a-z0-9]", "", (name or "").casefold())
 
 
 def pct(x, digits=1):
     return None if x is None else round(float(x) * 100, digits)
+
+
+def rate(x, n, digits=1):
+    """Percentage x/n, or None when there is no denominator."""
+    return round(100 * x / n, digits) if n else None
 
 
 # ---------------------------------------------------------------- players
@@ -191,7 +209,7 @@ def build_decks(code: str, opb: dict, kz: dict, one: dict) -> dict:
     for d in decks.values():
         s = d["sources"].get("optcgone")
         if s and s["games"]:
-            s["winRate"] = round(100 * s["wins"] / s["games"], 1)
+            s["winRate"] = rate(s["wins"], s["games"])
 
     def total_games(d):
         return sum((s.get("games") or 0) for s in d["sources"].values())
@@ -302,7 +320,7 @@ def compact_daily(date: str, stats: list[dict], decklist: list[dict]) -> dict:
                 cur = bucket.get(h)
                 g, w, p = d.get("total_games") or 0, d.get("wins") or 0, d.get("unique_pilots") or 0
                 if cur is None or g > cur["g"]:  # the same list can appear in both arrays; keep one
-                    bucket[h] = {"d": " ".join(f"{c['qty']}x{c['id']}" for c in cards), "g": g, "w": w, "p": p}
+                    bucket[h] = {"d": deck_text(cards), "g": g, "w": w, "p": p}
     return {"date": date, "total": total, "leaders": leaders, "decks": decks}
 
 
@@ -328,9 +346,6 @@ def build_window(dailies: list[dict], card_db: dict) -> tuple[dict, dict]:
                 cur["g"] += d.get("g") or 0
                 cur["w"] += d.get("w") or 0
                 cur["p"] = max(cur["p"], d.get("p") or 0)
-
-    def rate(w, g, digits=1):
-        return round(100 * w / g, digits) if g else None
 
     leaders: dict[str, dict] = {}
     for code, a in acc.items():
@@ -410,9 +425,6 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
                     if (m["ts"] or "") >= p["ts"]:
                         p["ts"], p["b"] = m["ts"] or "", S["b"]
 
-    def rate(x, n):
-        return round(100 * x / n, 1) if n else None
-
     leaders: dict[str, dict] = {}
     for code in g:
         c = card_db.get(code, {})
@@ -479,9 +491,6 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
             d = D.setdefault(h, {"l": s["l"], "g": 0, "w": 0, "fw": 0, "fl": 0, "sw": 0, "sl": 0})
             for k in ("g", "w", "fw", "fl", "sw", "sl"):
                 d[k] += int(s.get(k) or 0)
-
-    def rate(x, n):
-        return round(100 * x / n, 1) if n else None
 
     # Card Kaizoku's weighting: shrink toward the unweighted mean leader win rate of the field (~36%, dragged down by the
     # long tail of rarely played leaders) with a WEIGHT_K-game prior. Verified against their table: OP13-001 at 8,940 games,
@@ -557,18 +566,18 @@ def build_stats_cards(days: list[dict], code: str) -> dict | None:
         c = by_card.setdefault(cid, {"g": 0, "w": 0, "copies": 0, "q": [], "hand": 0, "hw": 0, "hl": 0})
         c["g"] += g; c["w"] += w; c["copies"] += qty * g
         c["hand"] += kf + ks; c["hw"] += whf + whs; c["hl"] += lhf + lhs
-        c["q"].append({"qty": qty, "games": g, "winRate": round(100 * w / g, 1)})
+        c["q"].append({"qty": qty, "games": g, "winRate": rate(w, g)})
     leader_wr = 100 * lw / lg
     cards = []
     for cid, c in by_card.items():
         wr = 100 * c["w"] / c["g"]
         hg = c["hw"] + c["hl"]
-        cards.append({"id": cid, "games": c["g"], "usage": round(100 * c["g"] / lg, 1), "winRate": round(wr, 1),
+        cards.append({"id": cid, "games": c["g"], "usage": rate(c["g"], lg), "winRate": round(wr, 1),
                       "winRateVsLeader": round(wr - leader_wr, 2), "avgCopies": round(c["copies"] / c["g"], 2),
                       "firstWinRate": None, "secondWinRate": None, "quantities": sorted(c["q"], key=lambda q: q["qty"]),
                       # opening hand: share of the card's games where it was in the kept opening hand, and the win rate of those games
                       "handRate": round(100 * c["hand"] / c["g"], 1) if c["hand"] else None,
-                      "handWinRate": round(100 * c["hw"] / hg, 1) if hg else None, "handGames": hg})
+                      "handWinRate": rate(c["hw"], hg), "handGames": hg})
     cards.sort(key=lambda c: -c["games"])
     return {"leader": code, "cards": cards, "openingHand": [], "tech": {},
             "leaderStats": {"games": lg, "winRate": round(leader_wr, 1), "uniqueDecklists": len(lists), "uniquePilots": None}}
@@ -585,7 +594,7 @@ def build_trends(days: list[dict]) -> dict[str, list]:
                 g[code] += int(s.get("g") or 0); w[code] += int(s.get("w") or 0)
         for code in g:
             if g[code]:
-                out[code].append([day.get("date"), g[code], round(100 * w[code] / g[code], 1), round(50 * g[code] / total, 2) if total else None])
+                out[code].append([day.get("date"), g[code], rate(w[code], g[code]), round(50 * g[code] / total, 2) if total else None])
     return out
 
 
@@ -636,7 +645,7 @@ def build_mirrors(days: list[dict], min_edge: int = 10) -> dict[str, dict]:
             if e[0] < min_edge:
                 continue
             wr = 100 * e[1] / e[0]
-            cards.append({"id": cid, "usage": round(100 * run[code][cid] / (2 * n), 1) if n else None,
+            cards.append({"id": cid, "usage": rate(run[code][cid], 2 * n),
                           "edgeGames": e[0], "edgeWinRate": round(wr, 1), "lift": round(wr - 50, 1)})
         cards.sort(key=lambda c: -c["lift"])
         out[code] = {"games": games[code], "withDecks": n, "cards": cards}

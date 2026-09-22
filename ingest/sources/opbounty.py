@@ -46,7 +46,7 @@ class OPBounty:
     def decklists(self, set_name: str, leader_code: str) -> dict:
         return self._get(f"/api/decklists/{set_name}/{leader_code}")
 
-    def leaderboard_meta(self, mode: str = LADDER_MODE) -> dict:
+    def leaderboard_meta(self) -> dict:
         return self._get("/api/leaderboard/meta")
 
     def leaderboard_for_leader(self, code: str, mode: str = LADDER_MODE, per_page: int = PER_PAGE) -> list[dict]:

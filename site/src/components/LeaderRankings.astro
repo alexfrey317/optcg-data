@@ -1,7 +1,7 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, WEIGHT_K, type Win } from '../lib/data';
+import { leadersByVolumeFor, fmt, pct, top1000, leaderStats, imgUrl, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, WEIGHT_K, type Win } from '../lib/data';
 interface Props { window: Win }
 const { window: W } = Astro.props;
 const all = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
@@ -11,7 +11,7 @@ const rows = all.filter((r) => (r.s.playRate ?? 0) >= MIN_PLAY_RATE);
 const rare = all.filter((r) => (r.s.playRate ?? 0) < MIN_PLAY_RATE);
 const fieldMean = all.find((r) => r.s.fieldWinRate != null)?.s.fieldWinRate ?? null;
 const pilots = new Map<string, number>();
-for (const p of players.slice(0, 1000)) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
+for (const p of top1000) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
 const wm = windowMeta(W);
 const totalGames = wm?.matches ?? 0;
 const prevRank = new Map<string, number>();
@@ -45,7 +45,7 @@ if (W === '7d') {
       <tr class:list={{ rare: isRare }} data-rare={isRare ? '1' : '0'} data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-pilots={up ?? 0} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
         <td class="num c-rank"><span class="pill-rank">{i + 1}</span></td>
         {W === '7d' && <td class:list={['num', 'delta', 'hide-m', d == null || d === 0 ? 'dim' : d > 0 ? 'good' : 'bad']}>{d == null || d === 0 ? '—' : d > 0 ? `↑${d}` : `↓${-d}`}</td>}
-        <td class="hide-m"><a href={wpath(W, `/leaders/${l.code}/`)} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" onerror={imgOnError(l.code)} /></a></td>
+        <td class="hide-m"><a href={wpath(W, `/leaders/${l.code}/`)} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" /></a></td>
         <td class="c-leader"><a href={wpath(W, `/leaders/${l.code}/`)} class="leader-link"><span class="lcode muted">[{l.code}]{W === '7d' && d != null && d !== 0 && <span class:list={['m-only', d > 0 ? 'good' : 'bad']} style="margin-left:.4rem;font-weight:600">{d > 0 ? `↑${d}` : `↓${-d}`}</span>}</span> <span class="lname">{l.name}</span></a></td>
         <td class:list={['num', (s.weighted ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:700">{pct(s.weighted)}</td>
         <td class:list={['num', 'hide-m', (s.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.winRate)}</td>

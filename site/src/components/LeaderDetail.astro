@@ -4,7 +4,7 @@ import DeckCard from './DeckCard.astro';
 import DeckList from './DeckList.astro';
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, players, imgUrl, imgOnError, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, type Win, type Leader, type CurveTurn } from '../lib/data';
+import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, type Win, type Leader, type CurveTurn } from '../lib/data';
 interface Props { window: Win; leader: Leader }
 const { window: W, leader: L } = Astro.props;
 const ls = leadersFor(W);
@@ -17,22 +17,21 @@ const cardsF = cardFileFor(W, L.code);          // complete per-card counts for 
 const DECKS_SHOWN = 5, DECKS_MAX = 40;
 const opps = Object.keys(L.matchups).filter((o) => o !== L.code && ls[o] && matchupIn(ls, L.code, o)).map((o) => ({ code: o, m: matchupIn(ls, L.code, o)! }))
   .sort((a, b) => b.m.games - a.m.games).slice(0, 18);
-const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
 const winLabel = WINDOWS[W].label.toLowerCase();
 
 // Best pilots. Preferred: OPBounty's ladder filtered to this leader (complete: every ranked player with the
 // leader among their most-played, with their own season games and win rate on it). Fallbacks: sim handles seen
 // piloting the leader in the replay archive, then the top-1000 ladder rows.
 const ladderByLeader = pilotsFor(L.code).filter((p) => (p.games ?? 0) >= 5).map((p) => ({
-  name: p.name, href: `/players/${p.id}/`, inSite: players.some((x) => String(x.id) === p.id), bounty: p.bounty, games: p.games ?? 0, winRate: p.winRate,
+  name: p.name, href: `/players/${p.id}/`, inSite: playerById.has(p.id), bounty: p.bounty, games: p.games ?? 0, winRate: p.winRate,
   rank: p.rank, score: pilotScore(p.winRate, p.games, p.bounty),
 }));
 const archivePilots = (decks.topPilots ?? []).filter((t) => t.handle).map((t) => ({
   name: t.name, href: t.ladderId ? `/players/${t.ladderId}/` : null, inSite: !!t.ladderId, bounty: t.bounty ?? 0, games: t.games, winRate: t.winRate,
-  rank: t.ladderId ? players.find((p) => String(p.id) === t.ladderId)?.rank ?? null : null,
+  rank: t.ladderId ? playerById.get(t.ladderId)?.rank ?? null : null,
   score: pilotScore(t.winRate, t.games, t.bounty ?? 0),
 }));
-const ladderPilots = players.slice(0, 1000).filter((p) => p.id != null && p.topLeaders.some((t) => t.code === L.code))
+const ladderPilots = top1000.filter((p) => p.id != null && p.topLeaders.some((t) => t.code === L.code))
   .map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return { name: p.name, href: `/players/${p.id}/`, inSite: true, bounty: p.bounty, games: t.matches ?? 0, winRate: t.winRate, rank: p.rank, score: pilotScore(t.winRate, t.matches, p.bounty) }; });
 const pilots = (ladderByLeader.length ? ladderByLeader : archivePilots.length ? archivePilots : ladderPilots).sort((a, b) => b.score - a.score).slice(0, 15);
 const pilotsNote = ladderByLeader.length
@@ -87,11 +86,11 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
     <h1 style="text-align:center;margin-bottom:.5rem">{L.name} <span class="sub">[{L.code}] · {L.color}</span></h1>
     <div style="display:flex;justify-content:center;margin-bottom:1rem"><WindowToggle current={W} path={`/leaders/${L.code}/`} /></div>
     <div class="grid stats three" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="label">Weighted Win Rate <Info text={`Raw win rate shrunk toward the field's average leader win rate (${pct(s.fieldWinRate)}) as if this leader had 2,000 extra games at that average, the same weighting Card Kaizoku uses. Small samples move the most.`} /></div><div class:list={['value', cls(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
+      <div class="stat"><div class="label">Weighted Win Rate <Info text={`Raw win rate shrunk toward the field's average leader win rate (${pct(s.fieldWinRate)}) as if this leader had 2,000 extra games at that average, the same weighting Card Kaizoku uses. Small samples move the most.`} /></div><div class:list={['value', wrClass(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
       <div class="stat"><div class="label">Play Rate <Info text={`Share of all decks in ranked games over the ${WINDOWS[W].short} window that were this leader. Every game has two decks, so all leaders sum to 100%.`} /></div><div class="value">{pct(s.playRate)}</div></div>
       <div class="stat"><div class="label">Total Games</div><div class="value">{fmt(s.games, 0)}</div></div>
-      <div class="stat"><div class="label">1st Win Rate <Info text="Win rate when taking the first turn." /></div><div class:list={['value', cls(s.first)]}>{pct(s.first)}</div></div>
-      <div class="stat"><div class="label">2nd Win Rate <Info text="Win rate when taking the second turn. Compare with 1st to decide the coin flip." /></div><div class:list={['value', cls(s.second)]}>{pct(s.second)}</div></div>
+      <div class="stat"><div class="label">1st Win Rate <Info text="Win rate when taking the first turn." /></div><div class:list={['value', wrClass(s.first)]}>{pct(s.first)}</div></div>
+      <div class="stat"><div class="label">2nd Win Rate <Info text="Win rate when taking the second turn. Compare with 1st to decide the coin flip." /></div><div class:list={['value', wrClass(s.second)]}>{pct(s.second)}</div></div>
       <div class="stat"><div class="label">Pilots <Info text="Distinct sim accounts that played this leader in ranked last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></div><div class="value">{uniquePilots == null ? '–' : fmt(uniquePilots, 0)}</div></div>
     </div>
     {trend.length >= 3 && <div style="margin-top:.9rem">
@@ -110,10 +109,10 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
   <table class="breakdown">
     <thead><tr><th>Leader</th>{opps.map((o) => <th><LeaderArt code={o.code} size="md" label={false} href={wpath(W, `/leaders/${o.code}/`)} /></th>)}</tr></thead>
     <tbody>
-      <tr><th>Win Rate</th>{opps.map((o) => <td class={cls(o.m.winRate)} style={`background:${heat(o.m.winRate)}`}>{pct(o.m.winRate)}</td>)}</tr>
+      <tr><th>Win Rate</th>{opps.map((o) => <td class={wrClass(o.m.winRate)} style={`background:${heat(o.m.winRate)}`}>{pct(o.m.winRate)}</td>)}</tr>
       <tr><th>Games</th>{opps.map((o) => <td class="muted">{fmt(o.m.games, 0)}</td>)}</tr>
-      <tr><th>1st</th>{opps.map((o) => <td class={cls(o.m.first)}>{pct(o.m.first)}</td>)}</tr>
-      <tr><th>2nd</th>{opps.map((o) => <td class={cls(o.m.second)}>{pct(o.m.second)}</td>)}</tr>
+      <tr><th>1st</th>{opps.map((o) => <td class={wrClass(o.m.first)}>{pct(o.m.first)}</td>)}</tr>
+      <tr><th>2nd</th>{opps.map((o) => <td class={wrClass(o.m.second)}>{pct(o.m.second)}</td>)}</tr>
     </tbody>
   </table>
 </div>
@@ -122,8 +121,8 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
   <h2>Mirror Match <span class="sub">{fmt(mirrorGames, 0)} games · {winLabel}</span> <Info text="How the mirror plays out. The first / second split counts every ranked mirror game (OPBounty's published statistics). Card impact uses the replay archive, about half of ranked games: when only one side runs a card, how often that side won. Lists that both run it teach nothing, so those games are skipped." /></h2>
   <div class="grid two">
     <div class="grid stats" style="align-content:start">
-      <div class="stat"><div class="label">Going First Wins</div><div class:list={['value', cls(mirrorMu!.first)]}>{pct(mirrorMu!.first)}</div><div class="muted small">{fmt(mirrorMu!.firstGames ?? 0, 0)} games</div></div>
-      <div class="stat"><div class="label">Going Second Wins</div><div class:list={['value', cls(mirrorMu!.second)]}>{pct(mirrorMu!.second)}</div><div class="muted small">{fmt(mirrorMu!.secondGames ?? 0, 0)} games</div></div>
+      <div class="stat"><div class="label">Going First Wins</div><div class:list={['value', wrClass(mirrorMu!.first)]}>{pct(mirrorMu!.first)}</div><div class="muted small">{fmt(mirrorMu!.firstGames ?? 0, 0)} games</div></div>
+      <div class="stat"><div class="label">Going Second Wins</div><div class:list={['value', wrClass(mirrorMu!.second)]}>{pct(mirrorMu!.second)}</div><div class="muted small">{fmt(mirrorMu!.secondGames ?? 0, 0)} games</div></div>
       <div class="stat"><div class="label">Mirror Share <Info text="Share of this leader's games that were mirrors." /></div><div class="value">{pct(s.games ? (100 * mirrorGames) / s.games : null)}</div></div>
       <div class="stat"><div class="label">Recorded With Both Lists</div><div class="value">{fmt(mirror?.withDecks ?? 0, 0)}</div><div class="muted small">{mirror?.games ? `${fmt(mirror.games, 0)} archived mirrors · ${mirror.archiveDays} days` : 'replay archive'}</div></div>
     </div>
@@ -144,7 +143,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
 
 {curve && (curve.first.length > 0 || curve.second.length > 0) && <>
   <h2>Curve <span class="sub">most common plays each turn · sim-wide ranked, week of {curve.date.slice(0, 4)}-{curve.date.slice(4, 6)}-{curve.date.slice(6, 8)}</span> <Info text="For each turn, the three plays seen most often with this leader, going first and going second, from the sim's own match logs (Card Kaizoku, weekly, whole sim). A play is the set of cards put down that turn. Pick an opponent to see how the curve changes in that matchup; the right-hand number is how many turns were recorded." /></h2>
-  <div class="panel curve" data-curve={JSON.stringify({ first: curve.first.map((t) => ({ t: t.t, n: t.n, top: t.top, vs: t.vs })), second: curve.second.map((t) => ({ t: t.t, n: t.n, top: t.top, vs: t.vs })), names: curveNames, img: imgUrl('X').replace('X.webp', '') })}>
+  <div class="panel curve" data-curve={JSON.stringify({ first: curve.first.map((t) => ({ t: t.t, n: t.n, top: t.top, vs: t.vs })), second: curve.second.map((t) => ({ t: t.t, n: t.n, top: t.top, vs: t.vs })), names: curveNames, img: IMG_BASE })}>
     <div class="curve-tabs">
       <div class="wtoggle" style="margin:0" role="tablist"><a role="tab" class="on" data-side="first" href="#">Going First</a><a role="tab" data-side="second" href="#">Going Second</a></div>
       <select class="curve-opp" aria-label="Opponent"><option value="">All opponents</option>{curveOpps.map((o) => <option value={o}>vs {ls[o]?.name ?? card(o).name}</option>)}</select>
@@ -158,7 +157,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
 {cardsF.openingHand.length > 0 && <>
   <h2>Starting Hand Analysis <Info text="How often each card is in the opening five after mulligans, across all games with this leader last week." /></h2>
   <div class="panel"><div class="hand-row">{cardsF.openingHand.slice(0, 12).map((c) => (
-    <div class="hand-card" title={card(c.id).name}><img src={imgUrl(c.id)} alt={card(c.id).name} loading="lazy" onerror={imgOnError(c.id)} /><div class="num" style="text-align:center;font-weight:600">{pct(c.rate)}</div></div>
+    <div class="hand-card" title={card(c.id).name}><img src={imgUrl(c.id)} alt={card(c.id).name} loading="lazy" /><div class="num" style="text-align:center;font-weight:600">{pct(c.rate)}</div></div>
   ))}</div></div></>}
 
 <section>
@@ -179,7 +178,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
           <tr><td><div class="pilot"><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{i + 1}</span><div class="pn">{p.href && p.inSite ? <a href={p.href} style="font-weight:600;color:var(--text)">{p.name}</a> : <span style="font-weight:600">{p.name}</span>} {p.rank != null && <span class="muted small">#{p.rank}</span>}<span class="muted small m-only pg">{fmt(p.games, 0)} games</span></div></div></td>
             <td class="num gold" style="font-weight:700">{berry(p.bounty)}</td>
             <td class="num muted hide-m">{fmt(p.games, 0)}</td>
-            <td class:list={['num', cls(p.winRate)]}>{pct(p.winRate)}</td>
+            <td class:list={['num', wrClass(p.winRate)]}>{pct(p.winRate)}</td>
             <td class="num" style="font-weight:700">{fmt(p.score, 1)}</td></tr>))}</tbody>
       </table>
       {pilots.length === 0 && <p class="muted" style="padding:1rem;margin:0">No pilots with 5 or more games on this leader in the window.</p>}
@@ -205,12 +204,12 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
     <thead><tr><th>Card</th><th class="num">Usage</th><th class="hide-m">Copies <Info text="How lists running the card split between 4, 3, 2 and 1 copies. Gold is 4 copies. Hover a bar for the win rate at each count." /></th><th class="num hide-m">In Hand <Info text="Share of the card's games where it was in the kept opening hand, and the win rate of those games." /></th><th class="num hide-m">Pilots</th><th class="num">Win %</th><th class="num">Lift <Info text="How much better lists running this card do than the leader's average. +1.5 means lists with the card win 1.5 points more often than the leader overall; negative means they do worse." /></th></tr></thead>
     <tbody>{cardsF.cards.slice(0, 80).map((c) => { const k2 = card(c.id); const qs = qshares(c); return (
       <tr data-filter-card={c.id} data-filter-name={k2.name} title="Click to show only lists running this card">
-        <td style="display:flex;align-items:center;gap:.6rem"><img src={imgUrl(c.id)} alt="" loading="lazy" onerror={imgOnError(c.id)} style="width:44px;height:62px;object-fit:cover;object-position:top;border-radius:5px;flex:none" /><span><span style="font-weight:500">{k2.name}</span>{(c.usage ?? 0) >= 90 && <span class="src" style="margin-left:.4rem">staple</span>}<div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
+        <td style="display:flex;align-items:center;gap:.6rem"><img src={imgUrl(c.id)} alt="" loading="lazy" style="width:44px;height:62px;object-fit:cover;object-position:top;border-radius:5px;flex:none" /><span><span style="font-weight:500">{k2.name}</span>{(c.usage ?? 0) >= 90 && <span class="src" style="margin-left:.4rem">staple</span>}<div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
         <td class="num"><div class="bar hide-m" style="width:56px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
         <td class="hide-m"><span class="qbar" title={qs.filter((q) => q.games).map((q) => `${q.q}× · ${q.share.toFixed(0)}% of lists · ${pct(q.wr)} win`).join('\n')}>{qs.map((q) => <i class={`q${q.q}`} style={`width:${q.share}%`}></i>)}</span><span class="qtxt">{qs.filter((q) => q.share >= 5).map((q) => `${q.q}× ${q.share.toFixed(0)}%`).join(' · ')}</span></td>
-        <td class="num hide-m">{c.handRate == null ? <span class="dim">–</span> : <>{pct(c.handRate)}<div class:list={['small', cls(c.handWinRate)]}>{pct(c.handWinRate)} win</div></>}</td>
+        <td class="num hide-m">{c.handRate == null ? <span class="dim">–</span> : <>{pct(c.handRate)}<div class:list={['small', wrClass(c.handWinRate)]}>{pct(c.handWinRate)} win</div></>}</td>
         <td class="num muted hide-m">{c.pilots == null ? '–' : fmt(c.pilots, 0)}</td>
-        <td class:list={['num', cls(c.winRate)]}>{pct(c.winRate)}</td>
+        <td class:list={['num', wrClass(c.winRate)]}>{pct(c.winRate)}</td>
         <td class:list={['num', (c.winRateVsLeader ?? 0) >= 0 ? 'good' : 'bad']}>{c.winRateVsLeader == null ? '–' : `${c.winRateVsLeader >= 0 ? '+' : ''}${fmt(c.winRateVsLeader, 2)}`}</td></tr>); })}</tbody>
   </table>
 </div>

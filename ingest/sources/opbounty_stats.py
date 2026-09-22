@@ -33,6 +33,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .. import normalize as N
+from ..daystore import DayStore
 from ..http import request
 
 BASE = "https://d2spmnr3w7rm2f.cloudfront.net/stats"
@@ -42,6 +43,7 @@ WORKERS = int(os.environ.get("OPB_STATS_WORKERS", "8"))
 REFRESH = os.environ.get("OPB_STATS_REFRESH") == "1"
 ROOT = Path(__file__).resolve().parent.parent.parent
 OUT = ROOT / "data" / "stats"
+STORE = DayStore(OUT)
 
 
 def _decode(raw: bytes):
@@ -81,20 +83,6 @@ def _code(x) -> str | None:
         return None
     m = LEADER_RE.search(x)
     return m.group(1).upper() if m else None
-
-
-def day_path(day: str) -> Path:
-    return OUT / f"{day}.json.gz"
-
-
-def load_day(day: str) -> dict | None:
-    p = day_path(day)
-    return json.loads(gzip.decompress(p.read_bytes())) if p.exists() else None
-
-
-def save_day(obj: dict):
-    OUT.mkdir(parents=True, exist_ok=True)
-    day_path(obj["date"]).write_bytes(gzip.compress(json.dumps(obj, separators=(",", ":")).encode(), mtime=0))
 
 
 def empty_day(day: str) -> dict:
@@ -156,7 +144,7 @@ def merge_chunk(day_obj: dict, key: str, chunk: dict):
             D["g"] += int(lst.get("number_of_matches") or 0); D["w"] += int(lst.get("wins") or 0)
             D["fw"] += int(lst.get("first_wins") or 0); D["fl"] += int(lst.get("first_losses") or 0)
             D["sw"] += int(lst.get("second_wins") or 0); D["sl"] += int(lst.get("second_losses") or 0)
-            day_obj["deckText"].setdefault(h, " ".join("%dx%s" % (c["qty"], c["id"]) for c in cards))
+            day_obj["deckText"].setdefault(h, N.deck_text(cards))
     day_obj["chunks"].append(key)
 
 
@@ -169,7 +157,7 @@ def fetch_all(days: int = DAYS) -> dict:
     status = {}
     for back in range(days - 1, -1, -1):
         day = (today - timedelta(days=back)).isoformat()
-        obj = load_day(day) or empty_day(day)
+        obj = STORE.load(day) or empty_day(day)
         if obj.get("final") and not REFRESH:
             status[day] = {"matches": obj["matches"], "chunks": len(obj["chunks"]), "cached": True}
             continue
@@ -181,14 +169,13 @@ def fetch_all(days: int = DAYS) -> dict:
                 for key, chunk in zip(todo, ex.map(fetch_chunk, todo)):
                     merge_chunk(obj, key, chunk)
         obj["final"] = day <= (today - timedelta(days=2)).isoformat()
-        save_day(obj)
+        STORE.save(obj)
         status[day] = {"matches": obj["matches"], "chunks": len(obj["chunks"]), "new": len(todo), "decks": len(obj["decks"])}
     return status
 
 
 def load_days(days: int) -> list[dict]:
-    files = sorted(OUT.glob("*.json.gz"))[-days:] if OUT.exists() else []
-    return [json.loads(gzip.decompress(f.read_bytes())) for f in files]
+    return STORE.load_days(days)
 
 
 if __name__ == "__main__":

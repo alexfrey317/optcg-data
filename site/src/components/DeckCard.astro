@@ -1,5 +1,5 @@
 ---
-import { card, fmt, pct, deckStats, deckScore, imgUrl, imgOnError, TYPE_ORDER, type Deck } from '../lib/data';
+import { card, fmt, pct, deckStats, deckScore, imgUrl, TYPE_ORDER, type Deck } from '../lib/data';
 interface Props { deck: Deck; leader: string; open?: boolean; rank?: number }
 const { deck, leader, open = false, rank } = Astro.props;
 const s = deckStats(deck);
@@ -29,12 +29,12 @@ const preview = [...deck.cards].sort((a, b) => b.qty - a.qty || Number(card(b.id
       <button type="button" class="copy" data-copy={simText} title="Copies the list in the text format OPTCG Sim imports">Copy for sim</button>
       <span class="expand-hint"><span class="when-closed">Expand</span><span class="when-open">Collapse</span> <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     </span>
-    <span class="deck-preview">{preview.map((c) => <span class="mini" title={`${c.qty}× ${card(c.id).name}`}><img src={imgUrl(c.id)} alt="" loading="lazy" onerror={imgOnError(c.id)} /><b>{c.qty}</b></span>)}</span>
+    <span class="deck-preview">{preview.map((c) => <span class="mini" title={`${c.qty}× ${card(c.id).name}`}><img src={imgUrl(c.id)} alt="" loading="lazy" /><b>{c.qty}</b></span>)}</span>
   </summary>
   <div class="cards">
     {sorted.map((c) => { const k = card(c.id); return (
       <div class="card" title={`${k.name} (${c.id})${k.cost ? ` · cost ${k.cost}` : ''}${k.power && k.power !== '0' ? ` · ${k.power} power` : ''}`}>
-        <img src={imgUrl(c.id)} alt={k.name} loading="lazy" onerror={imgOnError(c.id)} />
+        <img src={imgUrl(c.id)} alt={k.name} loading="lazy" />
         <span class="qty">{c.qty}</span>
         <div class="cname">{k.name}</div>
       </div>

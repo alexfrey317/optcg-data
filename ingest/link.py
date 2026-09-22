@@ -14,20 +14,25 @@ Outputs:
 """
 from __future__ import annotations
 
-import gzip
 import json
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
+
+from .daystore import DayStore
+from .normalize import loose
 
 ROOT = Path(__file__).resolve().parent.parent
 MATCHES = ROOT / "data" / "matches"
 HANDLES = MATCHES / "handles"
 LATEST = ROOT / "data" / "latest"
+# unlike normalize.DISC_RE this also eats whitespace between the discriminator and the end
 DISC_RE = re.compile(r"​?#\d+\s*$")
 BOUNTY_TOL = 40.0   # max |rating - last bounty| considered at all
 EXACT_DAYS = 5      # look for exact rating hits in the most recent N days of games
 PLACEHOLDERS = {"your client", "opponent", "mobile", ""}  # some client builds log these instead of the real handle
+STORE = DayStore(MATCHES)
 
 
 def real_handle(h) -> bool:
@@ -38,13 +43,13 @@ def base(h: str) -> str:
     return DISC_RE.sub("", h or "").strip()
 
 
-def loose(s: str | None) -> str:
-    return re.sub(r"[^a-z0-9]", "", (s or "").casefold())
+def clock(r: dict) -> str:
+    """Server create time when the archive has it, else the uploader's clock."""
+    return r.get("ct") or r["ts"] or ""
 
 
 def load_days(days: int) -> list[dict]:
-    files = sorted(MATCHES.glob("*.json.gz"))[-days:]
-    return [json.loads(gzip.decompress(f.read_bytes())) for f in files]
+    return STORE.load_days(days)
 
 
 def handle_series(dailies: list[dict]) -> tuple[dict[str, list[dict]], dict[str, str]]:
@@ -75,7 +80,7 @@ def handle_series(dailies: list[dict]) -> tuple[dict[str, list[dict]], dict[str,
             for h in (h1, h2):
                 series[h].append({"ts": m["ts"], "ct": m.get("ct"), "id": m["id"], "_side": sides[h], "_w": w, "_l": l})
     for h, rows in series.items():
-        rows.sort(key=lambda r: (r.get("ct") or r["ts"] or ""))
+        rows.sort(key=clock)
         prev = None
         for r in rows:
             side = r.pop("_side")
@@ -102,15 +107,15 @@ def link(players: list[dict], series: dict[str, list[dict]], snapshot_ts: str, p
     previous = previous or {}
     last: dict[str, tuple[str, float, set[str]]] = {}
     for h, rows in series.items():
-        before = [r for r in rows if (r.get("ct") or r["ts"] or "") <= snapshot_ts] or rows
+        before = [r for r in rows if clock(r) <= snapshot_ts] or rows
         last[h] = (before[-1]["ts"], before[-1]["b"], {r["leader"] for r in before})
     # every (bounty -> handle) pair recorded in the recent window; the bounty on a side is that player's
     # rating around the game, to the cent, so an exact hit against the ladder rating is near-unique
-    recent_days = sorted({(r.get("ct") or r["ts"] or "")[:10] for rows in series.values() for r in rows})[-EXACT_DAYS:]
+    recent_days = sorted({clock(r)[:10] for rows in series.values() for r in rows})[-EXACT_DAYS:]
     by_bounty: dict[float, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for h, rows in series.items():
         for r in rows:
-            if (r.get("ct") or r["ts"] or "")[:10] in recent_days:
+            if clock(r)[:10] in recent_days:
                 by_bounty[round(r["b"], 2)][h] += 1
 
     out, used = {}, set()
@@ -205,5 +210,4 @@ def run(days: int = 31) -> dict:
 
 
 if __name__ == "__main__":
-    import sys
     print(json.dumps(run(int(sys.argv[1]) if len(sys.argv) > 1 else 31)))

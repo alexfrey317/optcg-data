@@ -66,66 +66,42 @@ def main(argv=None):
             raw[name] = load(RAW / f"{name}.json", {})
         print(f"[{name}] {status[name]} ({time.time() - t0:.0f}s)", file=sys.stderr)
 
-    step("kaizoku", lambda: kaizoku.fetch_all(RAW / "kaizoku_state.json", RAW))
-    daily_status = None
-    if "daily" in skip:
-        status["daily"] = "skipped"
-    else:
+    def guard(name, fn, unavailable=False):
+        """Run an optional stage that writes its own files and returns a status summary.
+        Returns that summary, or None when the stage is skipped (--skip or `unavailable`) or fails."""
+        if unavailable or name in skip:
+            status[name] = "skipped"
+            return None
+        result = None
         try:
-            daily_status = kaizoku.fetch_daily(DAILY)
-            status["daily"] = "ok"
-        except Exception as e:  # noqa: BLE001
+            result = fn()
+            status[name] = "ok"
+        except Exception as e:  # noqa: BLE001 - keep going; the rest of the site still rebuilds
             traceback.print_exc()
-            status["daily"] = f"error: {e}"
-        print(f"[daily] {status['daily']} {json.dumps(daily_status) if daily_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+            status[name] = f"error: {e}"
+        print(f"[{name}] {status[name]} {json.dumps(result) if result else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+        return result
+
+    step("kaizoku", lambda: kaizoku.fetch_all(RAW / "kaizoku_state.json", RAW))
+    daily_status = guard("daily", lambda: kaizoku.fetch_daily(DAILY))
     step("optcgone", optcgone.fetch_all)
     step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
     step("curves", lambda: kaizoku_curves.fetch_all(RAW / "kaizoku_curves_state.json", LATEST / "curves"))
     step("opbounty", opbounty.fetch_all)
 
     # OPBounty ranked match archive (Firestore). Needs OPB_FS_EMAIL/OPB_FS_PASSWORD; skipped otherwise.
-    matches_status = None
-    if "matches" in skip or not opbounty_matches.EMAIL:
-        status["matches"] = "skipped"
-    else:
-        try:
-            matches_status = opbounty_matches.fetch_all()
-            status["matches"] = "ok"
-        except Exception as e:  # noqa: BLE001
-            traceback.print_exc()
-            status["matches"] = f"error: {e}"
-        print(f"[matches] {status['matches']} {json.dumps(matches_status) if matches_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    matches_status = guard("matches", opbounty_matches.fetch_all, unavailable=not opbounty_matches.EMAIL)
 
     # OPBounty published ranked stats (public bucket, complete): leaders, matchups, every decklist with its record
-    stats_status = None
-    if "stats" in skip:
-        status["stats"] = "skipped"
-    else:
-        try:
-            stats_status = opbounty_stats.fetch_all()
-            status["stats"] = "ok"
-        except Exception as e:  # noqa: BLE001
-            traceback.print_exc()
-            status["stats"] = f"error: {e}"
-        print(f"[stats] {status['stats']} {json.dumps(stats_status) if stats_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    stats_status = guard("stats", opbounty_stats.fetch_all)
 
     opb, kz, one = raw["opbounty"], raw["kaizoku"], raw["optcgone"]
-    card_db =N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
+    card_db = N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
 
     players = N.build_players(opb)
 
     # OPBounty personal profiles (Firestore PublicUsers): complete season record + per-leader stats per ladder player
-    profiles_status = None
-    if "profiles" in skip or not opbounty_matches.EMAIL:
-        status["profiles"] = "skipped"
-    else:
-        try:
-            profiles_status = opbounty_profiles.fetch_all(players)
-            status["profiles"] = "ok"
-        except Exception as e:  # noqa: BLE001
-            traceback.print_exc()
-            status["profiles"] = f"error: {e}"
-        print(f"[profiles] {status['profiles']} {json.dumps(profiles_status) if profiles_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    profiles_status = guard("profiles", lambda: opbounty_profiles.fetch_all(players), unavailable=not opbounty_matches.EMAIL)
     leaders = N.build_leaders(opb, kz, card_db)
     used_cards: set[str] = set(leaders)
     pilots = N.build_pilots(opb, players)
@@ -173,17 +149,7 @@ def main(argv=None):
             status["link"] = f"error: {e}"
         print(f"[link] {status['link']} ({time.time() - t0:.0f}s)", file=sys.stderr)
     # per-player exact decklists (Card Kaizoku player routes)
-    player_stats = None
-    if "players" in skip:
-        status["players"] = "skipped"
-    else:
-        try:
-            player_stats = kaizoku_players.fetch_all(players, LATEST / "player_ids.json", LATEST / "players", today, links)
-            status["players"] = "ok"
-        except Exception as e:  # noqa: BLE001
-            traceback.print_exc()
-            status["players"] = f"error: {e}"
-        print(f"[players] {status['players']} {json.dumps(player_stats) if player_stats else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
+    player_stats = guard("players", lambda: kaizoku_players.fetch_all(players, LATEST / "player_ids.json", LATEST / "players", today, links))
     # drop per-player files for players no longer in the pulled range, so stale decks never linger
     keep = {str(p["id"]) for p in players if p.get("id")}
     if (LATEST / "players").exists():

@@ -1,7 +1,7 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, leadersFor, matchupIn, imgUrl, colorVar, WINDOWS, type Win } from '../lib/data';
+import { leadersByVolumeFor, leadersFor, matchupIn, IMG_BASE, colorVar, WINDOWS, type Win } from '../lib/data';
 /** Pick the leaders you keep losing to; see which leaders beat that selection, weighted by how often you would face each. */
 interface Props { window: Win }
 const { window: W } = Astro.props;
@@ -12,7 +12,7 @@ const pool = all.filter((l) => Number(l.sources.ranked?.matches ?? 0) >= MIN_GAM
 const data = {
   leaders: pool.map((l) => ({ code: l.code, name: l.name, color: colorVar(l.color), games: Number(l.sources.ranked?.matches ?? 0), playRate: Number(l.sources.ranked?.playRate ?? 0), wr: Number(l.sources.ranked?.winRate ?? 0) })),
   mu: Object.fromEntries(pool.map((a) => [a.code, Object.fromEntries(pool.map((b) => { const m = a.code === b.code ? null : matchupIn(ls, a.code, b.code); return [b.code, m ? [m.games, m.winRate ?? 50] : [0, 50]]; }))])),
-  img: imgUrl('X').replace('X.webp', ''),
+  img: IMG_BASE,
 };
 const defaults = pool.slice(0, 3).map((l) => l.code);
 ---

@@ -18,17 +18,18 @@ Env: OPB_FS_EMAIL, OPB_FS_PASSWORD (required), OPB_FS_KEY (defaults to the app's
 """
 from __future__ import annotations
 
-import gzip
 import json
 import os
 import re
 import sys
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from .. import normalize as N
+from ..daystore import DayStore
 from ..http import HttpError, request
 
 PROJECT = "opbounty-3623c"
@@ -47,6 +48,7 @@ REFRESH = os.environ.get("OPB_MATCH_REFRESH") == "1"  # re-pull finished days (s
 ROOT = Path(__file__).resolve().parent.parent.parent
 OUT = ROOT / "data" / "matches"
 HANDLES = OUT / "handles"
+STORE = DayStore(OUT)
 ZW = "​"
 PLY_RE = re.compile(r"^RZ1\|PLY\|([12])\|(.+?)\|([A-Z0-9]+-\d+)\s*$", re.M)
 CONNECT_RE = re.compile(r"^(.+?) Has Connected\s*$", re.M)
@@ -143,7 +145,7 @@ def compact_deck(text, leader, decks: dict) -> str | None:
         return None
     h = N.deck_hash(cards)
     if h not in decks:
-        decks[h] = " ".join("%dx%s" % (c["qty"], c["id"]) for c in cards)
+        decks[h] = N.deck_text(cards)
     return h
 
 
@@ -182,20 +184,6 @@ def parse_handles(head: str) -> list[list[str | None]] | None:
 
 
 # ---------------------------------------------------------------- io
-def day_path(day: str) -> Path:
-    return OUT / f"{day}.json.gz"
-
-
-def load_day(day: str) -> dict | None:
-    p = day_path(day)
-    return json.loads(gzip.decompress(p.read_bytes())) if p.exists() else None
-
-
-def save_day(obj: dict):
-    OUT.mkdir(parents=True, exist_ok=True)
-    day_path(obj["date"]).write_bytes(gzip.compress(json.dumps(obj, separators=(",", ":")).encode(), mtime=0))
-
-
 def fetch_handles(client: Client, day_obj: dict, min_bounty: float = HANDLE_MIN_BOUNTY) -> dict:
     """Handles for matches where either bounty clears the ladder threshold. Incremental."""
     HANDLES.mkdir(parents=True, exist_ok=True)
@@ -216,7 +204,6 @@ def fetch_handles(client: Client, day_obj: dict, min_bounty: float = HANDLE_MIN_
         hs = parse_handles(head) if head else None
         return m["id"], hs, True
 
-    from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         for mid, hs, ok in ex.map(one, todo):
             if ok:
@@ -233,7 +220,7 @@ def fetch_all(days: int = DAYS, handles: bool = True) -> dict:
     status = {}
     for back in range(days - 1, -1, -1):
         day = (today - timedelta(days=back)).isoformat()
-        existing = load_day(day)
+        existing = STORE.load(day)
         complete_past_day = existing is not None and day < today.isoformat() and existing.get("final") and not REFRESH
         if complete_past_day:
             status[day] = {"matches": len(existing["matches"]), "cached": True}
@@ -242,7 +229,7 @@ def fetch_all(days: int = DAYS, handles: bool = True) -> dict:
             obj = shape_day(day, docs)
             if day < today.isoformat():
                 obj["final"] = True
-            save_day(obj)
+            STORE.save(obj)
             existing = obj
             status[day] = {"matches": len(docs), "decks": len(obj["decks"])}
         if handles:
@@ -251,6 +238,5 @@ def fetch_all(days: int = DAYS, handles: bool = True) -> dict:
 
 
 if __name__ == "__main__":
-    import sys
     n = int(sys.argv[1]) if len(sys.argv) > 1 else DAYS
     print(json.dumps(fetch_all(n), indent=1))

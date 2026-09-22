@@ -15,14 +15,16 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ..http import HttpError, get_json, post_json
 from .. import normalize as N
+from ..normalize import loose
 
 API = "https://api.cardkaizoku.com"
 TOP = int(os.environ.get("PLAYER_DECKS_TOP", "1000"))        # ladder rows to resolve
@@ -30,17 +32,11 @@ WINDOW_DAYS = int(os.environ.get("PLAYER_DECKS_DAYS", "28"))  # decklist window
 INTERVAL = float(os.environ.get("KAIZOKU_INTERVAL", "0.4"))   # seconds between calls
 RETRY_UNRESOLVED_DAYS = 7                                      # re-search names that failed to link
 
-DISC_RE = re.compile(r"​?#\d+$")
 WORKERS = int(os.environ.get("PLAYER_DECKS_WORKERS", "4"))
 
 
 def base_name(handle: str | None) -> str:
-    return DISC_RE.sub("", handle or "").strip().casefold()
-
-
-def loose(name: str | None) -> str:
-    """Sim names drop spaces/punctuation that ladder names keep ('B-Roll' vs 'BRoll')."""
-    return re.sub(r"[^a-z0-9]", "", (name or "").casefold())
+    return (N.clean_name(handle) or "").casefold()
 
 
 # ---------------------------------------------------------------- linking
@@ -131,8 +127,8 @@ def _turns(t: dict | None) -> dict | None:
     if not t:
         return None
     fg, fw, sg, sw = (t.get("first_games") or 0), (t.get("first_wins") or 0), (t.get("second_games") or 0), (t.get("second_wins") or 0)
-    return {"firstGames": fg, "firstWinRate": round(100 * fw / fg, 1) if fg else None,
-            "secondGames": sg, "secondWinRate": round(100 * sw / sg, 1) if sg else None}
+    return {"firstGames": fg, "firstWinRate": N.rate(fw, fg),
+            "secondGames": sg, "secondWinRate": N.rate(sw, sg)}
 
 
 def shape(entry: dict, kz: dict, window: dict) -> dict:
@@ -184,8 +180,6 @@ def fetch_all(players: list[dict], ids_path: Path, out_dir: Path, today: str, ha
     stats = {"considered": 0, "resolved": 0, "searched": 0, "unresolved": 0, "rejected": 0, "withDecks": 0, "errors": 0}
     t0 = time.time()
     out_dir.mkdir(parents=True, exist_ok=True)
-    import sys
-    from concurrent.futures import ThreadPoolExecutor
 
     def one(p: dict) -> tuple[str, dict | None, dict]:
         """Returns (opb_id, updated id record, counters). Runs in a worker thread; touches no shared state."""

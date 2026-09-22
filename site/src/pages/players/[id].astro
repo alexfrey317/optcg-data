@@ -4,14 +4,13 @@ import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import DeckList from '../../components/DeckList.astro';
 import Info from '../../components/Info.astro';
-import { players, leaders, bountyHistory, playerDecks, playerMatches, playerProfile, publicMatches, parseCompactDeck, fmt, pct, berry, flag, heat, type Player, type Deck } from '../../lib/data';
+import { players, leaders, wrClass, bountyHistory, playerDecks, playerMatches, playerProfile, publicMatches, parseCompactDeck, fmt, pct, berry, flag, heat, type Player, type Deck } from '../../lib/data';
 
 export function getStaticPaths() {
   return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
 }
 const { player } = Astro.props as { player: Player };
 const pid = String(player.id);
-const cls = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
 const lname = (c: string | null | undefined) => (c ? leaders[c]?.name ?? c : '?');
 
 /* ---- season truth: the player's own OPBounty profile (complete record, top-3 leaders) ---- */
@@ -128,7 +127,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
       <div class="grid stats" style="margin-top:1rem">
         <div class="stat"><div class="label">Bounty <Info text="Ranked rating. Rises with wins and falls with losses, scaled by opponent strength." /></div><div class="value gold">{berry(player.bounty)}</div></div>
         <div class="stat"><div class="label">Season Record <Info text={prof ? 'Every ranked game this season, from the player\'s own OPBounty profile.' : 'From the OPBounty ladder, which counts the player\'s three most-played leaders.'} /></div><div class="value">{seasonGames ? <>{seasonWins}–{seasonLosses}</> : rec.length ? <>{recWins}–{rec.length - recWins}</> : '–'}</div></div>
-        <div class="stat"><div class="label">Win Rate</div><div class:list={['value', cls(seasonGames ? seasonWR : recWR)]}>{seasonGames ? pct(seasonWR) : pct(recWR)}</div></div>
+        <div class="stat"><div class="label">Win Rate</div><div class:list={['value', wrClass(seasonGames ? seasonWR : recWR)]}>{seasonGames ? pct(seasonWR) : pct(recWR)}</div></div>
         <div class="stat"><div class="label">{prof?.avgDuration ? 'Avg. Game' : 'Ranked Games'}</div><div class="value">{prof?.avgDuration ? `${Math.round(prof.avgDuration / 60)} min` : seasonGames ? fmt(seasonGames, 0) : rec.length ? fmt(rec.length, 0) : '–'}</div></div>
       </div>
       {prof && <div class="muted small" style="margin-top:.6rem">Season stats as of {prof.writtenAt?.replace('T', ' ').slice(0, 16) ?? prof.updated.slice(0, 10)} UTC, refreshed whenever the player opens their OPBounty profile.{coverage != null && <> Decklists are known for <b style="color:var(--text)">{fmt(rec.length, 0)}</b> of their {fmt(seasonGames, 0)} games ({coverage}%).</>}</div>}
@@ -162,9 +161,9 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
         <tr>
           <td><LeaderArt code={r.code} size="md" /></td>
           <td class="num">{r.season ? fmt(r.games, 0) : <span class="muted" title="Not among the player's three most-played leaders, so the season total is unknown.">–</span>}</td>
-          <td class:list={['num', cls(r.winRate)]} style="font-weight:600">{r.season ? pct(r.winRate) : <span class="muted">–</span>}</td>
-          <td class:list={['num', cls(r.first)]}>{pct(r.first)}</td>
-          <td class:list={['num', cls(r.second)]}>{pct(r.second)}</td>
+          <td class:list={['num', wrClass(r.winRate)]} style="font-weight:600">{r.season ? pct(r.winRate) : <span class="muted">–</span>}</td>
+          <td class:list={['num', wrClass(r.first)]}>{pct(r.first)}</td>
+          <td class:list={['num', wrClass(r.second)]}>{pct(r.second)}</td>
           <td class="num hide-m">{r.season && seasonGames && r.games != null ? pct((100 * r.games) / seasonGames) : '–'}</td>
           <td class="num muted hide-m">{r.recorded ? <>{fmt(r.recorded, 0)} <span class="small">({pct(r.recWR)})</span></> : '–'}</td>
           <td class="num muted hide-m">{pct(lw as number)}</td>
@@ -185,7 +184,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
           {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
             <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
             <tbody>
-              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
+              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={wrClass(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
               <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
             </tbody></table></div>}
           <DeckList limit={3} total={L.decks.length}>{L.decks.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.decks[0]} />)}</DeckList>
@@ -204,7 +203,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
           {L.matchups.length > 0 && <div class="panel scroll" style="margin-bottom:.6rem"><table class="breakdown">
             <thead><tr><th>vs</th>{L.matchups.map((m) => <th><LeaderArt code={m.opp} size="sm" label={false} /></th>)}</tr></thead>
             <tbody>
-              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={cls(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
+              <tr><th>Win Rate</th>{L.matchups.map((m) => <td class={wrClass(m.winRate)} style={`background:${heat(m.winRate)}`}>{pct(m.winRate)}</td>)}</tr>
               <tr><th>Games</th>{L.matchups.map((m) => <td class="muted">{m.games}</td>)}</tr>
             </tbody></table></div>}
           {L.deckList.length ? <DeckList limit={3} total={L.deckList.length}>{L.deckList.map((d, i) => <DeckCard deck={d} leader={L.code} open={i === 0} rank={i + 1} baseline={L.deckList[0]} />)}</DeckList>

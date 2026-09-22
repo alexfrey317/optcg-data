@@ -21,7 +21,6 @@ from __future__ import annotations
 import base64
 import gzip
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -69,7 +68,7 @@ def _deck(arr, decks: dict) -> tuple[str | None, str | None]:
     if not cards:
         return leader, None
     h = N.deck_hash(cards)
-    decks.setdefault(h, " ".join("%dx%s" % (c["qty"], c["id"]) for c in cards))
+    decks.setdefault(h, N.deck_text(cards))
     return leader, h
 
 
@@ -111,10 +110,10 @@ def shape(uid: str, blob: dict, updated: str | None) -> dict:
         sw, sl = L.get("second_wins"), L.get("second_losses")
         leaders.append({
             "code": code, "games": g, "wins": w, "losses": int(L.get("Losses") or 0),
-            "winRate": round(100 * w / g, 1) if g else None,
+            "winRate": N.rate(w, g),
             "avgDuration": round(float(L.get("Duration") or 0) / g, 1) if g else None,
-            "first": None if fw is None else {"games": int(fw) + int(fl or 0), "winRate": round(100 * int(fw) / (int(fw) + int(fl or 0)), 1) if (int(fw) + int(fl or 0)) else None},
-            "second": None if sw is None else {"games": int(sw) + int(sl or 0), "winRate": round(100 * int(sw) / (int(sw) + int(sl or 0)), 1) if (int(sw) + int(sl or 0)) else None},
+            "first": None if fw is None else {"games": int(fw) + int(fl or 0), "winRate": N.rate(int(fw), int(fw) + int(fl or 0))},
+            "second": None if sw is None else {"games": int(sw) + int(sl or 0), "winRate": N.rate(int(sw), int(sw) + int(sl or 0))},
         })
     recent = []
     for m in blob.get("Public_matches") or []:
@@ -132,7 +131,7 @@ def shape(uid: str, blob: dict, updated: str | None) -> dict:
         "id": uid, "updated": (updated or "")[:19],
         "writtenAt": datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat(timespec="seconds")[:19] if ts else None,
         "wins": wins, "losses": losses, "games": wins + losses,
-        "winRate": round(100 * wins / (wins + losses), 1) if wins + losses else None,
+        "winRate": N.rate(wins, wins + losses),
         "avgDuration": blob.get("Duration") if isinstance(blob.get("Duration"), (int, float)) else None,
         "leaders": sorted(leaders, key=lambda x: -x["games"]),
         "graph": graph, "recent": recent, "decks": decks,

@@ -53,14 +53,16 @@ export interface Meta { generatedAt: string; date: string; status: Record<string
  *  Access-Control-Allow-Origin: * and no Cross-Origin-Resource-Policy header, so it embeds cross-site. Covers every card in
  *  cards.json that Limitless does plus 24 more promos. (Card Kaizoku's CDN 403s on foreign referers; Bandai's official
  *  images send CORP: same-site and are blocked by browsers.) */
-export const imgUrl = (id: string) => `https://static.dotgg.gg/onepiece/card/${id}.webp`;
-/** Inline onerror handler: swap in a labelled placeholder (promos are missing upstream). */
-export const imgOnError = (_id: string): string | undefined => undefined; // handled once per page by the delegated listener in Base.astro
+export const IMG_BASE = 'https://static.dotgg.gg/onepiece/card/';
+export const imgUrl = (id: string) => `${IMG_BASE}${id}.webp`;
+/** Win-rate colour class: green at or above 50%, red below, dim when unknown. */
+export const wrClass = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
 
 export const meta = readJson<Meta>(join(LATEST, 'meta.json'), { generatedAt: '', date: '', status: {}, players: 0, leaders: 0, sources: [] });
 export const players = readJson<Player[]>(join(LATEST, 'players.json'), []);
 /** The ladder's top 1,000: what the home page and "Top-1000" counts use; player pages exist for every pulled row. */
 export const top1000 = players.slice(0, 1000);
+export const playerById = new Map(players.map((p) => [String(p.id), p]));
 export const LADDER_PAGE = 200;
 export const leaders = readJson<Record<string, Leader>>(join(LATEST, 'leaders.json'), {});
 export const cards = readJson<Record<string, Card>>(join(LATEST, 'cards.json'), {});
@@ -81,17 +83,12 @@ export interface PlayerDecks {
   leaders: PlayerLeaderStat[]; decks: PlayerDeck[];
 }
 export const playerDecks = (id: string | number) => readJson<PlayerDecks | null>(join(LATEST, 'players', `${id}.json`), null);
-export const playersWithDecks = (): Set<string> => new Set(existsSync(join(LATEST, 'players')) ? readdirSync(join(LATEST, 'players')).map((f) => f.replace(/\.json$/, '')) : []);
 
 export const bountyHistory =(id: string | number) => readJson<[string, number, number][]>(join(HISTORY, 'bounty', `${id}.json`), []);
 export const leaderHistory = (code: string) => readJson<(string | number | null)[][]>(join(HISTORY, 'leaders', `${code}.json`), []);
 
 export const card = (id: string): Card => cards[id] ?? { name: id, type: '', cost: '', color: '', power: '', counter: '', rarity: '', img: imgUrl(id), set: id.split('-')[0] };
-export const leaderName = (code: string) => leaders[code]?.name ?? card(code).name ?? code;
-
-/** Leaders sorted by Card Kaizoku match volume, then OPBounty. */
-export const leadersByVolume = (): Leader[] =>
-  Object.values(leaders).sort((a, b) => volume(b) - volume(a));
+/** Match volume behind a leader row: the complete ranked archive when present, else the two sampled feeds added. */
 export const volume = (l: Leader) => l.sources.ranked ? Number(l.sources.ranked.matches ?? 0) : Number(l.sources.kaizoku?.matches ?? 0) + Number(l.sources.opbounty?.matches ?? 0);
 
 /** Consolidated deck stats. The ladder feed and the ranked-decklist feed describe the same match pool, so we take the
@@ -113,16 +110,10 @@ export const deckScore = (s: { games: number; winRate: number | null }) => {
   const g = s.games ?? 0, wr = s.winRate ?? 50;
   return Math.round(((wr * g + 50 * 25) / (g + 25)) * 100) / 100;
 };
-export const deckGames = (d: Deck) => deckStats(d).games;
-export const deckWinRate = (d: Deck) => deckStats(d).winRate;
 
 /** Berry sign for bounty values. */
 export const berry = (n: number | null | undefined) => (n == null ? '–' : `฿${fmt(n, 0)}`);
 
-/** Matchup cell for leader a vs b: prefer the sim-wide pool (has 1st/2nd), fall back to the ladder pool. */
-export const matchup = (a: string, b: string) => {
-  return matchupIn(leaders, a, b);
-};
 /** Leader headline numbers from whichever pool has them. */
 /** Games in the prior behind the weighted win rate (Card Kaizoku's K). The ingest shrinks each leader's raw rate toward
  *  the field's unweighted mean leader win rate (sources.ranked.fieldWinRate, ~36%) as if it had WEIGHT_K extra games at that rate. */
@@ -215,8 +206,6 @@ export interface TopPilot { handle: string; name: string; games: number; wins: n
 export interface PlayerGame { ts: string; id: string; side: 'w' | 'l'; b: number; leader: string; deck: string | null; opp: string; oppB: number; oppDeck: string | null; won: boolean }
 export interface PlayerMatches { handle: string; name: string; games: PlayerGame[]; decks: Record<string, string> }
 export const playerMatches = (id: string | number) => readJson<PlayerMatches | null>(join(LATEST, 'matches', `${id}.json`), null);
-export const handleLinks = readJson<Record<string, { handle: string; name: string; confidence: string; gap: number; lastSeen: string; lastBounty: number; games: number }>>(join(LATEST, 'handles.json'), {});
-/** Parse a compact "4xOP01-016 3xOP01-024" list into cards. */
 /** OPBounty personal profile (Firestore PublicUsers): complete season record, top-3 leader stats, bounty-per-game series, newest public matches. */
 export interface ProfileLeader { code: string; games: number; wins: number; losses: number; winRate: number | null; avgDuration: number | null; first: { games: number; winRate: number | null } | null; second: { games: number; winRate: number | null } | null }
 export interface ProfileSide { id: string; nick: string; b: number; delta: number; status: string; leader: string | null; deck: string | null }
@@ -227,13 +216,18 @@ export const playerProfile = (id: string | number) => readJson<PlayerProfile | n
 export interface Pilot { id: string; name: string; leaderRank: number; rank: number | null; bounty: number; games: number | null; winRate: number | null; country: string | null }
 export const pilotsFor = (code: string) => readJson<Pilot[]>(join(LATEST, 'pilots', `${code}.json`), []);
 /** Season record for a ladder row: the player's own profile when we have it (complete), else the ladder's top-3 sum. */
-export const seasonRecord = (p: Player) => {
+export interface SeasonRecord { wins: number | null; losses: number | null; games: number | null; winRate: number | null; src: 'profile' | 'ladder' }
+const seasonCache = new Map<Player, SeasonRecord>(); // every ladder page sums this over the top 1,000, so read each profile once per build
+export const seasonRecord = (p: Player): SeasonRecord => {
+  let r = seasonCache.get(p);
+  if (r) return r;
   const pr = p.id == null ? null : playerProfile(p.id);
   // the ladder's count is the top-3-leader subset of the same data, so a profile reporting fewer games is stale: keep the ladder then
-  return pr && pr.games && pr.games >= (p.matches || 0) ? { wins: pr.wins, losses: pr.losses, games: pr.games, winRate: pr.winRate, src: 'profile' as const }
-    : { wins: p.wins, losses: p.losses, games: p.matches, winRate: p.winRate, src: 'ladder' as const };
+  r = pr && pr.games && pr.games >= (p.matches || 0) ? { wins: pr.wins, losses: pr.losses, games: pr.games, winRate: pr.winRate, src: 'profile' }
+    : { wins: p.wins, losses: p.losses, games: p.matches, winRate: p.winRate, src: 'ladder' };
+  seasonCache.set(p, r);
+  return r;
 };
-export const profileCount =(): number => existsSync(join(LATEST, 'profiles')) ? readdirSync(join(LATEST, 'profiles')).length : 0;
 /** Every public match row ever collected from profiles, grouped by ladder id (both sides). Loaded once per build. */
 let _public: { byPlayer: Map<string, ProfileMatch[]>; decks: Record<string, string> } | null = null;
 export const publicMatches = () => {
@@ -249,7 +243,8 @@ export const publicMatches = () => {
   }
   return (_public = { byPlayer, decks });
 };
-export const parseCompactDeck =(txt: string) => txt.split(/\s+/).filter(Boolean).map((t) => { const [q, id] = t.split('x'); return { id, qty: Number(q) }; }).sort((a, b) => a.id.localeCompare(b.id));
+/** Parse a compact "4xOP01-016 3xOP01-024" list into cards. */
+export const parseCompactDeck = (txt: string) => txt.split(/\s+/).filter(Boolean).map((t) => { const [q, id] = t.split('x'); return { id, qty: Number(q) }; }).sort((a, b) => a.id.localeCompare(b.id));
 export const matchupIn = (ls: Record<string, Leader>, a: string, b: string) => {
   const m = ls[a]?.matchups?.[b];
   const s = m?.ranked ?? m?.kaizoku ?? m?.opbounty, k = m?.kaizoku;
@@ -267,8 +262,3 @@ export const pilotScore = (winRate: number | null, games: number | null, bounty:
   const adj = (wr * g + 50 * 20) / (g + 20);
   return Math.round((adj + (bounty - 3000) / 200) * 10) / 10;
 };
-
-/** Title Case for headings (keeps all-caps tokens like OPTCG). */
-export const titleCase = (s: string) => s.replace(/\b([a-z])(\w*)/g, (_m, a: string, b: string) => a.toUpperCase() + b);
-
-export const listDeckFiles = () => (existsSync(join(LATEST, 'decks')) ? readdirSync(join(LATEST, 'decks')).map((f) => f.replace(/\.json$/, '')) : []);
