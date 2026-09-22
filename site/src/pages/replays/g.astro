@@ -112,7 +112,7 @@ import { IMG_BASE } from '../../lib/data';
       // the wrapper carries the rested rotation so attached DON turn sideways with their card, as in the sim
       return badge.startsWith('<span class="atts"') ? `<span class="cwrap${/\brested\b/.test(cls) ? ' rested' : ''}">${badge}${inner}</span>` : inner;
     };
-    const donBadge = (n: number) => n ? `<span class="atts" title="${n} DON attached (+${n}000 power)">${Array.from({ length: n }, (_, k) => `<span class="att" style="--k:${k}"><i>+1000</i></span>`).join('')}</span>` : '';
+    const donBadge = (n: number) => n ? `<span class="atts" title="${n} DON attached (+${n}000 power)">${Array.from({ length: n }, (_, k) => `<span class="att" style="--k:${k}"></span>`).join('')}</span>` : '';
     const rich = (text: string) => esc(text).replace(CARD, (_m, cid: string) => `<span class="ct" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${cid}" loading="lazy"></span>`);
     const back = (cls = '', inner = '') => `<span class="cd back ${cls}">${inner}</span>`;
     const halfHtml = (seat: number, top: boolean) => {
