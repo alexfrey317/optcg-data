@@ -2,8 +2,7 @@ name: daily-ingest
 
 on:
   schedule:
-    - cron: "0 5 * * *"   # 05:00 UTC = midnight US Central (CDT; 11 pm during CST). GitHub cron has no time zones.
-                          # Note: Card Kaizoku publishes its dated daily files ~07:00 UTC, so this run sees the previous day's file.
+    - cron: "0 8 * * *"   # 08:00 UTC (3 am Central), after Card Kaizoku's ~07:00 UTC publish of the previous day's files
   workflow_dispatch:
 
 permissions:
