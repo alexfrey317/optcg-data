@@ -54,7 +54,7 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
   <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
     <h1 style="text-align:center;margin-bottom:.5rem">{L.name} <span class="sub">[{L.code}] · {L.color}</span></h1>
     <div style="display:flex;justify-content:center;margin-bottom:1rem"><WindowToggle current={W} path={`/leaders/${L.code}/`} /></div>
-    <div class="grid stats" style="grid-template-columns:repeat(3,1fr)">
+    <div class="grid stats three" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat"><div class="label">Weighted Win Rate <Info text="Raw win rate shrunk toward 50% for small samples." /></div><div class:list={['value', cls(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
       <div class="stat"><div class="label">Play Rate <Info text={`Share of all ranked games in the ${WINDOWS[W].short} window in which this leader appeared.`} /></div><div class="value">{pct(s.playRate)}</div></div>
       <div class="stat"><div class="label">Total Games</div><div class="value">{fmt(s.games, 0)}</div></div>
@@ -97,11 +97,11 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
     <h2>Best Pilots <Info text={pilotsNote} /></h2>
     <div class="panel tight">
       <table>
-        <thead><tr><th>Player</th><th class="num">Bounty</th><th class="num">Games</th><th class="num">Win %</th><th class="num">Score <Info text="Blend of win rate with this leader and bounty. Higher is better." /></th></tr></thead>
+        <thead><tr><th>Player</th><th class="num">Bounty</th><th class="num hide-m">Games</th><th class="num">Win %</th><th class="num">Score <Info text="Blend of win rate with this leader and bounty. Higher is better." /></th></tr></thead>
         <tbody>{pilots.map((p, i) => (
-          <tr><td><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem;margin-right:.5rem">{i + 1}</span>{p.href && p.inSite ? <a href={p.href} style="font-weight:600;color:var(--text)">{p.name}</a> : <span style="font-weight:600">{p.name}</span>} {p.rank != null && <span class="muted small">#{p.rank}</span>}</td>
+          <tr><td><div class="pilot"><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">{i + 1}</span><div class="pn">{p.href && p.inSite ? <a href={p.href} style="font-weight:600;color:var(--text)">{p.name}</a> : <span style="font-weight:600">{p.name}</span>} {p.rank != null && <span class="muted small">#{p.rank}</span>}<span class="muted small m-only pg">{fmt(p.games, 0)} games</span></div></div></td>
             <td class="num gold" style="font-weight:700">{berry(p.bounty)}</td>
-            <td class="num muted">{fmt(p.games, 0)}</td>
+            <td class="num muted hide-m">{fmt(p.games, 0)}</td>
             <td class:list={['num', cls(p.winRate)]}>{pct(p.winRate)}</td>
             <td class="num" style="font-weight:700">{fmt(p.score, 1)}</td></tr>))}</tbody>
       </table>
@@ -112,11 +112,11 @@ const staples = cardsF.cards.filter((c) => (c.usage ?? 0) >= 90).length;
     <h2>Card Usage <span class="sub">{fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists · {cardsF.complete ? WINDOWS[W].label.toLowerCase() : 'last 7 days'}</span> <Info text={cardsF.complete ? `Per card across every ranked game this leader played in the window, from OPBounty's complete published statistics. Usage is the share of games with the card in the list; copies is the average count when included; lift is how much games with the card outperform the leader's average win rate.` : `Per card across every ranked list for this leader last week (card-level stats are only published weekly). Usage is the share of lists running it; copies is the average count when included; lift is how much lists with the card outperform the leader's average win rate.`} /></h2>
     <div class="panel scroll" style="max-height:720px">
       <table>
-        <thead><tr><th>Card</th><th class="num">Usage</th><th class="num">Copies</th><th class="num">Win %</th><th class="num">Lift <Info text="How much better lists running this card do than the leader's average. +1.5 means lists with the card win 1.5 points more often than the leader overall; negative means they do worse." /></th></tr></thead>
+        <thead><tr><th>Card</th><th class="num">Usage</th><th class="num hide-m">Copies</th><th class="num">Win %</th><th class="num">Lift <Info text="How much better lists running this card do than the leader's average. +1.5 means lists with the card win 1.5 points more often than the leader overall; negative means they do worse." /></th></tr></thead>
         <tbody>{cardsF.cards.slice(0, 60).map((c) => { const k2 = card(c.id); return (
           <tr><td style="display:flex;align-items:center;gap:.6rem"><img src={imgUrl(c.id)} alt="" loading="lazy" onerror={imgOnError(c.id)} style="width:44px;height:62px;object-fit:cover;object-position:top;border-radius:5px;flex:none" /><span><span style="font-weight:500">{k2.name}</span>{(c.usage ?? 0) >= 90 && <span class="src" style="margin-left:.4rem">staple</span>}<div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
-            <td class="num"><div class="bar" style="width:56px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
-            <td class="num">{fmt(c.avgCopies, 1)}</td>
+            <td class="num"><div class="bar hide-m" style="width:56px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
+            <td class="num hide-m">{fmt(c.avgCopies, 1)}</td>
             <td class:list={['num', cls(c.winRate)]}>{pct(c.winRate)}</td>
             <td class:list={['num', (c.winRateVsLeader ?? 0) >= 0 ? 'good' : 'bad']}>{c.winRateVsLeader == null ? '–' : `${c.winRateVsLeader >= 0 ? '+' : ''}${fmt(c.winRateVsLeader, 2)}`}</td></tr>); })}</tbody>
       </table>

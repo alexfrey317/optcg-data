@@ -139,7 +139,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
   <div class="panel">
     {curve.length >= 2 ? (
       <div class="bcurve" data-points={curveData} data-total={curve.length}>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:220px;display:block" role="img" aria-label="Bounty over time">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style="max-height:220px;display:block;touch-action:pan-y" role="img" aria-label="Bounty over time">
           <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
           <path d={area} fill="url(#g)" />
           <path d={path} fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" />
@@ -157,7 +157,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
   <h2>Leaders Played {seasonGames ? <span class="sub">{fmt(seasonGames, 0)} ranked games this season</span> : null} <Info text={prof ? 'Season games and win rates for the player\'s three most-played leaders come from their OPBounty profile and cover every game. Recorded games are the subset we have a decklist-bearing record of.' : 'The ladder reports each player\'s three most-played leaders. Recorded games are the subset we have a record of.'} /></h2>
   <div class="panel tight">
     <table>
-      <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">1st <Info text="Win rate when going first." /></th><th class="num">2nd <Info text="Win rate when going second." /></th><th class="num">Share</th><th class="num">Recorded <Info text="Games we hold a full record of (replay archive plus profile match rows). Their win rate in those games follows in brackets." /></th><th class="num">Leader's Ranked Win % <Info text="How this leader performs across all ranked games in the last 7 days, for comparison." /></th></tr></thead>
+      <thead><tr><th>Leader</th><th class="num">Games</th><th class="num">Win %</th><th class="num">1st <Info text="Win rate when going first." /></th><th class="num">2nd <Info text="Win rate when going second." /></th><th class="num hide-m">Share</th><th class="num hide-m">Recorded <Info text="Games we hold a full record of (replay archive plus profile match rows). Their win rate in those games follows in brackets." /></th><th class="num hide-m">Leader's Ranked Win % <Info text="How this leader performs across all ranked games in the last 7 days, for comparison." /></th></tr></thead>
       <tbody>{rows.map((r) => { const lw = leaders[r.code]?.sources.ranked?.winRate ?? leaders[r.code]?.sources.kaizoku?.winRate; return (
         <tr>
           <td><LeaderArt code={r.code} size="md" /></td>
@@ -165,11 +165,11 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
           <td class:list={['num', cls(r.winRate)]} style="font-weight:600">{r.season ? pct(r.winRate) : <span class="muted">–</span>}</td>
           <td class:list={['num', cls(r.first)]}>{pct(r.first)}</td>
           <td class:list={['num', cls(r.second)]}>{pct(r.second)}</td>
-          <td class="num">{r.season && seasonGames && r.games != null ? pct((100 * r.games) / seasonGames) : '–'}</td>
-          <td class="num muted">{r.recorded ? <>{fmt(r.recorded, 0)} <span class="small">({pct(r.recWR)})</span></> : '–'}</td>
-          <td class="num muted">{pct(lw as number)}</td>
+          <td class="num hide-m">{r.season && seasonGames && r.games != null ? pct((100 * r.games) / seasonGames) : '–'}</td>
+          <td class="num muted hide-m">{r.recorded ? <>{fmt(r.recorded, 0)} <span class="small">({pct(r.recWR)})</span></> : '–'}</td>
+          <td class="num muted hide-m">{pct(lw as number)}</td>
         </tr>); })}
-        {otherGames > 0 && <tr><td class="muted">Other leaders</td><td class="num muted">{fmt(otherGames, 0)}</td><td class="num muted">–</td><td class="num muted">–</td><td class="num muted">–</td><td class="num">{pct((100 * otherGames) / seasonGames)}</td><td class="num muted">–</td><td></td></tr>}
+        {otherGames > 0 && <tr><td class="muted">Other leaders</td><td class="num muted">{fmt(otherGames, 0)}</td><td class="num muted">–</td><td class="num muted">–</td><td class="num muted">–</td><td class="num hide-m">{pct((100 * otherGames) / seasonGames)}</td><td class="num muted hide-m">–</td><td class="hide-m"></td></tr>}
       </tbody>
     </table>
   </div>
@@ -224,12 +224,12 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
       <h2>Recent Games <span class="sub">{fmt(rec.length, 0)} recorded · {recSpan}</span> <Info text="Most recent recorded ranked games first, from the replay archive and profile match rows. Bounty is this player's rating after that game." /></h2>
       <div class="panel scroll" style="max-height:560px">
         <table>
-          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num">Opp. Bounty</th></tr></thead>
+          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num hide-m">Opp. Bounty</th></tr></thead>
           <tbody>{recent.map((g) => (
             <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
               <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" sub={g.oppName} /></td>
               <td class={g.won ? 'good' : 'bad'} style="font-weight:600">{g.won ? 'Win' : 'Loss'}</td>
-              <td class="num gold">{berry(g.b)}</td><td class="num muted">{berry(g.oppB)}</td></tr>))}</tbody>
+              <td class="num gold">{berry(g.b)}</td><td class="num muted hide-m">{berry(g.oppB)}</td></tr>))}</tbody>
         </table>
       </div>
     </>
@@ -237,7 +237,8 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
 
   <style>
     .bcurve { position: relative; }
-    .bc-tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: .4rem .6rem; font-size: .8rem; line-height: 1.35; white-space: nowrap; box-shadow: var(--shadow); z-index: 5; }
+    .bc-tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: .4rem .6rem; font-size: .8rem; line-height: 1.35; white-space: nowrap; box-shadow: var(--shadow); z-index: 5; max-width: 100%; }
+    @media (max-width: 720px) { .bcurve svg { max-height: 170px !important; } .bc-tip { font-size: .74rem; } }
     .bc-tip b { color: var(--accent); }
   </style>
   <script>
@@ -262,9 +263,13 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
         const b = box.getBoundingClientRect(); const c = toClient(p.x, p.y); const tw = tip.offsetWidth;
         tip.style.left = `${Math.min(Math.max(c.x - b.left - tw / 2, 0), b.width - tw)}px`; tip.style.top = `${c.y - b.top - tip.offsetHeight - 14}px`;
       };
+      const hideAll = () => { cur.style.display = 'none'; dot.style.display = 'none'; tip.style.display = 'none'; };
       svg.addEventListener('mousemove', (e) => show(e.clientX));
+      // touch: tap or drag along the curve to scrub; the readout stays until you tap elsewhere
+      svg.addEventListener('touchstart', (e) => { show(e.touches[0].clientX); }, { passive: true });
       svg.addEventListener('touchmove', (e) => { show(e.touches[0].clientX); }, { passive: true });
-      svg.addEventListener('mouseleave', () => { cur.style.display = 'none'; dot.style.display = 'none'; tip.style.display = 'none'; });
+      svg.addEventListener('mouseleave', hideAll);
+      document.addEventListener('touchstart', (e) => { if (!box.contains(e.target as Node)) hideAll(); }, { passive: true });
     });
   </script>
 </Base>

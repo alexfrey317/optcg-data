@@ -1,8 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
-import LeaderArt from '../../components/LeaderArt.astro';
-import Info from '../../components/Info.astro';
-import { players, seasonRecord, LADDER_PAGE, fmt, pct, berry, flag } from '../../lib/data';
+import LadderTable from '../../components/LadderTable.astro';
+import { players, LADDER_PAGE, fmt } from '../../lib/data';
 
 export function getStaticPaths() {
   const pages = Math.ceil(players.length / LADDER_PAGE);
@@ -23,34 +22,24 @@ const href = (p: number) => (p === 1 ? '/ladder/1/' : `/ladder/${p}/`);
     </div>
   </div>
   <nav class="pager" aria-label="Ladder pages">
-    {page > 1 && <a href={href(page - 1)}>← Previous</a>}
-    <span class="muted">Page {page} of {pages}</span>
-    {page < pages && <a href={href(page + 1)}>Next →</a>}
+    <a class:list={['copy', 'pg', { off: page <= 1 }]} href={page > 1 ? href(page - 1) : undefined} aria-disabled={page <= 1}>← Previous</a>
     <select onchange="location.href=this.value" aria-label="Jump to page">
       {Array.from({ length: pages }, (_, i) => i + 1).map((p) => <option value={href(p)} selected={p === page}>#{(p - 1) * LADDER_PAGE + 1}–{Math.min(p * LADDER_PAGE, players.length)}</option>)}
     </select>
+    <a class:list={['copy', 'pg', { off: page >= pages }]} href={page < pages ? href(page + 1) : undefined} aria-disabled={page >= pages}>Next →</a>
   </nav>
   <div class="panel scroll">
-    <table>
-      <thead><tr><th class="num">#</th><th>Player</th><th class="num">Bounty</th><th class="num">Games <Info text="Season ranked games, with the win–loss record underneath." /></th><th class="num">Win %</th><th>Top Leaders</th></tr></thead>
-      <tbody>{rows.map((p) => { const r = seasonRecord(p); return (
-        <tr>
-          <td class="num"><span class="pill-rank">{p.rank}</span></td>
-          <td><a href={p.id != null ? `/players/${p.id}/` : undefined} style="font-weight:600;color:var(--text)">{p.name}</a>{p.country && <div class="muted small">{flag(p.country)} {p.country}</div>}</td>
-          <td class="num gold" style="font-weight:700">{berry(p.bounty)}</td>
-          <td class="num">{r.games ? <>{fmt(r.games, 0)}<div class="muted small">{r.wins}–{r.losses}</div></> : <span class="dim">–</span>}</td>
-          <td class:list={['num', (r.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{r.games ? pct(r.winRate) : <span class="dim">–</span>}</td>
-          <td><div class="leader-row">{p.topLeaders.slice(0, 3).map((t) => <LeaderArt code={t.code} size="sm" sub={`${fmt(t.winRate)}% · ${t.matches} games`} />)}</div></td>
-        </tr>); })}</tbody>
-    </table>
+    <LadderTable rows={rows} />
   </div>
   <nav class="pager" aria-label="Ladder pages">
-    {page > 1 && <a href={href(page - 1)}>← Previous</a>}
+    <a class:list={['copy', 'pg', { off: page <= 1 }]} href={page > 1 ? href(page - 1) : undefined} aria-disabled={page <= 1}>← Previous</a>
     <span class="muted">Page {page} of {pages}</span>
-    {page < pages && <a href={href(page + 1)}>Next →</a>}
+    <a class:list={['copy', 'pg', { off: page >= pages }]} href={page < pages ? href(page + 1) : undefined} aria-disabled={page >= pages}>Next →</a>
   </nav>
   <style>
-    .pager { display: flex; gap: 1rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
-    .pager select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px; padding: .3rem .5rem; }
+    .pager { display: flex; gap: .75rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
+    .pager select { flex: 1 1 auto; min-width: 0; }
+    .pager .pg { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; color: var(--text); text-decoration: none; }
+    .pager .pg.off { opacity: .35; pointer-events: none; }
   </style>
 </Base>

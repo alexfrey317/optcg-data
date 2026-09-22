@@ -1,13 +1,12 @@
 ---
 import Base from '../layouts/Base.astro';
-import LeaderArt from '../components/LeaderArt.astro';
+import LadderTable from '../components/LadderTable.astro';
 import Info from '../components/Info.astro';
-import { players, top1000, leaders, seasonRecord, fmt, pct, berry, flag } from '../lib/data';
+import { players, top1000, leaders, seasonRecord, fmt, berry, flag } from '../lib/data';
 
 const countries = [...new Set(top1000.map((p) => p.country).filter(Boolean))].sort() as string[];
 const leaderCodes = [...new Set(top1000.flatMap((p) => p.topLeaders.map((t) => t.code)))].sort((a, b) => (leaders[a]?.name ?? a).localeCompare(leaders[b]?.name ?? b));
-const rec = new Map(top1000.map((p) => [p, seasonRecord(p)]));
-const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
+const totalMatches = top1000.reduce((n, p) => n + (seasonRecord(p).games || 0), 0);
 ---
 <Base title="Ranked Ladder" wide>
   <div class="hero">
@@ -25,36 +24,17 @@ const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
   </div>
 
   <div class="toolbar">
-    <input type="search" id="q" placeholder="Search player…" autocomplete="off" />
-    <select id="country"><option value="">All countries</option>{countries.map((c) => <option value={c}>{flag(c)} {c}</option>)}</select>
-    <select id="leader"><option value="">Any leader</option>{leaderCodes.map((c) => <option value={c}>{leaders[c]?.name ?? c} ({c})</option>)}</select>
+    <input type="search" id="q" placeholder="Search player…" autocomplete="off" enterkeyhint="search" />
+    <select id="country" aria-label="Country"><option value="">All countries</option>{countries.map((c) => <option value={c}>{flag(c)} {c}</option>)}</select>
+    <select id="leader" aria-label="Leader"><option value="">Any leader</option>{leaderCodes.map((c) => <option value={c}>{leaders[c]?.name ?? c} ({c})</option>)}</select>
+    <select id="msort" class="m-only" aria-label="Sort by">
+      <option value="rank:1">Sort: Rank</option><option value="bounty:-1">Sort: Bounty</option><option value="matches:-1">Sort: Most games</option><option value="winrate:-1">Sort: Win %</option>
+    </select>
     <span class="muted" id="count"></span>
   </div>
 
   <div class="panel scroll">
-    <table id="ladder">
-      <thead><tr>
-        <th class="num sortable sorted" data-k="rank">#</th>
-        <th>Player</th>
-        <th class="num sortable" data-k="bounty">Bounty <Info text="Ranked rating. Higher is better. Roughly 1,500 for a new account; the top players sit above 4,000." /></th>
-        <th class="num sortable" data-k="matches">Games <Info text="Ranked games played, with the win–loss record underneath." /></th>
-        <th class="num sortable" data-k="winrate">Win % <Info text="Wins divided by ranked games played." /></th>
-        <th>Top Leaders <Info text="The three leaders this player has played most, with their personal win rate and game count on each." /></th>
-      </tr></thead>
-      <tbody>
-        {top1000.map((p) => { const r = rec.get(p)!; return (
-          <tr class:list={{ top1: p.rank === 1, top3: p.rank > 1 && p.rank <= 3 }} data-name={p.name.toLowerCase()} data-country={p.country ?? ''} data-leaders={p.topLeaders.map((t) => t.code).join(' ')}
-              data-rank={p.rank} data-bounty={p.bounty} data-matches={r.games} data-winrate={r.winRate ?? 0}>
-            <td class="num"><span class="pill-rank">{p.rank}</span></td>
-            <td><a href={p.id != null ? `/players/${p.id}/` : undefined} style="font-weight:600;color:var(--text)">{p.name}</a>
-              {p.country && <div class="muted small">{flag(p.country)} {p.country}</div>}</td>
-            <td class="num gold" style="font-weight:700;font-size:1.02rem">{berry(p.bounty)}</td>
-            <td class="num">{r.games ? <>{fmt(r.games, 0)}<div class="muted small">{r.wins}–{r.losses}</div></> : <span class="dim">–</span>}</td>
-            <td class:list={['num', (r.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{r.games ? pct(r.winRate) : <span class="dim">–</span>}</td>
-            <td><div class="leader-row">{p.topLeaders.slice(0, 3).map((t) => <LeaderArt code={t.code} size="sm" sub={`${fmt(t.winRate)}% · ${t.matches} games`} />)}</div></td>
-          </tr>); })}
-      </tbody>
-    </table>
+    <LadderTable rows={top1000} id="ladder" sortable />
   </div>
 
   <script>
@@ -64,8 +44,12 @@ const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
     const sel = (id: string) => document.getElementById(id) as HTMLSelectElement;
     const count = document.getElementById('count')!;
     let sortKey = 'rank', asc = true;
+    // filters survive reloads and tab switches on the same device
+    const saved = JSON.parse(sessionStorage.getItem('ladder-filters') || '{}');
+    if (saved.q) q.value = saved.q; if (saved.country) sel('country').value = saved.country; if (saved.leader) sel('leader').value = saved.leader;
     function apply() {
       const term = q.value.trim().toLowerCase(), country = sel('country').value, leader = sel('leader').value;
+      sessionStorage.setItem('ladder-filters', JSON.stringify({ q: q.value, country, leader }));
       let shown = 0;
       for (const r of rows) {
         const ok = (!term || r.dataset.name!.includes(term)) && (!country || r.dataset.country === country) && (!leader || r.dataset.leaders!.split(' ').includes(leader));
@@ -77,6 +61,7 @@ const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
     }
     q.addEventListener('input', apply);
     for (const id of ['country', 'leader']) sel(id).addEventListener('change', apply);
+    sel('msort').addEventListener('change', () => { const [k, d] = sel('msort').value.split(':'); sortKey = k; asc = d === '1'; apply(); });
     document.querySelectorAll('th.sortable').forEach((th) => th.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.info')) return;
       const k = (th as HTMLElement).dataset.k!;

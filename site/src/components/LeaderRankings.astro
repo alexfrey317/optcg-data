@@ -23,31 +23,31 @@ if (W === '7d') {
 <div class="panel scroll">
   <table id="t" class="rank-table">
     <thead><tr>
-      <th class="num">Rank</th>
-      {W === '7d' && <th class="num">Δ 1D <Info text="Rank change since yesterday's snapshot." /></th>}
-      <th>Card</th>
-      <th>Leader</th>
+      <th class="num c-rank">Rank</th>
+      {W === '7d' && <th class="num hide-m">Δ 1D <Info text="Rank change since yesterday's snapshot." /></th>}
+      <th class="hide-m">Card</th>
+      <th class="c-leader">Leader</th>
       <th class="num sortable sorted" data-k="wtd">Wtd WR <Info text="Weighted win rate: raw win rate shrunk toward 50% for leaders with few games, so a leader with 200 games cannot outrank one with 20,000 on a lucky week." /></th>
-      <th class="num sortable" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
+      <th class="num sortable hide-m" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
       <th class="num sortable" data-k="play">Play Rate <Info text="Share of all ranked games in the window in which this leader appeared." /></th>
       <th class="num sortable" data-k="games">Games</th>
       <th class="num sortable" data-k="first">1st WR <Info text="Win rate when this leader took the first turn." /></th>
       <th class="num sortable" data-k="second">2nd WR <Info text="Win rate when this leader took the second turn." /></th>
-      <th class="num sortable" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
+      <th class="num sortable hide-m" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
     </tr></thead>
     <tbody>{rows.map(({ l, s }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); return (
       <tr data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
-        <td class="num"><span class="pill-rank">{i + 1}</span></td>
-        {W === '7d' && <td class:list={['num', 'delta', d == null || d === 0 ? 'dim' : d > 0 ? 'good' : 'bad']}>{d == null || d === 0 ? '—' : d > 0 ? `↑${d}` : `↓${-d}`}</td>}
-        <td><a href={wpath(W, `/leaders/${l.code}/`)} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" onerror={imgOnError(l.code)} /></a></td>
-        <td><a href={wpath(W, `/leaders/${l.code}/`)} class="leader-link"><span class="muted">[{l.code}]</span> {l.name}</a></td>
+        <td class="num c-rank"><span class="pill-rank">{i + 1}</span></td>
+        {W === '7d' && <td class:list={['num', 'delta', 'hide-m', d == null || d === 0 ? 'dim' : d > 0 ? 'good' : 'bad']}>{d == null || d === 0 ? '—' : d > 0 ? `↑${d}` : `↓${-d}`}</td>}
+        <td class="hide-m"><a href={wpath(W, `/leaders/${l.code}/`)} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" onerror={imgOnError(l.code)} /></a></td>
+        <td class="c-leader"><a href={wpath(W, `/leaders/${l.code}/`)} class="leader-link"><span class="lcode muted">[{l.code}]{W === '7d' && d != null && d !== 0 && <span class:list={['m-only', d > 0 ? 'good' : 'bad']} style="margin-left:.4rem;font-weight:600">{d > 0 ? `↑${d}` : `↓${-d}`}</span>}</span> <span class="lname">{l.name}</span></a></td>
         <td class:list={['num', (s.weighted ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:700">{pct(s.weighted)}</td>
-        <td class:list={['num', (s.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.winRate)}</td>
+        <td class:list={['num', 'hide-m', (s.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.winRate)}</td>
         <td class="num">{pct(s.playRate)}</td>
         <td class="num muted">{fmt(s.games, 0)}</td>
         <td class:list={['num', (s.first ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.first)}</td>
         <td class:list={['num', (s.second ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.second)}</td>
-        <td class="num">{pilots.get(l.code) ?? 0}</td>
+        <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>
       </tr>); })}</tbody>
   </table>
 </div>

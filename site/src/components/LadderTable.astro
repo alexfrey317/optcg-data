@@ -1,0 +1,32 @@
+---
+import LeaderArt from './LeaderArt.astro';
+import Info from './Info.astro';
+import { seasonRecord, fmt, pct, berry, flag, type Player } from '../lib/data';
+/** Ladder rows. On phones the table becomes stacked player cards (see `.ladder` rules in Base.astro); the
+ *  `c-*` classes place each cell in that grid. `sortable` wires header sorting (the page script does the work). */
+interface Props { rows: Player[]; id?: string; sortable?: boolean }
+const { rows, id, sortable = false } = Astro.props;
+---
+<table id={id} class="ladder">
+  <thead><tr>
+    <th class:list={['num', { 'sortable sorted': sortable }]} data-k="rank">#</th>
+    <th>Player</th>
+    <th class:list={['num', { sortable }]} data-k="bounty">Bounty <Info text="Ranked rating. Higher is better. Roughly 1,500 for a new account; the top players sit above 4,000." /></th>
+    <th class:list={['num', { sortable }]} data-k="matches">Games <Info text="Season ranked games, with the win–loss record underneath." /></th>
+    <th class:list={['num', { sortable }]} data-k="winrate">Win % <Info text="Wins divided by ranked games played." /></th>
+    <th>Top Leaders <Info text="The three leaders this player has played most, with their personal win rate and game count on each." /></th>
+  </tr></thead>
+  <tbody>
+    {rows.map((p) => { const r = seasonRecord(p); return (
+      <tr class:list={{ top1: p.rank === 1, top3: p.rank > 1 && p.rank <= 3 }} data-name={p.name.toLowerCase()} data-country={p.country ?? ''} data-leaders={p.topLeaders.map((t) => t.code).join(' ')}
+          data-rank={p.rank} data-bounty={p.bounty} data-matches={r.games} data-winrate={r.winRate ?? 0}>
+        <td class="num c-rank"><span class="pill-rank">{p.rank}</span></td>
+        <td class="c-name"><a href={p.id != null ? `/players/${p.id}/` : undefined} style="font-weight:600;color:var(--text)">{p.name}</a>
+          {p.country && <div class="muted small">{flag(p.country)} {p.country}</div>}</td>
+        <td class="num gold c-bounty" style="font-weight:700;font-size:1.02rem">{berry(p.bounty)}</td>
+        <td class="num c-games">{r.games ? <>{fmt(r.games, 0)}<div class="muted small">{r.wins}–{r.losses}</div></> : <span class="dim">–</span>}</td>
+        <td class:list={['num', 'c-wr', (r.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{r.games ? pct(r.winRate) : <span class="dim">–</span>}</td>
+        <td class="c-leaders"><div class="leader-row">{p.topLeaders.slice(0, 3).map((t) => <LeaderArt code={t.code} size="sm" sub={`${fmt(t.winRate)}% · ${t.matches} games`} />)}</div></td>
+      </tr>); })}
+  </tbody>
+</table>
