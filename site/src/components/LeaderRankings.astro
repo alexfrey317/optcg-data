@@ -7,7 +7,7 @@ const { window: W } = Astro.props;
 const rows = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l) }));
 rows.sort((a, b) => (b.s.weighted ?? b.s.winRate ?? 0) - (a.s.weighted ?? a.s.winRate ?? 0));
 const pilots = new Map<string, number>();
-for (const p of players) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
+for (const p of players.slice(0, 1000)) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
 const wm = windowMeta(W);
 const totalGames = wm?.matches ?? 0;
 const prevRank = new Map<string, number>();

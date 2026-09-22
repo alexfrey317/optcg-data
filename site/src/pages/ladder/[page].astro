@@ -1,0 +1,56 @@
+---
+import Base from '../../layouts/Base.astro';
+import LeaderArt from '../../components/LeaderArt.astro';
+import Info from '../../components/Info.astro';
+import { players, seasonRecord, LADDER_PAGE, fmt, pct, berry, flag } from '../../lib/data';
+
+export function getStaticPaths() {
+  const pages = Math.ceil(players.length / LADDER_PAGE);
+  return Array.from({ length: pages }, (_, i) => ({ params: { page: String(i + 1) } }));
+}
+const page = Number(Astro.params.page);
+const pages = Math.ceil(players.length / LADDER_PAGE);
+const rows = players.slice((page - 1) * LADDER_PAGE, page * LADDER_PAGE);
+const first = rows[0]?.rank, last = rows.at(-1)?.rank;
+const href = (p: number) => (p === 1 ? '/ladder/1/' : `/ladder/${p}/`);
+---
+<Base title={`Ladder #${fmt(first, 0)}–${fmt(last, 0)}`} wide>
+  <p style="margin:0 0 .75rem"><a href="/">← Top 1,000</a></p>
+  <div class="hero">
+    <div>
+      <h1>Full Ranked Ladder <span class="sub">#{fmt(first, 0)} – #{fmt(last, 0)}</span></h1>
+      <div class="meta">Every player OPBounty ranks, {LADDER_PAGE} per page, {fmt(players.length, 0)} in total. Records are season totals from each player's OPBounty profile where available.</div>
+    </div>
+  </div>
+  <nav class="pager" aria-label="Ladder pages">
+    {page > 1 && <a href={href(page - 1)}>← Previous</a>}
+    <span class="muted">Page {page} of {pages}</span>
+    {page < pages && <a href={href(page + 1)}>Next →</a>}
+    <select onchange="location.href=this.value" aria-label="Jump to page">
+      {Array.from({ length: pages }, (_, i) => i + 1).map((p) => <option value={href(p)} selected={p === page}>#{(p - 1) * LADDER_PAGE + 1}–{Math.min(p * LADDER_PAGE, players.length)}</option>)}
+    </select>
+  </nav>
+  <div class="panel scroll">
+    <table>
+      <thead><tr><th class="num">#</th><th>Player</th><th class="num">Bounty</th><th class="num">Games <Info text="Season ranked games, with the win–loss record underneath." /></th><th class="num">Win %</th><th>Top Leaders</th></tr></thead>
+      <tbody>{rows.map((p) => { const r = seasonRecord(p); return (
+        <tr>
+          <td class="num"><span class="pill-rank">{p.rank}</span></td>
+          <td><a href={p.id != null ? `/players/${p.id}/` : undefined} style="font-weight:600;color:var(--text)">{p.name}</a>{p.country && <div class="muted small">{flag(p.country)} {p.country}</div>}</td>
+          <td class="num gold" style="font-weight:700">{berry(p.bounty)}</td>
+          <td class="num">{r.games ? <>{fmt(r.games, 0)}<div class="muted small">{r.wins}–{r.losses}</div></> : <span class="dim">–</span>}</td>
+          <td class:list={['num', (r.winRate ?? 0) >= 50 ? 'good' : 'bad']} style="font-weight:600">{r.games ? pct(r.winRate) : <span class="dim">–</span>}</td>
+          <td><div class="leader-row">{p.topLeaders.slice(0, 3).map((t) => <LeaderArt code={t.code} size="sm" sub={`${fmt(t.winRate)}% · ${t.matches} games`} />)}</div></td>
+        </tr>); })}</tbody>
+    </table>
+  </div>
+  <nav class="pager" aria-label="Ladder pages">
+    {page > 1 && <a href={href(page - 1)}>← Previous</a>}
+    <span class="muted">Page {page} of {pages}</span>
+    {page < pages && <a href={href(page + 1)}>Next →</a>}
+  </nav>
+  <style>
+    .pager { display: flex; gap: 1rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
+    .pager select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px; padding: .3rem .5rem; }
+  </style>
+</Base>

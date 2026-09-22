@@ -212,6 +212,16 @@ def main(argv=None):
             dump(wdir / "decks" / f"{code}.json", dfile)
             for d in dfile["decks"]:
                 used_cards.update(c["id"] for c in d["cards"])
+        # per-card stats for the window from the complete published files; Card Kaizoku's weekly tech/hands ride along
+        for code in st_leaders:
+            cf = N.build_stats_cards(st_days, code)
+            if not cf:
+                continue
+            weekly = load(LATEST / "cards" / f"{code}.json", {})
+            cf["tech"] = weekly.get("tech") or {}
+            cf["openingHand"] = weekly.get("openingHand") or []
+            dump(wdir / "cards" / f"{code}.json", cf)
+            used_cards.update(c["id"] for c in cf["cards"])
         used_cards.update(w_leaders)
         dump(wdir / "leaders.json", w_leaders)
         span = st_days or ar_days or kz_days

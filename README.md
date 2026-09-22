@@ -74,6 +74,11 @@ CloudFront bucket, one file per ~6 hours per rank bracket, complete) into `data/
 per-leader games, wins, first/second records and matchups, and every distinct decklist with its record.
 Windows use these as the `ranked` numbers; the archive only adds pilots.
 
+The ladder pull covers the top 10,000 (`OPB_TOP_PAGES=50`); the home page shows the top 1,000 and
+`/ladder/<page>/` pages the rest, and every pulled row gets a player page and a profile pull. Card stats
+per window (`data/windows/<w>/cards/<code>.json`) are summed from the published files' per-card counts;
+Card Kaizoku's weekly tech-card and opening-hand analysis rides along.
+
 Best pilots per leader come from the ladder filtered by leader (`/api/leaderboard/mode_0?leader=CODE`,
 one request per leader, `data/latest/pilots/<code>.json`). Card Kaizoku per-player pulls resolve the
 account by exact sim handle when the archive linker found one (`kaizoku_players.resolve_by_handle`),

@@ -12,7 +12,7 @@ from ..http import get_json, post_json
 BASE = "https://stats.tcgmatchmaking.com"
 INTERVAL = float(os.environ.get("OPB_INTERVAL", "2.0"))
 LADDER_MODE = os.environ.get("OPB_MODE", "mode_0")  # Standard
-TOP_PAGES = int(os.environ.get("OPB_TOP_PAGES", "5"))  # 5 x 200 = top 1000
+TOP_PAGES = int(os.environ.get("OPB_TOP_PAGES", "50"))  # 50 x 200 = top 10,000 (the ladder has ~40,000 rows)
 PER_PAGE = 200
 PILOT_LEADERS = int(os.environ.get("OPB_PILOT_LEADERS", "120"))  # leader-filtered ladder pages to pull (one request each)
 

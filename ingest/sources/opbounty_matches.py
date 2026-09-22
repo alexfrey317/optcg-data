@@ -39,7 +39,7 @@ PASSWORD = os.environ.get("OPB_FS_PASSWORD")
 FS = f"https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)/documents"
 PAGE = 300
 DAYS = int(os.environ.get("OPB_MATCH_DAYS", "3"))
-HANDLE_MIN_BOUNTY = float(os.environ.get("OPB_HANDLE_MIN_BOUNTY", "1900"))  # ladder #1000 sits ~2100
+HANDLE_MIN_BOUNTY = float(os.environ.get("OPB_HANDLE_MIN_BOUNTY", "1000"))  # ~rank 3,500; #1000 sits ~2100, #10000 ~230
 LOG_HEAD_BYTES = 4000
 WORKERS = int(os.environ.get("OPB_HANDLE_WORKERS", "8"))
 REFRESH = os.environ.get("OPB_MATCH_REFRESH") == "1"  # re-pull finished days (schema change)

@@ -43,6 +43,9 @@ export const imgOnError = (_id: string) => `this.style.visibility='hidden';this.
 
 export const meta = readJson<Meta>(join(LATEST, 'meta.json'), { generatedAt: '', date: '', status: {}, players: 0, leaders: 0, sources: [] });
 export const players = readJson<Player[]>(join(LATEST, 'players.json'), []);
+/** The ladder's top 1,000: what the home page and "Top-1000" counts use; player pages exist for every pulled row. */
+export const top1000 = players.slice(0, 1000);
+export const LADDER_PAGE = 200;
 export const leaders = readJson<Record<string, Leader>>(join(LATEST, 'leaders.json'), {});
 export const cards = readJson<Record<string, Card>>(join(LATEST, 'cards.json'), {});
 for (const [id, c] of Object.entries(cards)) c.img = imgUrl(id);
@@ -179,6 +182,11 @@ export const leadersFor = (w: Win): Record<string, Leader> => {
 export const leadersByVolumeFor = (w: Win): Leader[] => Object.values(leadersFor(w)).filter((l) => volume(l) > 0).sort((a, b) => volume(b) - volume(a));
 export const deckFileFor = (w: Win, code: string): DeckFile =>
   hasWindow(w) ? readJson<DeckFile>(join(WDIR, w, 'decks', `${code}.json`), { leader: code, decks: [], topPilots: [] }) : w === '7d' ? deckFile(code) : { leader: code, decks: [], topPilots: [] };
+/** Card stats for a window from the complete published files; falls back to the weekly Card Kaizoku file. */
+export const cardFileFor = (w: Win, code: string): CardFile & { complete: boolean } => {
+  const p = join(WDIR, w, 'cards', `${code}.json`);
+  return existsSync(p) ? { ...readJson<CardFile>(p, { leader: code, cards: [], openingHand: [], tech: {} }), complete: true } : { ...cardFile(code), complete: false };
+};
 export interface TopPilot { handle: string; name: string; games: number; wins: number; winRate: number | null; bounty: number; ladderId: string | null }
 /** Per-player ranked history from the match archive (linked ladder players only). */
 export interface PlayerGame { ts: string; id: string; side: 'w' | 'l'; b: number; leader: string; deck: string | null; opp: string; oppB: number; oppDeck: string | null; won: boolean }

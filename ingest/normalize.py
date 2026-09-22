@@ -514,6 +514,47 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
     return leaders, decks_by_leader
 
 
+def build_stats_cards(days: list[dict], code: str) -> dict | None:
+    """Per-card usage and results for one leader from the published stats (complete, daily).
+    Returns {"leader", "cards": [...], "leaderStats": {...}} in the site's CardFile shape, or None."""
+    acc: dict[str, list[int]] = defaultdict(lambda: [0] * 8)
+    lg = lw = 0
+    lists: set[str] = set()
+    for day in days:
+        for B in (day.get("brackets") or {}).values():
+            s = (B.get("leaders") or {}).get(code)
+            if s:
+                lg += int(s.get("g") or 0); lw += int(s.get("w") or 0)
+        for key, row in ((day.get("cards") or {}).get(code) or {}).items():
+            a = acc[key]
+            for j in range(8):
+                a[j] += int(row[j] if j < len(row) else 0)
+        for h, d in (day.get("decks") or {}).items():
+            if d.get("l") == code:
+                lists.add(h)
+    if not lg or not acc:
+        return None
+    by_card: dict[str, dict] = {}
+    for key, (g, w, *_rest) in acc.items():
+        m = CARD_RE.match(key)
+        if not m or not g:
+            continue
+        qty, cid = int(m.group(1)), m.group(2).upper()
+        c = by_card.setdefault(cid, {"g": 0, "w": 0, "copies": 0, "q": []})
+        c["g"] += g; c["w"] += w; c["copies"] += qty * g
+        c["q"].append({"qty": qty, "games": g, "winRate": round(100 * w / g, 1)})
+    leader_wr = 100 * lw / lg
+    cards = []
+    for cid, c in by_card.items():
+        wr = 100 * c["w"] / c["g"]
+        cards.append({"id": cid, "games": c["g"], "usage": round(100 * c["g"] / lg, 1), "winRate": round(wr, 1),
+                      "winRateVsLeader": round(wr - leader_wr, 2), "avgCopies": round(c["copies"] / c["g"], 2),
+                      "firstWinRate": None, "secondWinRate": None, "quantities": sorted(c["q"], key=lambda q: q["qty"])})
+    cards.sort(key=lambda c: -c["games"])
+    return {"leader": code, "cards": cards, "openingHand": [], "tech": {},
+            "leaderStats": {"games": lg, "winRate": round(leader_wr, 1), "uniqueDecklists": len(lists), "uniquePilots": None}}
+
+
 def merge_stats_archive(st_leaders: dict, ar_leaders: dict, st_decks: dict, ar_decks: dict) -> tuple[dict, dict]:
     """Published stats are the numbers; the replay archive only adds who piloted what (pilots per list,
     top pilots per leader).  Leaders/lists only the archive knows are dropped: the published stats
@@ -548,6 +589,12 @@ def merge_windows(kz_leaders: dict, ar_leaders: dict, kz_decks: dict, ar_decks: 
     for code in set(kz_decks) | set(ar_decks):
         ar = ar_decks.get(code, {"leader": code, "decks": [], "topPilots": []})
         have = {d["hash"] for d in ar["decks"]}
+        # Card Kaizoku sees the whole sim, so its distinct-pilot count per list beats the archive's sampled one
+        kz_p = {d["hash"]: (d["sources"].get("kaizokuBest") or {}).get("pilots") for d in kz_decks.get(code, {}).get("decks", [])}
+        for d in ar["decks"]:
+            r = d["sources"].get("ranked")
+            if r is not None and kz_p.get(d["hash"]):
+                r["pilots"] = max(int(r.get("pilots") or 0), int(kz_p[d["hash"]]))
         extra = [d for d in kz_decks.get(code, {}).get("decks", []) if d["hash"] not in have]
         decks[code] = {"leader": code, "decks": ar["decks"] + extra, "topPilots": ar["topPilots"],
                        "deckCount": max(ar.get("deckCount", 0), len(ar["decks"]) + len(extra))}

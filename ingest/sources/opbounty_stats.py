@@ -15,7 +15,9 @@ data/stats/YYYY-MM-DD.json.gz  (never deleted)
   {"date", "chunks":[keys merged so far], "final", "matches",
    "brackets": {bracket: {"matches", "leaders": {code: {"g","w","fw","fl","sw","sl","dur",
                                                         "mu": {opp: [g, w, fw, fl, sw, sl]}}}}},
-   "decks": {hash: {"l": leader, "g","w","fw","fl","sw","sl"}}, "deckText": {hash: "4xOP01-016 ..."}}
+   "decks": {hash: {"l": leader, "g","w","fw","fl","sw","sl"}}, "deckText": {hash: "4xOP01-016 ..."},
+   "cards": {leader: {"NxCODE": [games, wins, keepFirst, keepSecond, winsInHandFirst, lossesInHandFirst,
+                                 winsInHandSecond, lossesInHandSecond]}}}
 """
 from __future__ import annotations
 
@@ -89,7 +91,7 @@ def save_day(obj: dict):
 
 
 def empty_day(day: str) -> dict:
-    return {"date": day, "chunks": [], "final": False, "matches": 0, "brackets": {}, "decks": {}, "deckText": {}}
+    return {"date": day, "chunks": [], "final": False, "matches": 0, "brackets": {}, "decks": {}, "deckText": {}, "cards": {}}
 
 
 def merge_chunk(day_obj: dict, key: str, chunk: dict):
@@ -115,6 +117,22 @@ def merge_chunk(day_obj: dict, key: str, chunk: dict):
             if not opp:
                 continue
             row = L["mu"].setdefault(opp, [0, 0, 0, 0, 0, 0])
+            for j, arr in enumerate(arrs):
+                if i < len(arr):
+                    row[j] += int(arr[i] or 0)
+    for cp in chunk.get("cards_presence") or []:
+        code = _code(cp.get("leader"))
+        if not code:
+            continue
+        C = day_obj.setdefault("cards", {}).setdefault(code, {})
+        subj = cp.get("subject") or []
+        arrs = [cp.get(k) or [] for k in ("subject_matches", "subject_wins", "subject_keep_first", "subject_keep_second",
+                                             "subject_wins_in_hand_first", "subject_losses_in_hand_first",
+                                             "subject_wins_in_hand_second", "subject_losses_in_hand_second")]
+        for i, s in enumerate(subj):
+            if not isinstance(s, str) or "obile" in s or s == cp.get("leader"):
+                continue
+            row = C.setdefault(s, [0] * 8)   # key is 'NxCODE': games with exactly N copies
             for j, arr in enumerate(arrs):
                 if i < len(arr):
                     row[j] += int(arr[i] or 0)

@@ -2,24 +2,24 @@
 import Base from '../layouts/Base.astro';
 import LeaderArt from '../components/LeaderArt.astro';
 import Info from '../components/Info.astro';
-import { players, leaders, seasonRecord, fmt, pct, berry, flag } from '../lib/data';
+import { players, top1000, leaders, seasonRecord, fmt, pct, berry, flag } from '../lib/data';
 
-const countries = [...new Set(players.map((p) => p.country).filter(Boolean))].sort() as string[];
-const leaderCodes = [...new Set(players.flatMap((p) => p.topLeaders.map((t) => t.code)))].sort((a, b) => (leaders[a]?.name ?? a).localeCompare(leaders[b]?.name ?? b));
-const rec = new Map(players.map((p) => [p, seasonRecord(p)]));
+const countries = [...new Set(top1000.map((p) => p.country).filter(Boolean))].sort() as string[];
+const leaderCodes = [...new Set(top1000.flatMap((p) => p.topLeaders.map((t) => t.code)))].sort((a, b) => (leaders[a]?.name ?? a).localeCompare(leaders[b]?.name ?? b));
+const rec = new Map(top1000.map((p) => [p, seasonRecord(p)]));
 const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
 ---
 <Base title="Ranked Ladder" wide>
   <div class="hero">
     <div>
       <h1>OPTCG Sim Ranked Ladder</h1>
-      <div class="meta">Top {fmt(players.length, 0)} players on the Standard ranked ladder, with the leaders they pilot and the lists winning with those leaders. Updated once a day.</div>
+      <div class="meta">Top {fmt(top1000.length, 0)} players on the Standard ranked ladder, with the leaders they pilot and the lists winning with those leaders. Updated once a day.{players.length > top1000.length && <> The <a href="/ladder/1/">full ladder</a> goes to #{fmt(players.length, 0)}.</>}</div>
     </div>
   </div>
 
   <div class="grid stats">
-    <div class="stat"><div class="label">Top Bounty <Info text="Bounty is your ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{berry(players[0]?.bounty)}</div></div>
-    <div class="stat"><div class="label">#{fmt(players.length, 0)} Bounty <Info text="The bounty of the lowest player shown. Anyone above it is on this page." /></div><div class="value">{berry(players.at(-1)?.bounty)}</div></div>
+    <div class="stat"><div class="label">Top Bounty <Info text="Bounty is your ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{berry(top1000[0]?.bounty)}</div></div>
+    <div class="stat"><div class="label">#{fmt(top1000.length, 0)} Bounty <Info text="The bounty of the lowest player shown. Anyone above it is on this page." /></div><div class="value">{berry(top1000.at(-1)?.bounty)}</div></div>
     <div class="stat"><div class="label">Ranked Games <Info text="Sum of season ranked games for the players on this page, from their OPBounty profiles where available." /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
     <div class="stat"><div class="label">Leaders in Play <Info text="Distinct leaders that appear among the top three of at least one player on this page." /></div><div class="value">{leaderCodes.length}</div></div>
   </div>
@@ -42,7 +42,7 @@ const totalMatches = [...rec.values()].reduce((n, r) => n + (r.games || 0), 0);
         <th>Top Leaders <Info text="The three leaders this player has played most, with their personal win rate and game count on each." /></th>
       </tr></thead>
       <tbody>
-        {players.map((p) => { const r = rec.get(p)!; return (
+        {top1000.map((p) => { const r = rec.get(p)!; return (
           <tr class:list={{ top1: p.rank === 1, top3: p.rank > 1 && p.rank <= 3 }} data-name={p.name.toLowerCase()} data-country={p.country ?? ''} data-leaders={p.topLeaders.map((t) => t.code).join(' ')}
               data-rank={p.rank} data-bounty={p.bounty} data-matches={r.games} data-winrate={r.winRate ?? 0}>
             <td class="num"><span class="pill-rank">{p.rank}</span></td>
