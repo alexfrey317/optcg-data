@@ -8,3 +8,5 @@ site/.astro/
 .wrangler/
 data/windows/
 data/latest/curves/
+data/replays/
+.playwright-mcp/

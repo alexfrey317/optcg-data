@@ -1,0 +1,196 @@
+---
+import Base from '../../layouts/Base.astro';
+import { IMG_BASE } from '../../lib/data';
+/** Game viewer: a sim-style board replayed step by step from the matchup's JSON bundle (/replays/data/A__B.json).
+ *  One static page for every game (?p=A|B&id=…) keeps the site at one file per matchup rather than one per game. */
+---
+<Base title="Study Game" description="Step through a high-bounty ranked game on a sim-style board: every draw, play, attack and counter, with hands, trash and remaining deck." wide>
+  <div id="rg" data-img={IMG_BASE}>
+    <div class="hero rg-hero"><div style="flex:1"><div class="small"><a href="/replays/" class="muted">← Study Games</a></div><h1 style="margin:.3rem 0 .2rem">Loading game…</h1><div class="meta muted">Fetching the combat log.</div></div></div>
+  </div>
+</Base>
+
+<script>
+  const root = document.getElementById('rg')!;
+  const IMG = root.dataset.img!;
+  const q = new URLSearchParams(location.search);
+  const pair = q.get('p') || '', id = q.get('id') || '';
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  const CARD = /\[([A-Z]{1,3}\d{2}-\d{3}(?:_p\d+)?)\]/g;
+  type Player = { seat: 1 | 2; leader: string; bounty: number; won: boolean; first: boolean; deck: string | null; mulligan: string[] | null };
+  type Step = ['m', 1 | 2, string, number, number, 0 | 1, number, number, number, number] | ['e', 0 | 1 | 2, string, string] | ['s', 1 | 2, string[], string[], string[], number];
+  type Game = { id: string; ts: string; date: string; players: Player[]; winner: 1 | 2; endTurns: number; end: { how: string; loserLife: number | null }; steps: Step[] };
+  type Bundle = { pair: string; leaders: Record<string, { name: string; color: string }>; names: Record<string, string>; games: Record<string, Game> };
+  type Char = { id: string; rested: boolean; don: number };
+  type Side = { deck: number; hand: string[]; chars: Char[]; stage: string | null; life: string[]; trash: string[]; donDeck: number; donArea: number; donRested: number; donAtt: number; leaderRested: boolean; leaderDon: number };
+
+  const fail = (msg: string) => { root.innerHTML = `<div class="hero rg-hero"><div style="flex:1"><div class="small"><a href="/replays/" class="muted">← Study Games</a></div><h1 style="margin:.3rem 0 .2rem">Game not available</h1><div class="meta muted">${esc(msg)}</div></div></div>`; };
+
+  function start(B: Bundle, G: Game) {
+    const name = (c: string) => B.names[c] ?? c;
+    const lname = (code: string) => B.leaders[code]?.name ?? name(code);
+    const lcolor = (code: string) => B.leaders[code]?.color ?? 'var(--dim)';
+    const P: Record<number, Player> = {}; for (const p of G.players) P[p.seat] = p;
+    const W = P[G.winner], L = P[G.winner === 1 ? 2 : 1];
+    const ending = G.end.how === 'lethal' ? 'took lethal' : G.end.how === 'concede' ? (G.end.loserLife == null ? 'conceded' : `conceded at ${G.end.loserLife} life`) : (G.end.loserLife == null ? 'ended' : `ended at ${G.end.loserLife} life`);
+    const deckOf = (p: Player) => { const m = new Map<string, number>(); for (const t of (p.deck || '').split(/\s+/).filter(Boolean)) { const [qn, cid] = t.split('x'); m.set(cid, (m.get(cid) ?? 0) + Number(qn)); } return m; };
+    document.title = `${lname(P[1].leader)} vs ${lname(P[2].leader)} · ${G.date} · OPTCG Data`;
+
+    // narrative step indices: the user moves between these; moves and snapshots in between are applied silently
+    const events = G.steps.map((s, i) => (s[0] === 'e' ? i : -1)).filter((i) => i >= 0);
+    const turnStarts: number[] = [0]; // event index where each turn begins
+    events.forEach((si, ei) => { const s = G.steps[si]; if (s[0] === 'e' && s[2] === 'end' && ei + 1 < events.length) turnStarts.push(ei + 1); });
+    const KIND_LABEL: Record<string, string> = { draw: 'Draw', don: 'DON', deploy: 'Play', attack: 'Attack', combat: 'Battle', hit: 'Damage', fail: 'Blocked', block: 'Blocker', counter: 'Counter', trash: 'Trash', mull: 'Mulligan', effect: 'Effect', end: 'End turn', concede: 'Concede', info: '' };
+
+    const fresh = (): Side => ({ deck: 50, hand: [], chars: [], stage: null, life: [], trash: [], donDeck: 10, donArea: 0, donRested: 0, donAtt: 0, leaderRested: false, leaderDon: 0 });
+    let S: Record<number, Side> = { 1: fresh(), 2: fresh() };
+    let active = 1, turn = 1, hl: { atk?: string; tgt?: string; seat?: number; done?: boolean } = {}, cur = 0;
+    const take = (arr: string[], cid: string) => { const i = arr.indexOf(cid); if (i >= 0) arr.splice(i, 1); return i >= 0; };
+    const zoneList = (s: Side, z: number): string[] | null => z === 1 ? s.hand : z === 6 ? s.trash : z === 3 ? s.life : null;
+    const applyMove = (st: Extract<Step, { 0: 'm' }>) => {
+      const [, seat, cid, zf, zt, rested, deck, donDeck, donArea, donAtt] = st; const s = S[seat];
+      s.deck = deck; s.donDeck = donDeck; s.donArea = donArea; s.donAtt = donAtt;
+      if (cid === 'Don') {
+        if (zf === 5 && zt === 5 && rested) s.donRested++;
+        else if (zf === 9 && zt === 5) s.donRested++;
+        else if (zf === 5 && zt === 4) s.donRested = Math.min(s.donRested, s.donArea);
+        s.donRested = Math.max(0, Math.min(s.donRested, s.donArea));
+        return;
+      }
+      if (zf === 2) { const i = s.chars.findIndex((c) => c.id === cid); if (i >= 0) s.chars.splice(i, 1); }
+      else if (zf === 7) { if (s.stage === cid) s.stage = null; }
+      else { const l = zoneList(s, zf); if (l) take(l, cid); }
+      if (zt === 2) s.chars.push({ id: cid, rested: false, don: 0 });
+      else if (zt === 7) s.stage = cid;
+      else { const l = zoneList(s, zt); if (l) l.push(cid); }
+    };
+    const applySnap = (st: Extract<Step, { 0: 's' }>) => {
+      const [, seat, hand, chars, trash, life] = st; const s = S[seat];
+      s.hand = [...hand]; s.trash = [...trash];
+      const old = [...s.chars]; s.chars = chars.map((cid) => { const i = old.findIndex((c) => c.id === cid); return i >= 0 ? old.splice(i, 1)[0] : { id: cid, rested: false, don: 0 }; });
+      while (s.life.length > life) s.life.shift(); while (s.life.length < life) s.life.push('?');
+    };
+    const ATTACH = /^Attach (\d+) (Rested )?Don to .*\[([A-Z0-9]+-\d+(?:_p\d+)?)\](?: \((\d+) Total\))?$/;
+    const applyEvent = (st: Extract<Step, { 0: 'e' }>) => {
+      const [, seat, kind, text] = st;
+      // the attacker/target glow lasts from the attack through counters and blocks until the battle resolves
+      if (hl.done || kind === 'end' || kind === 'deploy' || kind === 'draw' || kind === 'don') hl = {};
+      if (kind === 'hit' || kind === 'fail') hl.done = true;
+      if (!seat) return;
+      const s = S[seat];
+      if (kind === 'attack') { const ids = [...text.matchAll(CARD)].map((m) => m[1]); const atk = ids[0], tgt = ids[1];
+        if (atk === P[seat].leader) s.leaderRested = true; else { const c = s.chars.find((c) => c.id === atk && !c.rested) ?? s.chars.find((c) => c.id === atk); if (c) c.rested = true; }
+        hl = { atk, tgt, seat }; return; }
+      const a = ATTACH.exec(text);
+      if (a) { const n = Number(a[1]), total = a[4] ? Number(a[4]) : null, tid = a[3];
+        if (tid === P[seat].leader) s.leaderDon = total ?? s.leaderDon + n; else { const c = s.chars.find((c) => c.id === tid); if (c) c.don = total ?? c.don + n; } }
+      if (kind === 'end') { active = 3 - seat; turn++; const n = S[active]; n.chars.forEach((c) => { c.rested = false; c.don = 0; }); n.leaderRested = false; n.leaderDon = 0; n.donRested = 0; }
+    };
+    const rebuild = (toEvent: number) => {
+      S = { 1: fresh(), 2: fresh() }; active = 1; turn = 1; hl = {};
+      const last = events[Math.min(toEvent, events.length - 1)];
+      for (let i = 0; i <= last; i++) { const st = G.steps[i]; if (st[0] === 'm') applyMove(st); else if (st[0] === 's') applySnap(st); else applyEvent(st); }
+      cur = toEvent;
+    };
+
+    // ---- rendering
+    let flip = false, showHands = true, peek: { seat: number; zone: 'deck' | 'trash' | 'life' | 'hand' } | null = null;
+    const card = (cid: string, cls = '', badge = '') => cid === '?' ? `<span class="cd back ${cls}"><i>?</i></span>` : `<span class="cd ${cls}" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy">${badge}</span>`;
+    const donBadge = (n: number) => n ? `<b class="don">${n}</b>` : '';
+    const rich = (text: string) => esc(text).replace(CARD, (_m, cid: string) => `<span class="ct" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${cid}" loading="lazy"></span>`);
+    const sideHtml = (seat: number, top: boolean) => {
+      const s = S[seat], p = P[seat], isActive = active === seat;
+      const chars = s.chars.map((c) => card(c.id, `char${c.rested ? ' rested' : ''}${hl.atk === c.id && hl.seat === seat ? ' atk' : ''}${hl.tgt === c.id && hl.seat !== seat ? ' tgt' : ''}`, donBadge(c.don))).join('') || '<span class="dim small empty">no characters</span>';
+      const hand = showHands ? s.hand.map((c) => card(c, 'hc')).join('') : `<span class="dim small empty">${s.hand.length} cards hidden</span>`;
+      const leader = card(p.leader, `leader${s.leaderRested ? ' rested' : ''}${hl.atk === p.leader && hl.seat === seat ? ' atk' : ''}${hl.tgt === p.leader && hl.seat !== seat ? ' tgt' : ''}`, donBadge(s.leaderDon));
+      const donActive = Math.max(0, s.donArea - s.donRested);
+      const zones = `<div class="zones">
+          <button type="button" class="zone" data-peek="deck" data-seat="${seat}" title="Cards left in deck"><span class="zl">Deck</span><b>${s.deck}</b></button>
+          <button type="button" class="zone" data-peek="trash" data-seat="${seat}" title="Trash"><span class="zl">Trash</span><b>${s.trash.length}</b></button>
+          <button type="button" class="zone life" data-peek="life" data-seat="${seat}" title="Life cards (face down in the real game)"><span class="zl">Life</span><b>${s.life.length}</b><span class="pips">${'<i></i>'.repeat(Math.min(s.life.length, 8))}</span></button>
+          <div class="zone don" title="DON: active · rested · attached"><span class="zl">DON</span><b>${donActive}</b><span class="dsub">${s.donRested} rested · ${s.donAtt} on cards · ${s.donDeck} in deck</span></div>
+        </div>`;
+      const stage = s.stage ? card(s.stage, 'stage') : '<span class="cd slot"><i>Stage</i></span>';
+      const head = `<div class="side-h" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b> <span class="muted small">· ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span>${isActive ? '<span class="turnpill">active</span>' : ''}</div>`;
+      const handRow = `<div class="row hand"><span class="rowl">Hand ${s.hand.length}</span><div class="cards">${hand}</div></div>`;
+      const midRow = `<div class="row mid">${leader}${stage}${zones}</div>`;
+      const charRow = `<div class="row chars"><span class="rowl">Board</span><div class="cards">${chars}</div></div>`;
+      return `<section class="side${top ? ' top' : ' bottom'}${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}">${top ? head + handRow + midRow + charRow : charRow + midRow + handRow + head}</section>`;
+    };
+    const tickerHtml = () => {
+      const from = Math.max(0, cur - 3);
+      return `<div class="ticker">${events.slice(from, cur + 1).map((si, k) => { const e = G.steps[si] as Extract<Step, { 0: 'e' }>; const isCur = from + k === cur; const seat = e[1];
+        return `<div class="tk k-${e[2]}${isCur ? ' cur' : ''}"${seat ? ` style="--lc:${lcolor(P[seat].leader)}"` : ''}>${seat ? `<span class="rg-seat">P${seat}</span>` : '<span class="rg-seat none"></span>'}<span class="kl">${KIND_LABEL[e[2]] ?? ''}</span><span class="tx">${rich(e[3])}</span></div>`; }).join('')}</div>`;
+    };
+    const peekHtml = () => {
+      if (!peek) return '';
+      const s = S[peek.seat], p = P[peek.seat];
+      let title = '', body = '';
+      if (peek.zone === 'trash') { title = `Trash · ${s.trash.length}`; body = s.trash.length ? s.trash.map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
+      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game. The log records them, so you can peek.</p>` + (s.life.length ? s.life.map((c) => card(c)).join('') : '<span class="dim">none</span>'); }
+      else if (peek.zone === 'hand') { title = `Hand · ${s.hand.length}`; body = s.hand.length ? s.hand.map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
+      else {
+        const dk = deckOf(p);
+        if (!dk.size) { title = `Deck · ${s.deck} cards`; body = '<span class="muted">Decklist not recorded for this player, so the remaining cards are unknown.</span>'; }
+        else { for (const c of [...s.hand, ...s.chars.map((c) => c.id), ...s.trash, ...s.life, ...(s.stage ? [s.stage] : [])]) if (dk.has(c)) dk.set(c, dk.get(c)! - 1);
+          const left = [...dk.entries()].filter(([, n]) => n > 0).sort((a, b) => a[0].localeCompare(b[0]));
+          title = `Deck · ${s.deck} cards left`; body = `<p class="muted small">Decklist minus everything seen so far. Order unknown.</p>` + left.map(([c, n]) => card(c, '', `<b class="qty">${n}</b>`)).join(''); }
+      }
+      return `<div class="peek" style="--lc:${lcolor(p.leader)}"><div class="peek-h"><span class="rg-seat">P${peek.seat}</span> <b>${esc(title)}</b><button type="button" class="copy" data-close-peek>✕</button></div><div class="cards wrap">${body}</div></div>`;
+    };
+    const render = () => {
+      const topSeat = flip ? 1 : 2, botSeat = 3 - topSeat;
+      const turnLabel = `Turn ${turn} · P${active} ${esc(lname(P[active].leader))}`;
+      root.innerHTML = `
+        <div class="hero rg-hero"><div style="flex:1">
+          <div class="small"><a href="/replays/?a=${P[1].leader}&b=${P[2].leader}" class="muted">← Study Games</a> <span class="muted">· ${G.date} · ${G.ts.slice(11, 16)} UTC</span></div>
+          <h1 style="margin:.3rem 0 .2rem">${esc(lname(P[1].leader))} <span class="muted">vs</span> ${esc(lname(P[2].leader))}</h1>
+          <div class="meta"><b style="color:${lcolor(W.leader)}">${esc(lname(W.leader))}</b> won from seat ${W.seat} in ${G.endTurns} turns; <b style="color:${lcolor(L.leader)}">${esc(lname(L.leader))}</b> ${ending}. <span class="muted small hide-m">Seat 1 took the first turn. Both hands are shown because the log records them. Handles are not shown.</span></div>
+        </div></div>
+        <div class="board">${sideHtml(topSeat, true)}${tickerHtml()}${sideHtml(botSeat, false)}</div>
+        <div class="ctl" id="ctl">
+          <button type="button" class="copy" data-go="turn-1" title="Previous turn (Shift+←)">◀◀</button>
+          <button type="button" class="copy" data-go="-1" title="Previous step (←)">◀</button>
+          <button type="button" class="copy big" data-go="1" title="Next step (→ or Space)">▶</button>
+          <button type="button" class="copy" data-go="turn+1" title="Next turn (Shift+→)">▶▶</button>
+          <input type="range" id="scrub" min="0" max="${events.length - 1}" value="${cur}" aria-label="Step">
+          <span class="pos small muted"><b style="color:var(--text)">${turnLabel}</b> · step ${cur + 1}/${events.length}</span>
+          <button type="button" class="copy" data-flip title="Swap which player is at the bottom">Flip</button>
+          <button type="button" class="copy${showHands ? ' on' : ''}" data-hands title="Show or hide both hands">Hands</button>
+        </div>
+        ${peekHtml()}`;
+      wire();
+    };
+    const go = (n: number) => { rebuild(Math.max(0, Math.min(events.length - 1, n))); render(); };
+    const turnOf = (ei: number) => { let t = 0; for (let i = 0; i < turnStarts.length; i++) if (turnStarts[i] <= ei) t = i; return t; };
+    const wire = () => {
+      const ctl = document.getElementById('ctl')!;
+      ctl.querySelectorAll<HTMLButtonElement>('[data-go]').forEach((b) => b.addEventListener('click', () => { const g = b.dataset.go!;
+        if (g === 'turn-1') { const t = turnOf(cur); go(turnStarts[cur === turnStarts[t] ? Math.max(0, t - 1) : t]); }
+        else if (g === 'turn+1') { const t = turnOf(cur); go(t + 1 < turnStarts.length ? turnStarts[t + 1] : events.length - 1); }
+        else go(cur + Number(g)); }));
+      (document.getElementById('scrub') as HTMLInputElement).addEventListener('input', (e) => go(Number((e.target as HTMLInputElement).value)));
+      ctl.querySelector('[data-flip]')!.addEventListener('click', () => { flip = !flip; render(); });
+      ctl.querySelector('[data-hands]')!.addEventListener('click', () => { showHands = !showHands; localStorage.setItem('rg-hands', showHands ? '1' : '0'); render(); });
+      root.querySelectorAll<HTMLButtonElement>('[data-peek]').forEach((b) => b.addEventListener('click', () => { const z = b.dataset.peek as typeof peek extends infer T ? T extends null ? never : T['zone'] : never; const seat = Number(b.dataset.seat); peek = peek && peek.seat === seat && peek.zone === z ? null : { seat, zone: z }; render(); document.querySelector('.peek')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
+      root.querySelector('[data-close-peek]')?.addEventListener('click', () => { peek = null; render(); });
+      root.querySelectorAll<HTMLElement>('.row.hand .rowl').forEach((el) => el.addEventListener('click', () => { const seat = Number((el.closest('.side') as HTMLElement).classList.contains('top') ? (flip ? 1 : 2) : (flip ? 2 : 1)); peek = { seat, zone: 'hand' }; render(); }));
+      const tk = root.querySelector('.ticker'); tk?.scrollTo({ top: tk.scrollHeight });
+    };
+    document.addEventListener('keydown', (e) => { if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'j') { e.preventDefault(); if (e.shiftKey) { const t = turnOf(cur); go(t + 1 < turnStarts.length ? turnStarts[t + 1] : events.length - 1); } else go(cur + 1); }
+      if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); if (e.shiftKey) { const t = turnOf(cur); go(turnStarts[cur === turnStarts[t] ? Math.max(0, t - 1) : t]); } else go(cur - 1); }
+      if (e.key === 'Home') go(0); if (e.key === 'End') go(events.length - 1); });
+    let sx = 0, sy = 0, st0 = 0;
+    root.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; st0 = Date.now(); }, { passive: true });
+    root.addEventListener('touchend', (e) => { if ((e.target as HTMLElement).closest('.cards, input, .ticker')) return; const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; if (Date.now() - st0 < 600 && Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) go(cur + (dx < 0 ? 1 : -1)); }, { passive: true });
+    showHands = localStorage.getItem('rg-hands') !== '0';
+    const startAt = Number(q.get('s') || 0);
+    go(Number.isFinite(startAt) ? startAt : 0);
+  }
+
+  if (!pair || !id) fail('This link is missing the matchup or game id.');
+  else fetch(`/replays/data/${pair.replace('|', '__')}.json`).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<Bundle>; })
+    .then((B) => { const G = B.games[id]; if (!G) throw new Error('This game is no longer in the selection; it may have aged out of the window.'); if (!G.steps) throw new Error('This game was stored in an older format; it will be rebuilt by the next data run.'); start(B, G); })
+    .catch((e: Error) => fail(e.message));
+</script>

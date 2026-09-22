@@ -11,7 +11,7 @@ const PAGES = 'optcg-pages-' + VERSION;
 const ASSETS = 'optcg-assets-' + VERSION;
 const IMAGES = 'optcg-images-v1';
 const IMAGE_LIMIT = 600;
-const SHELL = ['/', '/leaders/', '/matchups/', '/counter/', '/offline/', '/manifest.webmanifest', '/icons/icon.svg'];
+const SHELL = ['/', '/leaders/', '/matchups/', '/counter/', '/replays/', '/offline/', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {

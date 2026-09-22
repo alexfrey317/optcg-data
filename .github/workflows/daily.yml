@@ -40,6 +40,7 @@ jobs:
             data/latest/players
             data/latest/curves
             data/windows
+            data/replays
           key: perplayer-${{ github.run_id }}
           restore-keys: perplayer-
 

@@ -1,5 +1,6 @@
 // Build-time access to ../data/latest and ../data/history (committed by the ingest job).
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 
 const ROOT = join(process.cwd(), '..', 'data');
@@ -262,3 +263,25 @@ export const pilotScore = (winRate: number | null, games: number | null, bounty:
   const adj = (wr * g + 50 * 20) / (g + 20);
   return Math.round((adj + (bounty - 3000) / 200) * 10) / 10;
 };
+
+/* ---------------------------------------------------------------- study games (replays) */
+export interface ReplaySide { l: string; b: number; first?: boolean }
+export interface ReplaySummary { id: string; ts: string; w: ReplaySide; l: ReplaySide; lo: number; turns: number; end: { how: string; loserLife: number | null; winnerLife: number | null } }
+/** best.json: for each unordered pair "A|B", buckets "WINNER:1|2" (winner's leader, seat the winner took) -> best finished games. */
+export interface ReplayBest { window: { start: string | null; end: string | null; days: number }; leaders: string[]; perBucket: number; pairs: Record<string, Record<string, ReplaySummary[]>> }
+export interface ReplayPlayer { seat: 1 | 2; leader: string; bounty: number; won: boolean; first: boolean; deck: string | null; mulligan: string[] | null }
+/** One step of a game: a card move between zones (with the mover's deck / DON counts after it), a narrative event, or a state snapshot. */
+export type ReplayStep =
+  | ['m', seat: 1 | 2, card: string, fromZone: number, toZone: number, rested: 0 | 1, deck: number, donDeck: number, donActive: number, donAttached: number]
+  | ['e', seat: 0 | 1 | 2, kind: string, text: string]
+  | ['s', seat: 1 | 2, hand: string[], chars: string[], trash: string[], life: number];
+export interface ReplayGame { v: number; id: string; ts: string; date: string; players: ReplayPlayer[]; first: 1; winner: 1 | 2; endTurns: number; end: ReplaySummary['end']; finished: boolean; steps: ReplayStep[] }
+const REPLAYS = join(ROOT, 'replays');
+export const replayBest = (): ReplayBest => readJson<ReplayBest>(join(REPLAYS, 'best.json'), { window: { start: null, end: null, days: 0 }, leaders: [], perBucket: 5, pairs: {} });
+export const replayGame = (id: string): ReplayGame | null => {
+  const p = join(REPLAYS, 'games', `${id}.json.gz`);
+  return existsSync(p) ? (JSON.parse(gunzipSync(readFileSync(p)).toString('utf8')) as ReplayGame) : null;
+};
+export const pairKey = (a: string, b: string) => [a, b].sort().join('|');
+/** Every game id referenced by best.json (the pages we build). */
+export const replayIds = (best = replayBest()) => [...new Set(Object.values(best.pairs).flatMap((bk) => Object.values(bk).flatMap((gs) => gs.map((g) => g.id))))];

@@ -4,7 +4,7 @@ import DeckCard from './DeckCard.astro';
 import DeckList from './DeckList.astro';
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, type Win, type Leader, type CurveTurn } from '../lib/data';
+import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, replayBest, pairKey, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, type Win, type Leader, type CurveTurn } from '../lib/data';
 interface Props { window: Win; leader: Leader }
 const { window: W, leader: L } = Astro.props;
 const ls = leadersFor(W);
@@ -15,6 +15,7 @@ const ranked = [...decksRaw.decks].sort((a, b) => { const sa = deckStats(a), sb 
 const decks = { ...decksRaw, decks: ranked };
 const cardsF = cardFileFor(W, L.code);          // complete per-card counts for the window; tech / hands / pilots are weekly (Card Kaizoku)
 const DECKS_SHOWN = 5, DECKS_MAX = 40;
+const replays = replayBest();
 const opps = Object.keys(L.matchups).filter((o) => o !== L.code && ls[o] && matchupIn(ls, L.code, o)).map((o) => ({ code: o, m: matchupIn(ls, L.code, o)! }))
   .sort((a, b) => b.m.games - a.m.games).slice(0, 18);
 const winLabel = WINDOWS[W].label.toLowerCase();
@@ -59,14 +60,18 @@ const mScore = (c: { edgeWinRate: number; edgeGames: number }) => (c.edgeWinRate
 const mirrorCards = mirror ? [...mirror.cards].sort((a, b) => mScore(b) - mScore(a)) : [];
 const mirrorGood = mirrorCards.filter((c) => mScore(c) > 52).slice(0, 8), mirrorBad = [...mirrorCards].reverse().filter((c) => mScore(c) < 48).slice(0, 8);
 
-// Trend: one point per day of the window.
+// Trend: one point per day of the window, drawn as a scrubbable chart (same interaction as the bounty history chart).
 const trend = (L.trend ?? []).filter((t) => t[1] > 0);
-const TW = 320, TH = 56;
-let trendPath = '', trendMin = 0, trendMax = 0;
+const TW = 640, TH = 170, PL = 38, PR = 10, PT = 12, PB = 24;
+let trendPts: { d: string; wr: number; g: number; pr: number | null; x: number; y: number }[] = [], trendPath = '', trendMin = 0, trendMax = 0;
+const ty = (v: number) => TH - PB - ((v - trendMin) / (trendMax - trendMin || 1)) * (TH - PT - PB);
 if (trend.length >= 3) {
-  const ys = trend.map((t) => t[2]); trendMin = Math.min(...ys, 45); trendMax = Math.max(...ys, 55);
-  trendPath = trend.map((t, i) => `${i ? 'L' : 'M'}${((i / (trend.length - 1)) * (TW - 8) + 4).toFixed(1)},${(TH - 6 - ((t[2] - trendMin) / (trendMax - trendMin || 1)) * (TH - 12)).toFixed(1)}`).join(' ');
+  const ys = trend.map((t) => Number(t[2])); trendMin = Math.floor(Math.min(...ys, 47)); trendMax = Math.ceil(Math.max(...ys, 53));
+  trendPts = trend.map((t, i) => ({ d: String(t[0]), wr: Number(t[2]), g: Number(t[1]), pr: t[3] == null ? null : Number(t[3]), x: Math.round((PL + (i / (trend.length - 1)) * (TW - PL - PR)) * 10) / 10, y: Math.round(ty(Number(t[2])) * 10) / 10 }));
+  trendPath = trendPts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ');
 }
+const mdy = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const tickEvery = Math.max(1, Math.ceil(trendPts.length / 6));
 
 // Curve analysis (Card Kaizoku, weekly, sim-wide ranked): top plays per turn, going first / second, overall or vs one opponent.
 const curve = curveFile(L.code);
@@ -94,12 +99,23 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       <div class="stat"><div class="label">Pilots <Info text="Distinct sim accounts that played this leader in ranked last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></div><div class="value">{uniquePilots == null ? '–' : fmt(uniquePilots, 0)}</div></div>
     </div>
     {trend.length >= 3 && <div style="margin-top:.9rem">
-      <div class="muted small" style="display:flex;justify-content:space-between"><span>Daily win rate, {winLabel} <Info text="Raw win rate on each UTC day of the window, from OPBounty's published statistics. Dashed line is 50%." /></span><span>{trend[0][0]} → {trend.at(-1)![0]}</span></div>
-      <svg class="trend" viewBox={`0 0 ${TW} ${TH}`} preserveAspectRatio="none" role="img" aria-label="Daily win rate">
-        <line x1="4" x2={TW - 4} y1={(TH - 6 - ((50 - trendMin) / (trendMax - trendMin || 1)) * (TH - 12)).toFixed(1)} y2={(TH - 6 - ((50 - trendMin) / (trendMax - trendMin || 1)) * (TH - 12)).toFixed(1)} stroke="var(--line-2)" stroke-dasharray="3 3" />
-        <path d={trendPath} fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-        {trend.map((t, i) => <circle cx={((i / (trend.length - 1)) * (TW - 8) + 4).toFixed(1)} cy={(TH - 6 - ((t[2] - trendMin) / (trendMax - trendMin || 1)) * (TH - 12)).toFixed(1)} r="3" fill={t[2] >= 50 ? 'var(--good)' : 'var(--bad)'}><title>{t[0]}: {t[2]}% over {fmt(t[1], 0)} games · {t[3]}% play rate</title></circle>)}
-      </svg>
+      <div class="muted small" style="display:flex;justify-content:space-between"><span>Daily win rate, {winLabel} <Info text="Raw win rate on each UTC day of the window, from OPBounty's published statistics. Dashed line is 50%. Hover or drag across the chart to read a day." /></span><span>{trend[0][0]} → {trend.at(-1)![0]}</span></div>
+      <div class="wtrend bcurve" data-points={JSON.stringify(trendPts)}>
+        <svg viewBox={`0 0 ${TW} ${TH}`} width="100%" style="display:block;max-height:190px;touch-action:pan-y" role="img" aria-label="Daily win rate">
+          <line x1={PL} x2={TW - PR} y1={ty(50).toFixed(1)} y2={ty(50).toFixed(1)} stroke="var(--line-2)" stroke-dasharray="4 4" />
+          <line x1={PL} x2={TW - PR} y1={ty(trendMax).toFixed(1)} y2={ty(trendMax).toFixed(1)} stroke="var(--line)" />
+          <line x1={PL} x2={TW - PR} y1={ty(trendMin).toFixed(1)} y2={ty(trendMin).toFixed(1)} stroke="var(--line)" />
+          <text x={PL - 6} y={(ty(trendMax) + 4).toFixed(1)} fill="var(--muted)" font-size="11" text-anchor="end">{trendMax}%</text>
+          <text x={PL - 6} y={(ty(50) + 4).toFixed(1)} fill="var(--muted)" font-size="11" text-anchor="end">50%</text>
+          <text x={PL - 6} y={(ty(trendMin) + 4).toFixed(1)} fill="var(--muted)" font-size="11" text-anchor="end">{trendMin}%</text>
+          {trendPts.map((p, i) => (i % tickEvery === 0 || i === trendPts.length - 1) && <text x={p.x} y={TH - 7} fill="var(--muted)" font-size="11" text-anchor={i === 0 ? 'start' : i === trendPts.length - 1 ? 'end' : 'middle'}>{mdy(p.d)}</text>)}
+          <path d={trendPath} fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" />
+          {trendPts.map((p) => <circle cx={p.x} cy={p.y} r="3.5" fill={p.wr >= 50 ? 'var(--good)' : 'var(--bad)'} stroke="var(--panel)" stroke-width="1.5" />)}
+          <line class="bc-cursor" x1="0" x2="0" y1={PT} y2={TH - PB} stroke="var(--muted)" stroke-dasharray="3 3" style="display:none" />
+          <circle class="bc-dot" r="5" fill="var(--accent)" stroke="#1a1405" stroke-width="1.5" style="display:none" />
+        </svg>
+        <div class="bc-tip" style="display:none"></div>
+      </div>
     </div>}
   </div>
 </div>
@@ -113,6 +129,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       <tr><th>Games</th>{opps.map((o) => <td class="muted">{fmt(o.m.games, 0)}</td>)}</tr>
       <tr><th>1st</th>{opps.map((o) => <td class={wrClass(o.m.first)}>{pct(o.m.first)}</td>)}</tr>
       <tr><th>2nd</th>{opps.map((o) => <td class={wrClass(o.m.second)}>{pct(o.m.second)}</td>)}</tr>
+      <tr><th>Study <Info text="Full combat logs of the highest-bounty finished games in this matchup, for each leader winning from either seat." /></th>{opps.map((o) => <td>{replays.pairs[pairKey(L.code, o.code)] ? <a class="chip" href={`/replays/?a=${L.code}&b=${o.code}`}>Games</a> : <span class="dim">–</span>}</td>)}</tr>
     </tbody>
   </table>
 </div>
@@ -215,6 +232,32 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
 </div>
 
 <script>
+  // daily win rate chart: hover or drag to read a day (same interaction as the bounty chart on player pages)
+  document.querySelectorAll<HTMLElement>('.wtrend').forEach((box) => {
+    const pts = JSON.parse(box.dataset.points || '[]') as { d: string; wr: number; g: number; pr: number | null; x: number; y: number }[];
+    const svg = box.querySelector('svg')!, cur = box.querySelector<SVGLineElement>('.bc-cursor')!, dot = box.querySelector<SVGCircleElement>('.bc-dot')!, tip = box.querySelector<HTMLElement>('.bc-tip')!;
+    const toView = (cx: number) => { const m = svg.getScreenCTM(); if (!m) return 0; const pt = svg.createSVGPoint(); pt.x = cx; pt.y = 0; return pt.matrixTransform(m.inverse()).x; };
+    const toClient = (vx: number, vy: number) => { const m = svg.getScreenCTM()!; const pt = svg.createSVGPoint(); pt.x = vx; pt.y = vy; return pt.matrixTransform(m); };
+    const day = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const show = (clientX: number) => {
+      const vx = toView(clientX);
+      let best = 0; for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i].x - vx) < Math.abs(pts[best].x - vx)) best = i;
+      const p = pts[best]; if (!p) return;
+      cur.setAttribute('x1', String(p.x)); cur.setAttribute('x2', String(p.x)); cur.style.display = '';
+      dot.setAttribute('cx', String(p.x)); dot.setAttribute('cy', String(p.y)); dot.style.display = '';
+      const prev = pts[best - 1]; const delta = prev ? p.wr - prev.wr : null;
+      tip.innerHTML = `<b style="color:${p.wr >= 50 ? 'var(--good)' : 'var(--bad)'}">${p.wr.toFixed(1)}%</b>${delta == null ? '' : ` <span style="color:${delta >= 0 ? 'var(--good)' : 'var(--bad)'}">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}</span>`} · ${day(p.d)}<br>${p.g.toLocaleString()} games${p.pr == null ? '' : ` · ${p.pr.toFixed(1)}% of seats`}`;
+      tip.style.display = '';
+      const b = box.getBoundingClientRect(); const c = toClient(p.x, p.y); const tw = tip.offsetWidth;
+      tip.style.left = `${Math.min(Math.max(c.x - b.left - tw / 2, 0), b.width - tw)}px`; tip.style.top = `${Math.max(0, c.y - b.top - tip.offsetHeight - 14)}px`;
+    };
+    const hideAll = () => { cur.style.display = 'none'; dot.style.display = 'none'; tip.style.display = 'none'; };
+    svg.addEventListener('mousemove', (e) => show(e.clientX));
+    svg.addEventListener('touchstart', (e) => show(e.touches[0].clientX), { passive: true });
+    svg.addEventListener('touchmove', (e) => show(e.touches[0].clientX), { passive: true });
+    svg.addEventListener('mouseleave', hideAll);
+    document.addEventListener('touchstart', (e) => { if (!box.contains(e.target as Node)) hideAll(); }, { passive: true });
+  });
   // Curve: switch seat and opponent client-side from the embedded weekly data.
   document.querySelectorAll<HTMLElement>('.curve').forEach((box) => {
     const D = JSON.parse(box.dataset.curve!) as { first: any[]; second: any[]; names: Record<string, string>; img: string };

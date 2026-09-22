@@ -234,12 +234,6 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
     </>
   )}
 
-  <style>
-    .bcurve { position: relative; }
-    .bc-tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: .4rem .6rem; font-size: .8rem; line-height: 1.35; white-space: nowrap; box-shadow: var(--shadow); z-index: 5; max-width: 100%; }
-    @media (max-width: 720px) { .bcurve svg { max-height: 170px !important; } .bc-tip { font-size: .74rem; } }
-    .bc-tip b { color: var(--accent); }
-  </style>
   <script>
     document.querySelectorAll<HTMLElement>('.bcurve').forEach((box) => {
       const pts = JSON.parse(box.dataset.points || '[]') as { t: string | null; b: number; n?: number; x: number; y: number; ln?: string; on?: string; won?: boolean }[];

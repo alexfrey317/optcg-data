@@ -1,0 +1,51 @@
+---
+import Info from './Info.astro';
+import { leaders, card, colorVar, replayBest, fmt, IMG_BASE } from '../lib/data';
+/** Pick two leaders; see the best finished high-bounty games for each of the four ways the matchup can go. */
+const best = replayBest();
+const names = Object.fromEntries(best.leaders.map((c) => [c, { name: leaders[c]?.name ?? card(c).name ?? c, color: colorVar(leaders[c]?.color ?? card(c).color) }]));
+// compact payload: pairs -> buckets -> [id, date, wB, lB, winnerFirst, turns, how, loserLife]
+const pairs = Object.fromEntries(Object.entries(best.pairs).map(([k, bk]) => [k, Object.fromEntries(Object.entries(bk).map(([b, gs]) => [b, gs.map((g) => [g.id, g.ts.slice(0, 10), g.w.b, g.l.b, g.turns, g.end.how, g.end.loserLife])]))]));
+const data = { leaders: best.leaders, names, pairs, img: IMG_BASE, per: best.perBucket };
+const games = new Set(Object.values(best.pairs).flatMap((bk) => Object.values(bk).flatMap((gs) => gs.map((g) => g.id)))).size;
+---
+<div class="hero"><div style="flex:1"><h1>Study Games <Info text="Full combat logs of ranked games between two leaders, chosen so both players had a high bounty and the game was played out: at least four turns each and the loser conceded at or near lethal, or the game ran long. Five games per situation: each leader winning from the first seat and from the second." /></h1>
+  <div class="meta">Pick a matchup and watch how the best players win it from either seat. <b style="color:var(--text)">{fmt(games, 0)}</b> games from {best.window.start ?? '–'} to {best.window.end ?? '–'}, top {best.leaders.length} leaders by play. Handles are not shown.</div></div></div>
+
+<div class="panel" id="rp" data-rp={JSON.stringify(data)}>
+  <div class="rp-pick">
+    <label>Leader A <select id="rp-a" class="rp-select"><option value="">Choose…</option>{best.leaders.map((c) => <option value={c}>{names[c].name} · {c}</option>)}</select></label>
+    <button type="button" id="rp-swap" class="copy" title="Swap seats">⇄</button>
+    <label>Leader B <select id="rp-b" class="rp-select"><option value="">Choose…</option>{best.leaders.map((c) => <option value={c}>{names[c].name} · {c}</option>)}</select></label>
+  </div>
+  <div id="rp-out" class="rp-out"><p class="muted">Choose two leaders. Mirror matches work too.</p></div>
+</div>
+
+<script>
+  const box = document.getElementById('rp')!;
+  const D = JSON.parse(box.dataset.rp!) as { leaders: string[]; names: Record<string, { name: string; color: string }>; pairs: Record<string, Record<string, (string | number | null | boolean)[][]>>; img: string; per: number };
+  const A = document.getElementById('rp-a') as HTMLSelectElement, B = document.getElementById('rp-b') as HTMLSelectElement, out = document.getElementById('rp-out')!;
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  const art = (code: string) => `<span class="leader leader-sm" style="--lc:${D.names[code]?.color ?? 'var(--dim)'}"><span class="leader-frame"><img src="${D.img}${code}.webp" alt="" loading="lazy"></span><span class="leader-label"><span class="leader-name">${esc(D.names[code]?.name ?? code)}</span><span class="leader-sub">${code}</span></span></span>`;
+  const q = new URLSearchParams(location.search);
+  const saved = (sessionStorage.getItem('rp-pick') || '').split(',');
+  A.value = q.get('a') || saved[0] || ''; B.value = q.get('b') || saved[1] || '';
+  const ending = (how: string, life: number | null) => how === 'lethal' ? 'lethal' : how === 'concede' ? (life == null ? 'conceded' : life === 0 ? 'conceded at 0 life' : `conceded at ${life} life`) : (life == null ? 'ended' : `ended at ${life} life`);
+  function render() {
+    const a = A.value, b = B.value;
+    if (a && b) { sessionStorage.setItem('rp-pick', `${a},${b}`); history.replaceState(null, '', `?a=${a}&b=${b}`); }
+    if (!a || !b) { out.innerHTML = '<p class="muted">Choose two leaders. Mirror matches work too.</p>'; return; }
+    const pk = [a, b].sort().join('|'), bk = D.pairs[pk] || {};
+    const mirror = a === b;
+    const cells = mirror ? [[a, 1, `${D.names[a].name} wins going first`], [a, 2, `${D.names[a].name} wins going second`]]
+      : [[a, 1, `${D.names[a].name} wins going first`], [a, 2, `${D.names[a].name} wins going second`], [b, 1, `${D.names[b].name} wins going first`], [b, 2, `${D.names[b].name} wins going second`]];
+    out.innerHTML = `<div class="rp-grid${mirror ? ' two' : ''}">` + cells.map(([w, seat, title]) => {
+      const gs = bk[`${w}:${seat}`] || [];
+      const rows = gs.map((g) => `<a class="rp-game" href="/replays/g/?p=${encodeURIComponent(pk)}&id=${g[0]}"><span class="rp-when">${g[1]}</span><span class="rp-b"><b class="good">฿${Number(g[2]).toLocaleString()}</b> <span class="muted">vs</span> <b class="bad">฿${Number(g[3]).toLocaleString()}</b></span><span class="rp-len muted">${g[4]} turns · ${ending(String(g[5]), g[6] as number | null)}</span></a>`).join('');
+      return `<section class="rp-bucket"><header>${art(String(w))}<div><b>${esc(String(title))}</b><div class="muted small">${seat === 1 ? 'Seat 1' : 'Seat 2'} · vs ${esc(D.names[String(w) === a ? b : a].name)}</div></div></header>${rows || `<p class="muted small" style="padding:.6rem .8rem">No finished high-bounty game for this situation in the window yet.</p>`}</section>`;
+    }).join('') + '</div>';
+  }
+  A.addEventListener('change', render); B.addEventListener('change', render);
+  document.getElementById('rp-swap')!.addEventListener('click', () => { const t = A.value; A.value = B.value; B.value = t; render(); });
+  render();
+</script>

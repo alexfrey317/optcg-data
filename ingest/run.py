@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import link, normalize as N
 from .http import get_json
-from .sources import kaizoku, kaizoku_curves, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_stats, optcgone
+from .sources import kaizoku, kaizoku_curves, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_replays, opbounty_stats, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
@@ -133,6 +133,9 @@ def main(argv=None):
 
     # link ladder rows to sim handles via the match archive, and write per-player match histories
     archive_days = link.load_days(ARCHIVE_DAYS) if link.MATCHES.exists() else []
+    # study games: full combat logs for the best finished games of every contender matchup (data/replays, cached in CI)
+    replays_status = guard("replays", lambda: opbounty_replays.fetch_all([d for d in archive_days if d.get("date", "") < today][-opbounty_replays.WINDOW_DAYS:]),
+                           unavailable=not opbounty_matches.EMAIL or not archive_days)
     links = {}
     if archive_days:
         try:
@@ -252,6 +255,7 @@ def main(argv=None):
         "playerDecks": player_stats,
         "daily": daily_status,
         "matches": matches_status,
+        "replays": replays_status,
         "profiles": profiles_status,
         "stats": stats_status,
         "linked": len(links),
