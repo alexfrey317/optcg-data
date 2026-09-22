@@ -93,41 +93,47 @@ import { IMG_BASE } from '../../lib/data';
       cur = toEvent;
     };
 
-    // ---- rendering
+    // ---- rendering: a play mat like the sim's, mirrored for the top player (their character area faces yours)
     let flip = false, showHands = true, peek: { seat: number; zone: 'deck' | 'trash' | 'life' | 'hand' } | null = null;
-    const card = (cid: string, cls = '', badge = '') => cid === '?' ? `<span class="cd back ${cls}"><i>?</i></span>` : `<span class="cd ${cls}" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy">${badge}</span>`;
-    const donBadge = (n: number) => n ? `<b class="don">${n}</b>` : '';
+    const card = (cid: string, cls = '', badge = '', extra = '') => cid === '?' ? `<span class="cd back ${cls}"><i>?</i></span>` : `<span class="cd ${cls}" ${extra} title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy">${badge}</span>`;
+    const donBadge = (n: number) => n ? `<b class="don">+${n}</b>` : '';
     const rich = (text: string) => esc(text).replace(CARD, (_m, cid: string) => `<span class="ct" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${cid}" loading="lazy"></span>`);
-    const sideHtml = (seat: number, top: boolean) => {
+    const back = (cls = '', inner = '') => `<span class="cd back ${cls}">${inner}</span>`;
+    const halfHtml = (seat: number, top: boolean) => {
       const s = S[seat], p = P[seat], isActive = active === seat;
-      const chars = s.chars.map((c) => card(c.id, `char${c.rested ? ' rested' : ''}${hl.atk === c.id && hl.seat === seat ? ' atk' : ''}${hl.tgt === c.id && hl.seat !== seat ? ' tgt' : ''}`, donBadge(c.don))).join('') || '<span class="dim small empty">no characters</span>';
-      const hand = showHands ? s.hand.map((c) => card(c, 'hc')).join('') : `<span class="dim small empty">${s.hand.length} cards hidden</span>`;
-      const leader = card(p.leader, `leader${s.leaderRested ? ' rested' : ''}${hl.atk === p.leader && hl.seat === seat ? ' atk' : ''}${hl.tgt === p.leader && hl.seat !== seat ? ' tgt' : ''}`, donBadge(s.leaderDon));
+      const hlCls = (cid: string) => `${hl.atk === cid && hl.seat === seat ? ' atk' : ''}${hl.tgt === cid && hl.seat !== seat ? ' tgt' : ''}`;
+      const chars = s.chars.map((c, i) => card(c.id, `char${c.rested ? ' rested' : ''}${hlCls(c.id)}`, donBadge(c.don), `data-card="${c.id}" data-seat="${seat}" data-i="${i}"`)).join('');
+      const leader = card(p.leader, `leader${s.leaderRested ? ' rested' : ''}${hlCls(p.leader)}`, donBadge(s.leaderDon), `data-card="${p.leader}" data-seat="${seat}"`);
+      const stage = s.stage ? card(s.stage, 'stage') : `<span class="slot stage-slot"><i>Stage</i></span>`;
       const donActive = Math.max(0, s.donArea - s.donRested);
-      const zones = `<div class="zones">
-          <button type="button" class="zone" data-peek="deck" data-seat="${seat}" title="Cards left in deck"><span class="zl">Deck</span><b>${s.deck}</b></button>
-          <button type="button" class="zone" data-peek="trash" data-seat="${seat}" title="Trash"><span class="zl">Trash</span><b>${s.trash.length}</b></button>
-          <button type="button" class="zone life" data-peek="life" data-seat="${seat}" title="Life cards (face down in the real game)"><span class="zl">Life</span><b>${s.life.length}</b><span class="pips">${'<i></i>'.repeat(Math.min(s.life.length, 8))}</span></button>
-          <div class="zone don" title="DON: active · rested · attached"><span class="zl">DON</span><b>${donActive}</b><span class="dsub">${s.donRested} rested · ${s.donAtt} on cards · ${s.donDeck} in deck</span></div>
-        </div>`;
-      const stage = s.stage ? card(s.stage, 'stage') : '<span class="cd slot"><i>Stage</i></span>';
-      const head = `<div class="side-h" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b> <span class="muted small">· ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span>${isActive ? '<span class="turnpill">active</span>' : ''}</div>`;
-      const handRow = `<div class="row hand"><span class="rowl">Hand ${s.hand.length}</span><div class="cards">${hand}</div></div>`;
-      const midRow = `<div class="row mid">${leader}${stage}${zones}</div>`;
-      const charRow = `<div class="row chars"><span class="rowl">Board</span><div class="cards">${chars}</div></div>`;
-      return `<section class="side${top ? ' top' : ' bottom'}${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}">${top ? head + handRow + midRow + charRow : charRow + midRow + handRow + head}</section>`;
+      const tokens = Array.from({ length: s.donArea }, (_, i) => `<span class="tok${i >= donActive ? ' rested' : ''}"><i>DON!!</i></span>`).join('');
+      const life = `<button type="button" class="pile life" data-peek="life" data-seat="${seat}" title="Life · face down in the real game"><span class="stack">${Array.from({ length: Math.min(s.life.length, 6) }, (_, i) => `<span class="lc" style="--i:${i}"></span>`).join('')}</span><b>${s.life.length}</b><span class="pl">Life</span></button>`;
+      const deck = `<button type="button" class="pile deck" data-peek="deck" data-seat="${seat}" title="Deck"><span class="cd back"><i>${s.deck}</i></span><span class="pl">Deck</span></button>`;
+      const trash = `<button type="button" class="pile trash" data-peek="trash" data-seat="${seat}" title="Trash">${s.trash.length ? card(s.trash[s.trash.length - 1], 'trash-top') : '<span class="cd slot"></span>'}<b>${s.trash.length}</b><span class="pl">Trash</span></button>`;
+      const donDeck = `<span class="pile dondeck" title="DON deck"><span class="cd back don"><i>${s.donDeck}</i></span><span class="pl">DON</span></span>`;
+      const cost = `<div class="area cost"><span class="al">Cost · ${donActive} active${s.donRested ? ` · ${s.donRested} rested` : ''}${s.donAtt ? ` · ${s.donAtt} attached` : ''}</span><div class="toks">${tokens || '<span class="dim small">no DON yet</span>'}</div></div>`;
+      const charArea = `<div class="area chars"><span class="al">Character area</span><div class="cards">${chars || '<span class="dim small empty">empty</span>'}</div></div>`;
+      const mid = `<div class="mid">${life}${donDeck}${cost}<div class="center">${leader}${stage}</div>${deck}${trash}</div>`;
+      const label = `<div class="who" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span>${isActive ? '<span class="turnpill">Active</span>' : ''}</div>`;
+      return `<section class="half${top ? ' top' : ' bottom'}${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}">${top ? label + mid + charArea : charArea + mid + label}</section>`;
     };
-    const tickerHtml = () => {
-      const from = Math.max(0, cur - 3);
-      return `<div class="ticker">${events.slice(from, cur + 1).map((si, k) => { const e = G.steps[si] as Extract<Step, { 0: 'e' }>; const isCur = from + k === cur; const seat = e[1];
-        return `<div class="tk k-${e[2]}${isCur ? ' cur' : ''}"${seat ? ` style="--lc:${lcolor(P[seat].leader)}"` : ''}>${seat ? `<span class="rg-seat">P${seat}</span>` : '<span class="rg-seat none"></span>'}<span class="kl">${KIND_LABEL[e[2]] ?? ''}</span><span class="tx">${rich(e[3])}</span></div>`; }).join('')}</div>`;
+    const handHtml = (seat: number, top: boolean) => {
+      const s = S[seat];
+      const cards = showHands ? s.hand.map((c) => card(c, 'hc')).join('') : Array.from({ length: s.hand.length }, () => back('hc')).join('');
+      return `<div class="handrow${top ? ' top' : ' bottom'}" style="--lc:${lcolor(P[seat].leader)}"><button type="button" class="hl-btn" data-peek="hand" data-seat="${seat}"><span class="rg-seat">P${seat}</span> Hand · ${s.hand.length}</button><div class="cards">${cards || '<span class="dim small empty">empty</span>'}</div></div>`;
     };
+    const logHtml = () => {
+      const from = Math.max(0, cur - 9);
+      return `<div class="log" id="log">${events.slice(from, cur + 1).map((si, k) => { const e = G.steps[si] as Extract<Step, { 0: 'e' }>; const isCur = from + k === cur; const seat = e[1];
+        return `<div class="lg k-${e[2]}${isCur ? ' cur' : ''}"${seat ? ` style="--lc:${lcolor(P[seat].leader)}"` : ''}>${seat ? `<span class="rg-seat">P${seat}</span>` : '<span class="rg-seat none"></span>'}<span class="tx">${rich(e[3])}</span></div>`; }).join('')}</div>`;
+    };
+    const phaseOf = () => { const e = G.steps[events[cur]] as Extract<Step, { 0: 'e' }>; return KIND_LABEL[e[2]] || 'Turn'; };
     const peekHtml = () => {
       if (!peek) return '';
       const s = S[peek.seat], p = P[peek.seat];
       let title = '', body = '';
-      if (peek.zone === 'trash') { title = `Trash · ${s.trash.length}`; body = s.trash.length ? s.trash.map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
-      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game. The log records them, so you can peek.</p>` + (s.life.length ? s.life.map((c) => card(c)).join('') : '<span class="dim">none</span>'); }
+      if (peek.zone === 'trash') { title = `Trash · ${s.trash.length}`; body = s.trash.length ? [...s.trash].reverse().map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
+      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game. The log records them, so you can peek. Top of the stack first.</p>` + (s.life.length ? [...s.life].reverse().map((c) => card(c)).join('') : '<span class="dim">none</span>'); }
       else if (peek.zone === 'hand') { title = `Hand · ${s.hand.length}`; body = s.hand.length ? s.hand.map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
       else {
         const dk = deckOf(p);
@@ -140,26 +146,37 @@ import { IMG_BASE } from '../../lib/data';
     };
     const render = () => {
       const topSeat = flip ? 1 : 2, botSeat = 3 - topSeat;
-      const turnLabel = `Turn ${turn} · P${active} ${esc(lname(P[active].leader))}`;
       root.innerHTML = `
-        <div class="hero rg-hero"><div style="flex:1">
-          <div class="small"><a href="/replays/?a=${P[1].leader}&b=${P[2].leader}" class="muted">← Study Games</a> <span class="muted">· ${G.date} · ${G.ts.slice(11, 16)} UTC</span></div>
-          <h1 style="margin:.3rem 0 .2rem">${esc(lname(P[1].leader))} <span class="muted">vs</span> ${esc(lname(P[2].leader))}</h1>
-          <div class="meta"><b style="color:${lcolor(W.leader)}">${esc(lname(W.leader))}</b> won from seat ${W.seat} in ${G.endTurns} turns; <b style="color:${lcolor(L.leader)}">${esc(lname(L.leader))}</b> ${ending}. <span class="muted small hide-m">Seat 1 took the first turn. Both hands are shown because the log records them. Handles are not shown.</span></div>
-        </div></div>
-        <div class="board">${sideHtml(topSeat, true)}${tickerHtml()}${sideHtml(botSeat, false)}</div>
-        <div class="ctl" id="ctl">
-          <button type="button" class="copy" data-go="turn-1" title="Previous turn (Shift+←)">◀◀</button>
-          <button type="button" class="copy" data-go="-1" title="Previous step (←)">◀</button>
-          <button type="button" class="copy big" data-go="1" title="Next step (→ or Space)">▶</button>
-          <button type="button" class="copy" data-go="turn+1" title="Next turn (Shift+→)">▶▶</button>
-          <input type="range" id="scrub" min="0" max="${events.length - 1}" value="${cur}" aria-label="Step">
-          <span class="pos small muted"><b style="color:var(--text)">${turnLabel}</b> · step ${cur + 1}/${events.length}</span>
-          <button type="button" class="copy" data-flip title="Swap which player is at the bottom">Flip</button>
-          <button type="button" class="copy${showHands ? ' on' : ''}" data-hands title="Show or hide both hands">Hands</button>
-        </div>
-        ${peekHtml()}`;
-      wire();
+        <div class="rg-bar"><a href="/replays/?a=${P[1].leader}&b=${P[2].leader}" class="muted small">← Study Games</a>
+          <span class="rg-title"><b style="color:${lcolor(P[1].leader)}">${esc(lname(P[1].leader))}</b> <span class="muted">vs</span> <b style="color:${lcolor(P[2].leader)}">${esc(lname(P[2].leader))}</b></span>
+          <span class="muted small">${G.date} · <b style="color:${lcolor(W.leader)}">${esc(lname(W.leader))}</b> won in ${G.endTurns} turns, ${esc(lname(L.leader))} ${ending}</span></div>
+        <div class="table">
+          <div class="mat" id="mat">${handHtml(topSeat, true)}${halfHtml(topSeat, true)}${halfHtml(botSeat, false)}${handHtml(botSeat, false)}<svg class="arrow" id="arrow"></svg></div>
+          <aside class="dock">
+            <div class="turnbox"><span class="tb-turn">Turn ${turn}</span><span class="tb-who" style="--lc:${lcolor(P[active].leader)}"><span class="rg-seat">P${active}</span> ${esc(lname(P[active].leader))}</span><span class="tb-phase">${esc(phaseOf())}</span></div>
+            ${logHtml()}
+            <div class="ctl" id="ctl">
+              <div class="ctl-row"><button type="button" class="copy" data-go="turn-1" title="Previous turn (Shift+←)">◀◀</button><button type="button" class="copy" data-go="-1" title="Previous step (←)">◀</button><button type="button" class="copy big" data-go="1" title="Next step (→ or Space)">▶</button><button type="button" class="copy" data-go="turn+1" title="Next turn (Shift+→)">▶▶</button></div>
+              <input type="range" id="scrub" min="0" max="${events.length - 1}" value="${cur}" aria-label="Step">
+              <div class="ctl-row small muted"><span>step ${cur + 1} / ${events.length}</span><span style="margin-left:auto"></span><button type="button" class="copy sm" data-flip title="Swap which player is at the bottom">Flip</button><button type="button" class="copy sm${showHands ? ' on' : ''}" data-hands title="Show or hide both hands">Hands</button></div>
+            </div>
+            ${peekHtml()}
+          </aside>
+        </div>`;
+      wire(); drawArrow();
+    };
+    const drawArrow = () => {
+      const svg = document.getElementById('arrow') as unknown as SVGSVGElement | null, mat = document.getElementById('mat');
+      if (!svg || !mat) return;
+      const a = mat.querySelector<HTMLElement>('.cd.atk'), t = mat.querySelector<HTMLElement>('.cd.tgt');
+      const done = hl.done;
+      if (!a || !t) { svg.innerHTML = ''; return; }
+      const m = mat.getBoundingClientRect(), ra = a.getBoundingClientRect(), rt = t.getBoundingClientRect();
+      const x1 = ra.left + ra.width / 2 - m.left, y1 = ra.top + ra.height / 2 - m.top, x2 = rt.left + rt.width / 2 - m.left, y2 = rt.top + rt.height / 2 - m.top;
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, r = Math.min(rt.width, rt.height) / 2 + 6;
+      const ex = x2 - ux * r, ey = y2 - uy * r;
+      svg.setAttribute('viewBox', `0 0 ${m.width} ${m.height}`); svg.setAttribute('width', String(m.width)); svg.setAttribute('height', String(m.height));
+      svg.innerHTML = `<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${done ? 'var(--muted)' : 'var(--bad)'}"/></marker></defs><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${done ? 'var(--muted)' : 'var(--bad)'}" stroke-width="4" stroke-linecap="round" marker-end="url(#ah)" opacity="${done ? .55 : .95}"/>`;
     };
     const go = (n: number) => { rebuild(Math.max(0, Math.min(events.length - 1, n))); render(); };
     const turnOf = (ei: number) => { let t = 0; for (let i = 0; i < turnStarts.length; i++) if (turnStarts[i] <= ei) t = i; return t; };
@@ -172,11 +189,11 @@ import { IMG_BASE } from '../../lib/data';
       (document.getElementById('scrub') as HTMLInputElement).addEventListener('input', (e) => go(Number((e.target as HTMLInputElement).value)));
       ctl.querySelector('[data-flip]')!.addEventListener('click', () => { flip = !flip; render(); });
       ctl.querySelector('[data-hands]')!.addEventListener('click', () => { showHands = !showHands; localStorage.setItem('rg-hands', showHands ? '1' : '0'); render(); });
-      root.querySelectorAll<HTMLButtonElement>('[data-peek]').forEach((b) => b.addEventListener('click', () => { const z = b.dataset.peek as typeof peek extends infer T ? T extends null ? never : T['zone'] : never; const seat = Number(b.dataset.seat); peek = peek && peek.seat === seat && peek.zone === z ? null : { seat, zone: z }; render(); document.querySelector('.peek')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
+      root.querySelectorAll<HTMLButtonElement>('[data-peek]').forEach((b) => b.addEventListener('click', () => { const z = b.dataset.peek as 'deck' | 'trash' | 'life' | 'hand'; const seat = Number(b.dataset.seat); peek = peek && peek.seat === seat && peek.zone === z ? null : { seat, zone: z }; render(); document.querySelector('.peek')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
       root.querySelector('[data-close-peek]')?.addEventListener('click', () => { peek = null; render(); });
-      root.querySelectorAll<HTMLElement>('.row.hand .rowl').forEach((el) => el.addEventListener('click', () => { const seat = Number((el.closest('.side') as HTMLElement).classList.contains('top') ? (flip ? 1 : 2) : (flip ? 2 : 1)); peek = { seat, zone: 'hand' }; render(); }));
-      const tk = root.querySelector('.ticker'); tk?.scrollTo({ top: tk.scrollHeight });
+      const lg = document.getElementById('log'); lg?.scrollTo({ top: lg.scrollHeight });
     };
+    window.addEventListener('resize', drawArrow);
     document.addEventListener('keydown', (e) => { if ((e.target as HTMLElement).tagName === 'INPUT') return;
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'j') { e.preventDefault(); if (e.shiftKey) { const t = turnOf(cur); go(t + 1 < turnStarts.length ? turnStarts[t + 1] : events.length - 1); } else go(cur + 1); }
       if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); if (e.shiftKey) { const t = turnOf(cur); go(turnStarts[cur === turnStarts[t] ? Math.max(0, t - 1) : t]); } else go(cur - 1); }
