@@ -346,7 +346,7 @@ def build_window(dailies: list[dict], card_db: dict) -> tuple[dict, dict]:
             "code": code, "name": a["name"] or c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"kaizoku": {"matches": g, "wins": w, "winRate": rate(w, g),
                                     "weightedWinRate": round(100 * (w + 50) / (g + 100), 1) if g else None,
-                                    "playRate": round(100 * g / total, 2) if total else None,
+                                    "playRate": round(50 * g / total, 2) if total else None,
                                     "firstWinRate": rate(fw, fg), "secondWinRate": rate(sw, sg)}},
             "matchups": matchups, "deckCount": len(deck_acc.get(code, {})), "cardCount": 0,
         }
@@ -423,7 +423,7 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
             "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"ranked": {"matches": g[code], "wins": w[code], "winRate": rate(w[code], g[code]),
                                    "weightedWinRate": round(100 * (w[code] + 50) / (g[code] + 100), 1),
-                                   "playRate": round(100 * g[code] / total, 2) if total else None}},
+                                   "playRate": round(50 * g[code] / total, 2) if total else None}},
             "matchups": matchups, "deckCount": len(dk.get(code, {})), "cardCount": 0,
         }
     decks_by_leader: dict[str, dict] = {}
@@ -480,6 +480,13 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
     def rate(x, n):
         return round(100 * x / n, 1) if n else None
 
+    def lcb(w, n, z=2.326):
+        """Wilson score lower bound (99%) on the true win rate: shrinks small samples, handles 1-0 records."""
+        if not n:
+            return None
+        p = w / n; z2 = z * z / n
+        return round(100 * (p + z2 / 2 - z * (p * (1 - p) / n + z2 / (4 * n)) ** 0.5) / (1 + z2), 1)
+
     leaders: dict[str, dict] = {}
     for code, a in L.items():
         c = card_db.get(code, {})
@@ -491,9 +498,10 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
         leaders[code] = {
             "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"ranked": {"matches": a["g"], "wins": a["w"], "winRate": rate(a["w"], a["g"]),
-                                   # shrink toward 50% with a 2,000-game prior (Card Kaizoku uses a similar weight); the site recomputes this too
-                                   "weightedWinRate": round(100 * (a["w"] + 1000) / (a["g"] + 2000), 1),
-                                   "playRate": round(100 * a["g"] / total, 2) if total else None,
+                                   # 99% lower confidence bound on the true win rate; the site recomputes this too (conservativeWinRate)
+                                   "weightedWinRate": lcb(a["w"], a["g"]),
+                                   # share of seats: every match has two leaders
+                                   "playRate": round(50 * a["g"] / total, 2) if total else None,
                                    "firstWinRate": rate(a["fw"], a["fw"] + a["fl"]), "secondWinRate": rate(a["sw"], a["sw"] + a["sl"]),
                                    "firstGames": a["fw"] + a["fl"], "secondGames": a["sw"] + a["sl"],
                                    "avgDuration": round(a["dur"] / a["g"], 1) if a["g"] else None}},
@@ -573,7 +581,7 @@ def build_trends(days: list[dict]) -> dict[str, list]:
                 g[code] += int(s.get("g") or 0); w[code] += int(s.get("w") or 0)
         for code in g:
             if g[code]:
-                out[code].append([day.get("date"), g[code], round(100 * w[code] / g[code], 1), round(100 * g[code] / total, 2) if total else None])
+                out[code].append([day.get("date"), g[code], round(100 * w[code] / g[code], 1), round(50 * g[code] / total, 2) if total else None])
     return out
 
 

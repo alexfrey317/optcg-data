@@ -1,7 +1,7 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, WEIGHT_PRIOR, MIN_PLAY_RATE, type Win } from '../lib/data';
+import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, type Win } from '../lib/data';
 interface Props { window: Win }
 const { window: W } = Astro.props;
 const all = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
@@ -30,9 +30,9 @@ if (W === '7d') {
       {W === '7d' && <th class="num hide-m">Δ 1D <Info text="Rank change since yesterday's snapshot." /></th>}
       <th class="hide-m">Card</th>
       <th class="c-leader">Leader</th>
-      <th class="num sortable sorted" data-k="wtd">Wtd WR <Info text={`Weighted win rate: raw win rate shrunk toward 50% as if the leader had ${fmt(WEIGHT_PRIOR, 0)} extra games at exactly 50%, so a leader with 200 games cannot outrank one with 20,000 on a lucky week. Card Kaizoku shrinks by a similar amount but toward the average leader's win rate (about 36%), which pushes rarely played leaders to the bottom of their table; we list those separately instead.`} /></th>
+      <th class="num sortable sorted" data-k="wtd">Wtd WR <Info text="Conservative win rate: the lowest win rate we can be 99% confident the leader really has, given its sample. A leader with 5,000 games loses about 1.6 points from its raw rate; one with 50,000 games loses about half a point; one with 200 games loses eight. So a 52% leader on few games can rank below a 51.5% leader on many, which is the point. Card Kaizoku instead shrinks toward the average leader's win rate (about 37%), which produces a similar order but lower numbers." /></th>
       <th class="num sortable hide-m" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
-      <th class="num sortable" data-k="play">Play Rate <Info text="Share of all ranked games in the window in which this leader appeared." /></th>
+      <th class="num sortable" data-k="play">Play Rate <Info text="Share of all decks in the window's ranked games that were this leader. Every game has two decks, so the column sums to 100%." /></th>
       <th class="num sortable" data-k="games">Games</th>
       <th class="num sortable hide-m" data-k="pilots">Pilots <Info text="Distinct sim accounts that played this leader last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></th>
       <th class="num sortable" data-k="first">1st WR <Info text="Win rate when this leader took the first turn." /></th>

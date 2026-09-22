@@ -124,18 +124,27 @@ export const matchup = (a: string, b: string) => {
   return matchupIn(leaders, a, b);
 };
 /** Leader headline numbers from whichever pool has them. */
-export const WEIGHT_PRIOR = 2000;
-/** Leaders below this share of games are "rarely played": listed separately so a 5-game leader never sits among the real contenders. */
-export const MIN_PLAY_RATE = 0.5;
+/** z for the one-sided 99% lower confidence bound used as the "weighted" win rate. */
+export const WEIGHT_Z = 2.326;
+/** Conservative win rate: the lower end of a 99% confidence interval for the true win rate. A leader with few
+ *  games gets a wide interval and drops; one with 50,000 games loses a quarter of a point. Unlike shrinking toward
+ *  50%, a 52% leader on 6,000 games can rank below a 51.5% leader on 70,000, which is what a ranking should do. */
+export const conservativeWinRate = (wins: number, games: number) => {
+  if (!games) return null;
+  // Wilson score interval: well behaved for tiny samples (1-0 gives 15.6%, not 100%)
+  const p = wins / games, z2 = WEIGHT_Z * WEIGHT_Z / games;
+  return Math.round(1000 * (p + z2 / 2 - WEIGHT_Z * Math.sqrt(p * (1 - p) / games + z2 / (4 * games))) / (1 + z2)) / 10;
+};
+/** Leaders below this share of seats are "rarely played": listed separately so a 5-game leader never sits among the real contenders. */
+export const MIN_PLAY_RATE = 0.25;
 export const leaderStats = (l: Leader) => {
   const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {}, r = l.sources.ranked;
   // games, win rate and play rate come from the complete ranked archive when we have it; 1st/2nd only exist in the sim-wide feed
   const main = r ?? k;
   const games = r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0);
-  // shrink toward 50% with a 2,000-game prior: 100 games at 58% lands at 50.4%, 2,000 games at 58% at 54%, 40,000 games barely move.
-  // Card Kaizoku applies a prior of similar weight but toward the mean leader win rate (~36%), which is why their rarely played leaders sink to the bottom.
+  // Card Kaizoku shrinks toward the mean leader win rate (~37%) with a ~2,200-game prior; we use a 99% lower confidence bound instead (see conservativeWinRate)
   const wins = main.wins == null ? null : Number(main.wins);
-  const weighted = wins != null && games ? Math.round(1000 * (wins + WEIGHT_PRIOR / 2) / (games + WEIGHT_PRIOR)) / 10 : main.weightedWinRate == null ? null : Number(main.weightedWinRate);
+  const weighted = wins != null && games ? conservativeWinRate(wins, games) : main.weightedWinRate == null ? null : Number(main.weightedWinRate);
   return {
     games,
     winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
