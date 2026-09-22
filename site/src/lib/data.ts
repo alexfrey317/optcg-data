@@ -35,9 +35,11 @@ export interface CardFile {
 export interface Card { name: string; type: string; cost: string; color: string; power: string; counter: string; rarity: string; img: string; set: string }
 export interface Meta { generatedAt: string; date: string; status: Record<string, string>; players: number; leaders: number; sources: { name: string; url: string; support?: string }[]; [k: string]: unknown }
 
-/** Card image. Limitless CDN: no watermark and no Cross-Origin-Resource-Policy header, so it embeds cross-site.
- *  (Card Kaizoku's CDN 403s on foreign referers; Bandai's official images send CORP: same-site and are blocked by browsers.) */
-export const imgUrl = (id: string) => `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${id.split('-')[0]}/${id}_EN.webp`;
+/** Card image. OnePiece.gg CDN (what proxycardstool.net uses for official art): 600×838 webp, faint watermark only,
+ *  Access-Control-Allow-Origin: * and no Cross-Origin-Resource-Policy header, so it embeds cross-site. Covers every card in
+ *  cards.json that Limitless does plus 24 more promos. (Card Kaizoku's CDN 403s on foreign referers; Bandai's official
+ *  images send CORP: same-site and are blocked by browsers.) */
+export const imgUrl = (id: string) => `https://static.dotgg.gg/onepiece/card/${id}.webp`;
 /** Inline onerror handler: swap in a labelled placeholder (promos are missing upstream). */
 export const imgOnError = (_id: string): string | undefined => undefined; // handled once per page by the delegated listener in Base.astro
 

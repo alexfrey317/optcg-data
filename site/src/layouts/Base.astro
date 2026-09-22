@@ -15,7 +15,7 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
     <meta name="description" content={description} />
     <meta property="og:title" content={`${title} · OPTCG Data`} />
     <meta property="og:description" content={description} />
-    <link rel="preconnect" href="https://cdn.cardkaizoku.com" />
+    <link rel="preconnect" href="https://static.dotgg.gg" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%23e8c04a'/><text x='8' y='11.5' font-size='9' text-anchor='middle' font-family='sans-serif' font-weight='700'>฿</text></svg>" />
   </head>
   <body>
@@ -56,7 +56,7 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
       const zoom = document.getElementById('zoom')!, zimg = zoom.querySelector('img')!, zcap = zoom.querySelector('figcaption')!;
       const closeZoom = () => { zoom.hidden = true; zimg.removeAttribute('src'); document.body.style.overflow = ''; };
       document.addEventListener('click', (e) => {
-        const img = (e.target as HTMLElement).closest<HTMLImageElement>('img[src*="limitlesstcg"]');
+        const img = (e.target as HTMLElement).closest<HTMLImageElement>('img[src*="static.dotgg.gg"]');
         if (!img || img.closest('a')) return;
         e.preventDefault();
         const holder = img.closest<HTMLElement>('[title]');
@@ -206,7 +206,7 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
   tr.top1 .pill-rank { background: linear-gradient(160deg, var(--accent-2), #b8901f); color: #1a1405; border-color: transparent; }
   tr.top3 .pill-rank { border-color: var(--accent); color: var(--accent-2); }
   /* card zoom */
-  img[src*="limitlesstcg"]:not(a img) { cursor: zoom-in; }
+  img[src*="static.dotgg.gg"]:not(a img) { cursor: zoom-in; }
   #zoom { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; background: rgba(5,7,12,.86); backdrop-filter: blur(6px); cursor: zoom-out; }
   #zoom[hidden] { display: none; }
   #zoom figure { margin: 0; display: grid; gap: .6rem; justify-items: center; animation: zoomin .15s ease-out; }

@@ -7,6 +7,7 @@ fetched from upstream at page-view time.
 
 Sources (used with permission): [OPBounty](https://stats.tcgmatchmaking.com/),
 [Card Kaizoku](https://www.cardkaizoku.com/), [optcg.one](https://www.optcg.one/).
+Card images are served from [OnePiece.gg](https://onepiece.gg/)'s CDN (`static.dotgg.gg`, official art with only a faint watermark).
 
 ## Layout
 
