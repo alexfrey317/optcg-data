@@ -455,6 +455,9 @@ const ICONS: Record<string, string> = {
   .art-wide::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--lc); }
   .leader-link { color: var(--text); font-weight: 600; } .leader-link:hover { color: var(--accent-2); text-decoration: none; }
   .rank-table td { padding-top: .45rem; padding-bottom: .45rem; } .delta { font-weight: 600; }
+  .rank-table tr.divider td { background: var(--panel-2); padding: .5rem .75rem; font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); position: sticky; left: 0; }
+  .rank-table tr.divider td .small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .rank-table tr.rare td { opacity: .7; }
   .pilot { display: flex; align-items: center; gap: .5rem; min-width: 0; } .pilot .pill-rank { flex: none; } .pilot .pn { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pilot .pg { display: block; }
   /* matchup breakdown strip */
   .breakdown th, .breakdown td { text-align: center; padding: .5rem .45rem; }

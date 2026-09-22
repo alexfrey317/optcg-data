@@ -491,7 +491,8 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
         leaders[code] = {
             "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"ranked": {"matches": a["g"], "wins": a["w"], "winRate": rate(a["w"], a["g"]),
-                                   "weightedWinRate": round(100 * (a["w"] + 500) / (a["g"] + 1000), 1),
+                                   # shrink toward 50% with a 2,000-game prior (Card Kaizoku uses a similar weight); the site recomputes this too
+                                   "weightedWinRate": round(100 * (a["w"] + 1000) / (a["g"] + 2000), 1),
                                    "playRate": round(100 * a["g"] / total, 2) if total else None,
                                    "firstWinRate": rate(a["fw"], a["fw"] + a["fl"]), "secondWinRate": rate(a["sw"], a["sw"] + a["sl"]),
                                    "firstGames": a["fw"] + a["fl"], "secondGames": a["sw"] + a["sl"],

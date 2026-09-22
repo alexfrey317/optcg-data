@@ -25,6 +25,7 @@ import base64
 import gzip
 import json
 import os
+import re
 import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -70,10 +71,16 @@ def fetch_chunk(key: str) -> dict:
     return _decode(raw)
 
 
+LEADER_RE = re.compile(r"\b((?:OP|ST|EB|PRB|P)\d{0,2}-\d{3})\b", re.I)
+
+
 def _code(x) -> str | None:
+    """Leader keys come as 'OP09-062', '1xOP09-062' or, for a few sim clients, '1 OP14-041 Boa Hancock':
+    always reduce them to the bare card code."""
     if not isinstance(x, str) or not x or "obile" in x:
         return None
-    return N.strip_prefix(x)
+    m = LEADER_RE.search(x)
+    return m.group(1).upper() if m else None
 
 
 def day_path(day: str) -> Path:

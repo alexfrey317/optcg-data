@@ -1,11 +1,14 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, type Win } from '../lib/data';
+import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, WEIGHT_PRIOR, MIN_PLAY_RATE, type Win } from '../lib/data';
 interface Props { window: Win }
 const { window: W } = Astro.props;
-const rows = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
-rows.sort((a, b) => (b.s.weighted ?? b.s.winRate ?? 0) - (a.s.weighted ?? a.s.winRate ?? 0));
+const all = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
+all.sort((a, b) => (b.s.weighted ?? b.s.winRate ?? 0) - (a.s.weighted ?? a.s.winRate ?? 0));
+// leaders under MIN_PLAY_RATE of games are listed after the contenders: their win rates are noise at that volume
+const rows = all.filter((r) => (r.s.playRate ?? 0) >= MIN_PLAY_RATE);
+const rare = all.filter((r) => (r.s.playRate ?? 0) < MIN_PLAY_RATE);
 const pilots = new Map<string, number>();
 for (const p of players.slice(0, 1000)) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
 const wm = windowMeta(W);
@@ -18,7 +21,7 @@ if (W === '7d') {
 }
 ---
 <div class="hero"><div style="flex:1"><h1>Leader Rankings</h1>
-  <div class="meta">Standard ranked, {WINDOWS[W].label.toLowerCase()}. <b style="color:var(--text)">{fmt(totalGames, 0)}</b> games played. Sorted by weighted win rate; click any column to re-sort.</div>
+  <div class="meta">Standard ranked, {WINDOWS[W].label.toLowerCase()}. <b style="color:var(--text)">{fmt(totalGames, 0)}</b> games played. Sorted by weighted win rate; click any column to re-sort. Leaders in under {MIN_PLAY_RATE}% of games are listed separately at the bottom.</div>
   <WindowToggle current={W} path="/leaders/" /></div></div>
 <div class="panel scroll">
   <table id="t" class="rank-table">
@@ -27,7 +30,7 @@ if (W === '7d') {
       {W === '7d' && <th class="num hide-m">Δ 1D <Info text="Rank change since yesterday's snapshot." /></th>}
       <th class="hide-m">Card</th>
       <th class="c-leader">Leader</th>
-      <th class="num sortable sorted" data-k="wtd">Wtd WR <Info text="Weighted win rate: raw win rate shrunk toward 50% for leaders with few games, so a leader with 200 games cannot outrank one with 20,000 on a lucky week." /></th>
+      <th class="num sortable sorted" data-k="wtd">Wtd WR <Info text={`Weighted win rate: raw win rate shrunk toward 50% as if the leader had ${fmt(WEIGHT_PRIOR, 0)} extra games at exactly 50%, so a leader with 200 games cannot outrank one with 20,000 on a lucky week. Card Kaizoku shrinks by a similar amount but toward the average leader's win rate (about 36%), which pushes rarely played leaders to the bottom of their table; we list those separately instead.`} /></th>
       <th class="num sortable hide-m" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
       <th class="num sortable" data-k="play">Play Rate <Info text="Share of all ranked games in the window in which this leader appeared." /></th>
       <th class="num sortable" data-k="games">Games</th>
@@ -36,8 +39,9 @@ if (W === '7d') {
       <th class="num sortable" data-k="second">2nd WR <Info text="Win rate when this leader took the second turn." /></th>
       <th class="num sortable hide-m" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
     </tr></thead>
-    <tbody>{rows.map(({ l, s, pilots: up }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); return (
-      <tr data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-pilots={up ?? 0} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
+    <tbody>{[...rows, ...rare].map(({ l, s, pilots: up }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); const isRare = i >= rows.length; return (<>
+      {i === rows.length && <tr class="divider"><td colspan="12"><span>Rarely played</span> <span class="muted small">under {MIN_PLAY_RATE}% of games in the window · win rates here are small samples</span></td></tr>}
+      <tr class:list={{ rare: isRare }} data-rare={isRare ? '1' : '0'} data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-pilots={up ?? 0} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
         <td class="num c-rank"><span class="pill-rank">{i + 1}</span></td>
         {W === '7d' && <td class:list={['num', 'delta', 'hide-m', d == null || d === 0 ? 'dim' : d > 0 ? 'good' : 'bad']}>{d == null || d === 0 ? '—' : d > 0 ? `↑${d}` : `↓${-d}`}</td>}
         <td class="hide-m"><a href={wpath(W, `/leaders/${l.code}/`)} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" onerror={imgOnError(l.code)} /></a></td>
@@ -50,16 +54,21 @@ if (W === '7d') {
         <td class:list={['num', (s.first ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.first)}</td>
         <td class:list={['num', (s.second ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.second)}</td>
         <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>
-      </tr>); })}</tbody>
+      </tr></>); })}</tbody>
   </table>
 </div>
 <script>
-  const tbody = document.querySelector('#t tbody')!; const rows = [...tbody.querySelectorAll('tr')] as HTMLElement[];
+  // contenders and rarely played leaders sort independently; the divider row stays between them and ranks renumber
+  const tbody = document.querySelector('#t tbody')!; const rows = [...tbody.querySelectorAll('tr[data-rare]')] as HTMLElement[];
+  const divider = tbody.querySelector('tr.divider');
   let key = 'wtd', asc = false;
   document.querySelectorAll('th.sortable').forEach((th) => th.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('.info')) return;
     const k = (th as HTMLElement).dataset.k!; if (key === k) asc = !asc; else { key = k; asc = false; }
     document.querySelectorAll('th.sortable').forEach((t) => t.classList.remove('sorted', 'asc')); th.classList.add('sorted'); if (asc) th.classList.add('asc');
-    rows.sort((a, b) => (Number(a.dataset[key]) - Number(b.dataset[key])) * (asc ? 1 : -1)); tbody.append(...rows);
+    rows.sort((a, b) => Number(a.dataset.rare) - Number(b.dataset.rare) || (Number(a.dataset[key]) - Number(b.dataset[key])) * (asc ? 1 : -1));
+    const main = rows.filter((r) => r.dataset.rare === '0'), rare = rows.filter((r) => r.dataset.rare === '1');
+    tbody.append(...main); if (divider) tbody.append(divider); tbody.append(...rare);
+    rows.forEach((r, i) => { const p = r.querySelector('.pill-rank'); if (p) p.textContent = String(i + 1); });
   }));
 </script>
