@@ -123,4 +123,11 @@ const totalMatches = top1000.reduce((n, p) => n + (seasonRecord(p).games || 0), 
   .pager .pg { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; color: var(--text); text-decoration: none; }
   .pager .pg.off { opacity: .35; pointer-events: none; }
   .pager[hidden] { display: none; }
+  @media (max-width: 720px) {
+    .pager { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .6rem; align-items: center; }
+    .pager .pg { width: 100%; }
+    .pager select { grid-column: 1; grid-row: 2; }
+    .pager .small { grid-column: 2; grid-row: 2; text-align: right; }
+    .pager[hidden] { display: none; }
+  }
 </style>
