@@ -87,7 +87,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
     <h1 style="text-align:center;margin-bottom:.5rem">{L.name} <span class="sub">[{L.code}] · {L.color}</span></h1>
     <div style="display:flex;justify-content:center;margin-bottom:1rem"><WindowToggle current={W} path={`/leaders/${L.code}/`} /></div>
     <div class="grid stats three" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="label">Weighted Win Rate <Info text="Conservative win rate: the lowest win rate we can be 99% confident this leader really has, given how many games it played. Small samples lose more." /></div><div class:list={['value', cls(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
+      <div class="stat"><div class="label">Weighted Win Rate <Info text={`Raw win rate shrunk toward the field's average leader win rate (${pct(s.fieldWinRate)}) as if this leader had 2,000 extra games at that average, the same weighting Card Kaizoku uses. Small samples move the most.`} /></div><div class:list={['value', cls(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
       <div class="stat"><div class="label">Play Rate <Info text={`Share of all decks in ranked games over the ${WINDOWS[W].short} window that were this leader. Every game has two decks, so all leaders sum to 100%.`} /></div><div class="value">{pct(s.playRate)}</div></div>
       <div class="stat"><div class="label">Total Games</div><div class="value">{fmt(s.games, 0)}</div></div>
       <div class="stat"><div class="label">1st Win Rate <Info text="Win rate when taking the first turn." /></div><div class:list={['value', cls(s.first)]}>{pct(s.first)}</div></div>

@@ -124,17 +124,9 @@ export const matchup = (a: string, b: string) => {
   return matchupIn(leaders, a, b);
 };
 /** Leader headline numbers from whichever pool has them. */
-/** z for the one-sided 99% lower confidence bound used as the "weighted" win rate. */
-export const WEIGHT_Z = 2.326;
-/** Conservative win rate: the lower end of a 99% confidence interval for the true win rate. A leader with few
- *  games gets a wide interval and drops; one with 50,000 games loses a quarter of a point. Unlike shrinking toward
- *  50%, a 52% leader on 6,000 games can rank below a 51.5% leader on 70,000, which is what a ranking should do. */
-export const conservativeWinRate = (wins: number, games: number) => {
-  if (!games) return null;
-  // Wilson score interval: well behaved for tiny samples (1-0 gives 15.6%, not 100%)
-  const p = wins / games, z2 = WEIGHT_Z * WEIGHT_Z / games;
-  return Math.round(1000 * (p + z2 / 2 - WEIGHT_Z * Math.sqrt(p * (1 - p) / games + z2 / (4 * games))) / (1 + z2)) / 10;
-};
+/** Games in the prior behind the weighted win rate (Card Kaizoku's K). The ingest shrinks each leader's raw rate toward
+ *  the field's unweighted mean leader win rate (sources.ranked.fieldWinRate, ~36%) as if it had WEIGHT_K extra games at that rate. */
+export const WEIGHT_K = 2000;
 /** Leaders below this share of seats are "rarely played": listed separately so a 5-game leader never sits among the real contenders. */
 export const MIN_PLAY_RATE = 0.25;
 export const leaderStats = (l: Leader) => {
@@ -142,13 +134,13 @@ export const leaderStats = (l: Leader) => {
   // games, win rate and play rate come from the complete ranked archive when we have it; 1st/2nd only exist in the sim-wide feed
   const main = r ?? k;
   const games = r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0);
-  // Card Kaizoku shrinks toward the mean leader win rate (~37%) with a ~2,200-game prior; we use a 99% lower confidence bound instead (see conservativeWinRate)
-  const wins = main.wins == null ? null : Number(main.wins);
-  const weighted = wins != null && games ? conservativeWinRate(wins, games) : main.weightedWinRate == null ? null : Number(main.weightedWinRate);
+  // weighted win rate is computed by the ingest per window (Card Kaizoku's scheme, see WEIGHT_K); it needs the whole field's mean
+  const weighted = main.weightedWinRate == null ? null : Number(main.weightedWinRate);
   return {
     games,
     winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
     weighted,
+    fieldWinRate: main.fieldWinRate == null ? null : Number(main.fieldWinRate),
     playRate: main.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(main.playRate),
     first: (r?.firstWinRate ?? k.firstWinRate) == null ? null : Number(r?.firstWinRate ?? k.firstWinRate),
     second: (r?.secondWinRate ?? k.secondWinRate) == null ? null : Number(r?.secondWinRate ?? k.secondWinRate),

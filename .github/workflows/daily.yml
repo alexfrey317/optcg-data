@@ -63,11 +63,19 @@ jobs:
         run: |
           git config user.name "ingest-bot"
           git config user.email "ingest-bot@users.noreply.github.com"
-          git add data
-          git diff --cached --quiet && echo "no changes" && exit 0
-          git commit -m "chore: data snapshot $(date -u +%F)"
-          git pull --rebase -X theirs origin main
-          git push
+          # data/ is a snapshot owned by this job: commit it on top of whatever main is now instead of rebasing, so
+          # files that dropped out of the snapshot (modify/delete) can never conflict with a code push made mid-run
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset -q origin/main
+            git add -A data
+            if git diff --cached --quiet; then echo "no changes"; break; fi
+            git commit -q -m "chore: data snapshot $(date -u +%F)"
+            git push origin HEAD:main && break
+            echo "push rejected, retrying ($attempt)"
+          done
+          # sync the working tree with the committed code so the site builds from current main
+          git checkout -- .
 
       - uses: actions/setup-node@v4
         with:

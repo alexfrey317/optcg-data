@@ -450,6 +450,9 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
 
 
 # ---------------------------------------------------------------- OPBounty published stats windows (complete)
+WEIGHT_K = 2000
+
+
 def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
     """Sum data/stats day files (OPBounty's own complete aggregates) into (leaders, decks_by_leader)
     under source key "ranked": games, wins, first/second win rates, matchups, and every distinct list
@@ -480,12 +483,14 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
     def rate(x, n):
         return round(100 * x / n, 1) if n else None
 
-    def lcb(w, n, z=2.326):
-        """Wilson score lower bound (99%) on the true win rate: shrinks small samples, handles 1-0 records."""
-        if not n:
-            return None
-        p = w / n; z2 = z * z / n
-        return round(100 * (p + z2 / 2 - z * (p * (1 - p) / n + z2 / (4 * n)) ** 0.5) / (1 + z2), 1)
+    # Card Kaizoku's weighting: shrink toward the unweighted mean leader win rate of the field (~36%, dragged down by the
+    # long tail of rarely played leaders) with a WEIGHT_K-game prior. Verified against their table: OP13-001 at 8,940 games,
+    # 51.66% raw -> (0.5166*8940 + 0.363*2000)/10940 = 48.85%.
+    played = [a for a in L.values() if a["g"]]
+    field_mean = sum(a["w"] / a["g"] for a in played) / len(played) if played else 0.5
+
+    def weighted(w, n):
+        return round(100 * (w + field_mean * WEIGHT_K) / (n + WEIGHT_K), 1) if n else None
 
     leaders: dict[str, dict] = {}
     for code, a in L.items():
@@ -498,8 +503,7 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
         leaders[code] = {
             "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"ranked": {"matches": a["g"], "wins": a["w"], "winRate": rate(a["w"], a["g"]),
-                                   # 99% lower confidence bound on the true win rate; the site recomputes this too (conservativeWinRate)
-                                   "weightedWinRate": lcb(a["w"], a["g"]),
+                                   "weightedWinRate": weighted(a["w"], a["g"]), "fieldWinRate": round(100 * field_mean, 1),
                                    # share of seats: every match has two leaders
                                    "playRate": round(50 * a["g"] / total, 2) if total else None,
                                    "firstWinRate": rate(a["fw"], a["fw"] + a["fl"]), "secondWinRate": rate(a["sw"], a["sw"] + a["sl"]),
