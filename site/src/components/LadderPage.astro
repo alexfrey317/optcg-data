@@ -1,0 +1,123 @@
+---
+import LadderTable from './LadderTable.astro';
+import Info from './Info.astro';
+import { players, top1000, leaders, seasonRecord, LADDER_PAGE, fmt, berry, flag } from '../lib/data';
+/** One page of the ranked ladder (200 rows). Page 1 is the home page; pages 2+ live at /ladder/<n>/.
+ *  Search and the country / leader filters cover all players by fetching /ladder/index.json on demand. */
+interface Props { page: number }
+const { page } = Astro.props;
+const pages = Math.ceil(players.length / LADDER_PAGE);
+const rows = players.slice((page - 1) * LADDER_PAGE, page * LADDER_PAGE);
+const first = rows[0]?.rank, last = rows.at(-1)?.rank;
+const href = (p: number) => (p <= 1 ? '/' : `/ladder/${p}/`);
+const countries = [...new Set(players.map((p) => p.country).filter(Boolean))].sort() as string[];
+const leaderCodes = [...new Set(players.flatMap((p) => p.topLeaders.map((t) => t.code)))].sort((a, b) => (leaders[a]?.name ?? a).localeCompare(leaders[b]?.name ?? b));
+const totalMatches = top1000.reduce((n, p) => n + (seasonRecord(p).games || 0), 0);
+---
+<div class="hero">
+  <div>
+    <h1>OPTCG Sim Ranked Ladder{page > 1 && <span class="sub">#{fmt(first, 0)} – #{fmt(last, 0)}</span>}</h1>
+    <div class="meta">Every player OPBounty ranks on the Standard ladder, {fmt(players.length, 0)} in all, {LADDER_PAGE} per page, with the leaders they pilot and the lists winning with those leaders. Search and filters cover the whole ladder. Updated once a day.</div>
+  </div>
+</div>
+
+<div class="grid stats">
+  <div class="stat"><div class="label">Top Bounty <Info text="Bounty is your ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{berry(players[0]?.bounty)}</div></div>
+  <div class="stat"><div class="label">#1,000 Bounty <Info text="The bounty needed to sit in the top 1,000." /></div><div class="value">{berry(top1000.at(-1)?.bounty)}</div></div>
+  <div class="stat"><div class="label">Top-1000 Games <Info text="Sum of season ranked games for the top 1,000 players, from their OPBounty profiles where available." /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
+  <div class="stat"><div class="label">Players Ranked <Info text="How many ladder rows we pull each day. OPBounty ranks about 40,000 accounts; we keep the top 10,000." /></div><div class="value">{fmt(players.length, 0)}</div></div>
+</div>
+
+<div class="toolbar">
+  <input type="search" id="q" placeholder={`Search all ${fmt(players.length, 0)} players…`} autocomplete="off" enterkeyhint="search" />
+  <select id="country" aria-label="Country"><option value="">All countries</option>{countries.map((c) => <option value={c}>{flag(c)} {c}</option>)}</select>
+  <select id="leader" aria-label="Leader"><option value="">Any leader</option>{leaderCodes.map((c) => <option value={c}>{leaders[c]?.name ?? c} ({c})</option>)}</select>
+  <select id="msort" class="m-only" aria-label="Sort by">
+    <option value="rank:1">Sort: Rank</option><option value="bounty:-1">Sort: Bounty</option><option value="matches:-1">Sort: Most games</option><option value="winrate:-1">Sort: Win %</option>
+  </select>
+  <span class="muted" id="count">#{fmt(first, 0)}–#{fmt(last, 0)}</span>
+</div>
+
+<div class="panel scroll">
+  <LadderTable rows={rows} id="ladder" sortable />
+  <p id="empty" class="muted" style="padding:1.25rem;margin:0" hidden>No players match.</p>
+</div>
+
+<nav class="pager" id="pager" aria-label="Ladder pages">
+  <a class:list={['copy', 'pg', { off: page <= 1 }]} href={page > 1 ? href(page - 1) : undefined} aria-disabled={page <= 1}>← Previous</a>
+  <select onchange="location.href=this.value" aria-label="Jump to page">
+    {Array.from({ length: pages }, (_, i) => i + 1).map((p) => <option value={href(p)} selected={p === page}>#{(p - 1) * LADDER_PAGE + 1}–{Math.min(p * LADDER_PAGE, players.length)}</option>)}
+  </select>
+  <span class="muted small">Page {page} of {pages}</span>
+  <a class:list={['copy', 'pg', { off: page >= pages }]} href={page < pages ? href(page + 1) : undefined} aria-disabled={page >= pages}>Next →</a>
+</nav>
+
+<script define:vars={{ LIMIT: LADDER_PAGE }}>
+  const tbody = document.querySelector('#ladder tbody');
+  const pageRows = [...tbody.querySelectorAll('tr')];
+  const q = document.getElementById('q'), count = document.getElementById('count'), pager = document.getElementById('pager'), empty = document.getElementById('empty');
+  const sel = (id) => document.getElementById(id);
+  const baseCount = count.textContent;
+  let sortKey = 'rank', asc = true, index = null, loading = null;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const flag = (country) => (index && index.flags[country]) || '';
+  const fmt = (n) => Number(n).toLocaleString('en-US');
+  const loadIndex = () => loading ??= fetch('/ladder/index.json').then((r) => r.json()).then((d) => (index = d));
+  const active = () => !!(q.value.trim() || sel('country').value || sel('leader').value);
+  const sortRows = (arr, get) => arr.sort((a, b) => (get(a, sortKey) - get(b, sortKey)) * (asc ? 1 : -1));
+
+  // rows built from the index (all players), same cell classes as the server-rendered ones
+  const rowHtml = (r) => {
+    const [rank, id, name, cc, bounty, games, wins, losses, wr, ls] = r;
+    const leaders = ls ? ls.split('|').map((s) => { const [code, lwr, n] = s.split(':'); const L = index.leaders[code] || [code, 'var(--dim)']; return `<a class="leader leader-sm" href="/leaders/${code}/" title="${esc(L[0])} · ${code}" style="--lc:${L[1]}"><span class="leader-frame"><img src="https://static.dotgg.gg/onepiece/card/${code}.webp" alt="${esc(L[0])}" loading="lazy"></span><span class="leader-label"><span class="leader-name">${esc(L[0])}</span><span class="leader-sub">${lwr}% · ${n} games</span></span></a>`; }).join('') : '';
+    return `<tr class="${rank === 1 ? 'top1' : rank <= 3 ? 'top3' : ''}"><td class="num c-rank"><span class="pill-rank">${rank}</span></td>` +
+      `<td class="c-name">${id != null ? `<a href="/players/${id}/" style="font-weight:600;color:var(--text)">${esc(name)}</a>` : `<span style="font-weight:600">${esc(name)}</span>`}${cc ? `<div class="muted small">${flag(cc)} ${esc(cc)}</div>` : ''}</td>` +
+      `<td class="num gold c-bounty" style="font-weight:700;font-size:1.02rem">฿${fmt(bounty)}</td>` +
+      `<td class="num c-games">${games ? `${fmt(games)}<div class="muted small">${wins}–${losses}</div>` : '<span class="dim">–</span>'}</td>` +
+      `<td class="num c-wr ${wr >= 50 ? 'good' : 'bad'}" style="font-weight:600">${games ? `${wr}%` : '<span class="dim">–</span>'}</td>` +
+      `<td class="c-leaders"><div class="leader-row">${leaders}</div></td></tr>`;
+  };
+
+  async function apply() {
+    const term = q.value.trim().toLowerCase(), country = sel('country').value, leader = sel('leader').value;
+    sessionStorage.setItem('ladder-filters', JSON.stringify({ q: q.value, country, leader }));
+    if (!active()) {
+      // plain page: the 200 server-rendered rows, sortable
+      sortRows(pageRows, (r, k) => Number(r.dataset[k]));
+      tbody.replaceChildren(...pageRows); pageRows.forEach((r) => { r.hidden = false; });
+      count.textContent = baseCount; pager.hidden = false; empty.hidden = true;
+      return;
+    }
+    count.textContent = 'Searching…';
+    await loadIndex();
+    const KEY = { rank: 0, bounty: 4, matches: 5, winrate: 8 };
+    const hits = index.rows.filter((r) => (!term || r[2].toLowerCase().includes(term)) && (!country || r[3] === country) && (!leader || r[9].includes(leader + ':')));
+    sortRows(hits, (r, k) => r[KEY[k]]);
+    tbody.innerHTML = hits.slice(0, LIMIT).map(rowHtml).join('');
+    count.textContent = hits.length > LIMIT ? `${fmt(hits.length)} players · first ${LIMIT} shown, narrow the search for more` : `${fmt(hits.length)} ${hits.length === 1 ? 'player' : 'players'}`;
+    pager.hidden = true; empty.hidden = hits.length > 0;
+  }
+  const saved = JSON.parse(sessionStorage.getItem('ladder-filters') || '{}');
+  if (saved.q) q.value = saved.q; if (saved.country) sel('country').value = saved.country; if (saved.leader) sel('leader').value = saved.leader;
+  let t = 0; q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 120); });
+  q.addEventListener('focus', () => { loadIndex(); }, { once: true });
+  for (const id of ['country', 'leader']) sel(id).addEventListener('change', apply);
+  sel('msort').addEventListener('change', () => { const [k, d] = sel('msort').value.split(':'); sortKey = k; asc = d === '1'; apply(); });
+  document.querySelectorAll('th.sortable').forEach((th) => th.addEventListener('click', (e) => {
+    if (e.target.closest('.info')) return;
+    const k = th.dataset.k;
+    if (sortKey === k) asc = !asc; else { sortKey = k; asc = k === 'rank'; }
+    document.querySelectorAll('th.sortable').forEach((x) => x.classList.remove('sorted', 'asc'));
+    th.classList.add('sorted'); if (asc) th.classList.add('asc');
+    apply();
+  }));
+  if (active()) apply();
+</script>
+
+<style>
+  .pager { display: flex; gap: .75rem; align-items: center; margin: 1rem 0; flex-wrap: wrap; }
+  .pager select { flex: 1 1 auto; min-width: 0; }
+  .pager .pg { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; color: var(--text); text-decoration: none; }
+  .pager .pg.off { opacity: .35; pointer-events: none; }
+  .pager[hidden] { display: none; }
+</style>

@@ -1,45 +1,14 @@
 ---
 import Base from '../../layouts/Base.astro';
-import LadderTable from '../../components/LadderTable.astro';
+import LadderPage from '../../components/LadderPage.astro';
 import { players, LADDER_PAGE, fmt } from '../../lib/data';
 
+// page 1 is the home page (see astro.config redirects); pages 2+ are generated here
 export function getStaticPaths() {
   const pages = Math.ceil(players.length / LADDER_PAGE);
-  return Array.from({ length: pages }, (_, i) => ({ params: { page: String(i + 1) } }));
+  return Array.from({ length: pages - 1 }, (_, i) => ({ params: { page: String(i + 2) } }));
 }
 const page = Number(Astro.params.page);
-const pages = Math.ceil(players.length / LADDER_PAGE);
-const rows = players.slice((page - 1) * LADDER_PAGE, page * LADDER_PAGE);
-const first = rows[0]?.rank, last = rows.at(-1)?.rank;
-const href = (p: number) => (p === 1 ? '/ladder/1/' : `/ladder/${p}/`);
+const first = (page - 1) * LADDER_PAGE + 1, last = Math.min(page * LADDER_PAGE, players.length);
 ---
-<Base title={`Ladder #${fmt(first, 0)}–${fmt(last, 0)}`} wide>
-  <p style="margin:0 0 .75rem"><a href="/">← Top 1,000</a></p>
-  <div class="hero">
-    <div>
-      <h1>Full Ranked Ladder <span class="sub">#{fmt(first, 0)} – #{fmt(last, 0)}</span></h1>
-      <div class="meta">Every player OPBounty ranks, {LADDER_PAGE} per page, {fmt(players.length, 0)} in total. Records are season totals from each player's OPBounty profile where available.</div>
-    </div>
-  </div>
-  <nav class="pager" aria-label="Ladder pages">
-    <a class:list={['copy', 'pg', { off: page <= 1 }]} href={page > 1 ? href(page - 1) : undefined} aria-disabled={page <= 1}>← Previous</a>
-    <select onchange="location.href=this.value" aria-label="Jump to page">
-      {Array.from({ length: pages }, (_, i) => i + 1).map((p) => <option value={href(p)} selected={p === page}>#{(p - 1) * LADDER_PAGE + 1}–{Math.min(p * LADDER_PAGE, players.length)}</option>)}
-    </select>
-    <a class:list={['copy', 'pg', { off: page >= pages }]} href={page < pages ? href(page + 1) : undefined} aria-disabled={page >= pages}>Next →</a>
-  </nav>
-  <div class="panel scroll">
-    <LadderTable rows={rows} />
-  </div>
-  <nav class="pager" aria-label="Ladder pages">
-    <a class:list={['copy', 'pg', { off: page <= 1 }]} href={page > 1 ? href(page - 1) : undefined} aria-disabled={page <= 1}>← Previous</a>
-    <span class="muted">Page {page} of {pages}</span>
-    <a class:list={['copy', 'pg', { off: page >= pages }]} href={page < pages ? href(page + 1) : undefined} aria-disabled={page >= pages}>Next →</a>
-  </nav>
-  <style>
-    .pager { display: flex; gap: .75rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
-    .pager select { flex: 1 1 auto; min-width: 0; }
-    .pager .pg { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; color: var(--text); text-decoration: none; }
-    .pager .pg.off { opacity: .35; pointer-events: none; }
-  </style>
-</Base>
+<Base title={`Ladder #${fmt(first, 0)}–${fmt(last, 0)}`} wide><LadderPage page={page} /></Base>
