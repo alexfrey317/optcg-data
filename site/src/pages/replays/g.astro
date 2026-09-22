@@ -37,7 +37,14 @@ import { IMG_BASE } from '../../lib/data';
     document.title = `${lname(P[1].leader)} vs ${lname(P[2].leader)} · ${G.date} · OPTCG Data`;
 
     // narrative step indices: the user moves between these; moves and snapshots in between are applied silently
-    const events = G.steps.map((s, i) => (s[0] === 'e' ? i : -1)).filter((i) => i >= 0);
+    // narrative steps; the opening hands (both players' first draws, mulligans and life placement) collapse into one step
+    const allEvents = G.steps.map((s, i) => (s[0] === 'e' ? i : -1)).filter((i) => i >= 0);
+    const SETUP = new Set(['draw', 'mull', 'info']);
+    let setupEnd = allEvents.findIndex((si) => !SETUP.has((G.steps[si] as Extract<Step, { 0: 'e' }>)[2]));
+    if (setupEnd < 0) setupEnd = allEvents.length;
+    const label: Record<number, string> = {};
+    const events = setupEnd > 1 ? [allEvents[setupEnd - 1], ...allEvents.slice(setupEnd)] : allEvents;
+    if (setupEnd > 1) label[allEvents[setupEnd - 1]] = 'Opening hands drawn, life set';
     const turnStarts: number[] = [0]; // event index where each turn begins
     events.forEach((si, ei) => { const s = G.steps[si]; if (s[0] === 'e' && s[2] === 'end' && ei + 1 < events.length) turnStarts.push(ei + 1); });
     const KIND_LABEL: Record<string, string> = { draw: 'Draw', don: 'DON', deploy: 'Play', attack: 'Attack', combat: 'Battle', hit: 'Damage', fail: 'Blocked', block: 'Blocker', counter: 'Counter', trash: 'Trash', mull: 'Mulligan', effect: 'Effect', end: 'End turn', concede: 'Concede', info: '' };
@@ -78,12 +85,15 @@ import { IMG_BASE } from '../../lib/data';
       if (kind === 'hit' || kind === 'fail') hl.done = true;
       if (!seat) return;
       const s = S[seat];
-      if (kind === 'attack') { const ids = [...text.matchAll(CARD)].map((m) => m[1]); const atk = ids[0], tgt = ids[1];
-        if (atk === P[seat].leader) s.leaderRested = true; else { const c = s.chars.find((c) => c.id === atk && !c.rested) ?? s.chars.find((c) => c.id === atk); if (c) c.rested = true; }
+      // leaders may be alt-art prints whose id differs from the archive's, so anything that is not a character on board is the leader
+      const isChar = (side: Side, cid: string) => side.chars.some((c) => c.id === cid);
+      if (kind === 'attack') { const ids = [...text.matchAll(CARD)].map((m) => m[1]); let atk = ids[0], tgt = ids[1]; const o = S[3 - seat];
+        if (!isChar(s, atk)) { atk = P[seat].leader; s.leaderRested = true; } else { const c = s.chars.find((c) => c.id === atk && !c.rested) ?? s.chars.find((c) => c.id === atk); if (c) c.rested = true; }
+        if (tgt && !isChar(o, tgt)) tgt = P[3 - seat].leader;
         hl = { atk, tgt, seat }; return; }
       const a = ATTACH.exec(text);
       if (a) { const n = Number(a[1]), total = a[4] ? Number(a[4]) : null, tid = a[3];
-        if (tid === P[seat].leader) s.leaderDon = total ?? s.leaderDon + n; else { const c = s.chars.find((c) => c.id === tid); if (c) c.don = total ?? c.don + n; } }
+        const c = s.chars.find((c) => c.id === tid); if (c) c.don = total ?? c.don + n; else s.leaderDon = total ?? s.leaderDon + n; }
       if (kind === 'end') { active = 3 - seat; turn++; const n = S[active]; n.chars.forEach((c) => { c.rested = false; c.don = 0; }); n.leaderRested = false; n.leaderDon = 0; n.donRested = 0; }
     };
     const rebuild = (toEvent: number) => {
@@ -95,24 +105,30 @@ import { IMG_BASE } from '../../lib/data';
 
     // ---- rendering: a play mat like the sim's, mirrored for the top player (their character area faces yours)
     let flip = false, showHands = true, peek: { seat: number; zone: 'deck' | 'trash' | 'life' | 'hand' } | null = null;
-    const card = (cid: string, cls = '', badge = '', extra = '') => cid === '?' ? `<span class="cd back ${cls}"><i>?</i></span>` : `<span class="cd ${cls}" ${extra} title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy">${badge}</span>`;
-    const donBadge = (n: number) => n ? `<b class="don">+${n}</b>` : '';
+    // attached DON are drawn like the sim: DON cards tucked behind the card, each peeking out below with its +1000
+    const card = (cid: string, cls = '', badge = '', extra = '') => {
+      if (cid === '?') return `<span class="cd back ${cls}"><i>?</i></span>`;
+      const inner = `<span class="cd ${cls}" ${extra} title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy">${badge.startsWith('<b') ? badge : ''}</span>`;
+      // the wrapper carries the rested rotation so attached DON turn sideways with their card, as in the sim
+      return badge.startsWith('<span class="atts"') ? `<span class="cwrap${/\brested\b/.test(cls) ? ' rested' : ''}">${badge}${inner}</span>` : inner;
+    };
+    const donBadge = (n: number) => n ? `<span class="atts" title="${n} DON attached (+${n}000 power)">${Array.from({ length: n }, (_, k) => `<span class="att" style="--k:${k}"><i>+1000</i></span>`).join('')}</span>` : '';
     const rich = (text: string) => esc(text).replace(CARD, (_m, cid: string) => `<span class="ct" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${cid}" loading="lazy"></span>`);
     const back = (cls = '', inner = '') => `<span class="cd back ${cls}">${inner}</span>`;
     const halfHtml = (seat: number, top: boolean) => {
       const s = S[seat], p = P[seat], isActive = active === seat;
       const hlCls = (cid: string) => `${hl.atk === cid && hl.seat === seat ? ' atk' : ''}${hl.tgt === cid && hl.seat !== seat ? ' tgt' : ''}`;
-      const chars = s.chars.map((c, i) => card(c.id, `char${c.rested ? ' rested' : ''}${hlCls(c.id)}`, donBadge(c.don), `data-card="${c.id}" data-seat="${seat}" data-i="${i}"`)).join('');
+      const chars = s.chars.map((c, i) => `<span class="cslot">${card(c.id, `char${c.rested ? ' rested' : ''}${hlCls(c.id)}`, donBadge(c.don), `data-card="${c.id}" data-seat="${seat}" data-i="${i}"`)}</span>`).join('') + Array.from({ length: Math.max(0, 5 - s.chars.length) }, () => '<span class="cslot"><span class="slot"></span></span>').join('');
       const leader = card(p.leader, `leader${s.leaderRested ? ' rested' : ''}${hlCls(p.leader)}`, donBadge(s.leaderDon), `data-card="${p.leader}" data-seat="${seat}"`);
       const stage = s.stage ? card(s.stage, 'stage') : `<span class="slot stage-slot"><i>Stage</i></span>`;
       const donActive = Math.max(0, s.donArea - s.donRested);
-      const tokens = Array.from({ length: s.donArea }, (_, i) => `<span class="tok${i >= donActive ? ' rested' : ''}"><i>DON!!</i></span>`).join('');
-      const life = `<button type="button" class="pile life" data-peek="life" data-seat="${seat}" title="Life · face down in the real game"><span class="stack">${Array.from({ length: Math.min(s.life.length, 6) }, (_, i) => `<span class="lc" style="--i:${i}"></span>`).join('')}</span><b>${s.life.length}</b><span class="pl">Life</span></button>`;
-      const deck = `<button type="button" class="pile deck" data-peek="deck" data-seat="${seat}" title="Deck"><span class="cd back"><i>${s.deck}</i></span><span class="pl">Deck</span></button>`;
+      const tokens = Array.from({ length: s.donArea }, (_, i) => `<span class="tok${i >= donActive ? ' rested' : ''}"></span>`).join('');
+      const life = `<button type="button" class="pile life" data-peek="life" data-seat="${seat}" title="Life · face down in the real game"><span class="stack">${Array.from({ length: Math.min(s.life.length, 6) }, (_, i) => `<span class="lc" style="--i:${i}"></span>`).join('') || '<span class="lc empty-life"></span>'}</span><b>${s.life.length}</b><span class="pl">Life</span></button>`;
+      const deck = `<button type="button" class="pile deck" data-peek="deck" data-seat="${seat}" title="Deck"><span class="cd back"></span><b>${s.deck}</b><span class="pl">Deck</span></button>`;
       const trash = `<button type="button" class="pile trash" data-peek="trash" data-seat="${seat}" title="Trash">${s.trash.length ? card(s.trash[s.trash.length - 1], 'trash-top') : '<span class="cd slot"></span>'}<b>${s.trash.length}</b><span class="pl">Trash</span></button>`;
-      const donDeck = `<span class="pile dondeck" title="DON deck"><span class="cd back don"><i>${s.donDeck}</i></span><span class="pl">DON</span></span>`;
+      const donDeck = `<span class="pile dondeck" title="DON deck"><span class="cd back don"></span><b>${s.donDeck}</b><span class="pl">DON</span></span>`;
       const cost = `<div class="area cost"><span class="al">Cost · ${donActive} active${s.donRested ? ` · ${s.donRested} rested` : ''}${s.donAtt ? ` · ${s.donAtt} attached` : ''}</span><div class="toks">${tokens || '<span class="dim small">no DON yet</span>'}</div></div>`;
-      const charArea = `<div class="area chars"><span class="al">Character area</span><div class="cards">${chars || '<span class="dim small empty">empty</span>'}</div></div>`;
+      const charArea = `<div class="area chars"><span class="al">Character area</span><div class="cards">${chars}</div></div>`;
       const mid = `<div class="mid">${life}${donDeck}${cost}<div class="center">${leader}${stage}</div>${deck}${trash}</div>`;
       const label = `<div class="who" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span>${isActive ? '<span class="turnpill">Active</span>' : ''}</div>`;
       return `<section class="half${top ? ' top' : ' bottom'}${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}">${top ? label + mid + charArea : charArea + mid + label}</section>`;
@@ -125,9 +141,9 @@ import { IMG_BASE } from '../../lib/data';
     const logHtml = () => {
       const from = Math.max(0, cur - 9);
       return `<div class="log" id="log">${events.slice(from, cur + 1).map((si, k) => { const e = G.steps[si] as Extract<Step, { 0: 'e' }>; const isCur = from + k === cur; const seat = e[1];
-        return `<div class="lg k-${e[2]}${isCur ? ' cur' : ''}"${seat ? ` style="--lc:${lcolor(P[seat].leader)}"` : ''}>${seat ? `<span class="rg-seat">P${seat}</span>` : '<span class="rg-seat none"></span>'}<span class="tx">${rich(e[3])}</span></div>`; }).join('')}</div>`;
+        return `<div class="lg k-${label[si] ? 'setup' : e[2]}${isCur ? ' cur' : ''}"${seat && !label[si] ? ` style="--lc:${lcolor(P[seat].leader)}"` : ''}>${seat && !label[si] ? `<span class="rg-seat">P${seat}</span>` : '<span class="rg-seat none"></span>'}<span class="tx">${label[si] ? esc(label[si]) : rich(e[3])}</span></div>`; }).join('')}</div>`;
     };
-    const phaseOf = () => { const e = G.steps[events[cur]] as Extract<Step, { 0: 'e' }>; return KIND_LABEL[e[2]] || 'Turn'; };
+    const phaseOf = () => { if (label[events[cur]]) return 'Setup'; const e = G.steps[events[cur]] as Extract<Step, { 0: 'e' }>; return KIND_LABEL[e[2]] || 'Turn'; };
     const peekHtml = () => {
       if (!peek) return '';
       const s = S[peek.seat], p = P[peek.seat];
