@@ -382,8 +382,14 @@
 "via": "handle"
 },
 "105694": {
-"checked": "2026-09-21",
-"name": "Felix Magath"
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "Machimo​#2073",
+"kzId": "4F6hyo73wyAb2UWk6jbR4mNsyTAY",
+"name": "Felix Magath",
+"score": 100,
+"simHandle": "Machimo#2073",
+"via": "handle"
 },
 "10576": {
 "candidates": 1,
@@ -1185,12 +1191,14 @@
 "via": "handle"
 },
 "11808": {
-"candidates": 26,
-"checked": "2026-09-21",
-"handle": "TARO​#89436",
-"kzId": "Z2nJCZDv9wMgkdFtD3aFY04BmALb",
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "tato​#4412",
+"kzId": "rPjvBs8TOpYuuFcCski9K3WOHNvh",
 "name": "goku#bzz",
-"score": 107
+"score": 100,
+"simHandle": "tato#4412",
+"via": "handle"
 },
 "118588": {
 "candidates": 1,
@@ -1251,8 +1259,14 @@
 "via": "handle"
 },
 "119400": {
-"checked": "2026-09-21",
-"name": "Yugi467"
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "Sawyer​#5463",
+"kzId": "RQTkw3LBMstY5oR6pRtVIbRKBxcW",
+"name": "Yugi467",
+"score": 100,
+"simHandle": "Sawyer#5463",
+"via": "handle"
 },
 "11996": {
 "candidates": 1,
@@ -3232,11 +3246,13 @@
 },
 "20403": {
 "candidates": 1,
-"checked": "2026-09-21",
+"checked": "2026-09-22",
 "handle": "Vrasidas​#1346",
 "kzId": "c2dsP7SXT3SNStYDuihH3cIt8n8Z",
 "name": "Vrasi.d.as",
-"score": 0
+"score": 100,
+"simHandle": "Vrasidas#1346",
+"via": "handle"
 },
 "20447": {
 "candidates": 1,
@@ -3440,12 +3456,12 @@
 },
 "22274": {
 "candidates": 1,
-"checked": "2026-09-21",
-"handle": "secret​#7183",
-"kzId": "mdp4vLBipBq9hMPDUWDaI0pbDGwe",
+"checked": "2026-09-22",
+"handle": "eddie​#9664",
+"kzId": "UsHIWL8DaIj0IFQXmTR3rexbAUmP",
 "name": "secret",
 "score": 100,
-"simHandle": "secret#7183",
+"simHandle": "eddie#9664",
 "via": "handle"
 },
 "22779": {
@@ -3824,8 +3840,14 @@
 "via": "handle"
 },
 "27245": {
-"checked": "2026-09-21",
-"name": "dlwlwil"
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "WS02​#4589",
+"kzId": "IgdALBQmH2cCm5yGBgOfisppLyPe",
+"name": "dlwlwil",
+"score": 100,
+"simHandle": "WS02#4589",
+"via": "handle"
 },
 "27278": {
 "checked": "2026-09-21",
@@ -4156,12 +4178,12 @@
 },
 "31734": {
 "candidates": 1,
-"checked": "2026-09-21",
-"handle": "Acyet​#2574",
-"kzId": "eW8k3hYZTNnNrSWCc6yiOza0pfF0",
+"checked": "2026-09-22",
+"handle": "nazonazo​#2525",
+"kzId": "5jIn2jY4veHQ1FgaFAt1UInAjmsj",
 "name": "acyet",
 "score": 100,
-"simHandle": "Acyet#2574",
+"simHandle": "nazonazo#2525",
 "via": "handle"
 },
 "31770": {
@@ -4312,8 +4334,14 @@
 "via": "handle"
 },
 "33748": {
-"checked": "2026-09-21",
-"name": "bblova"
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "user192​#3393",
+"kzId": "z1dZh3O88aK6w3drwWnSVej0VVTP",
+"name": "bblova",
+"score": 100,
+"simHandle": "user192#3393",
+"via": "handle"
 },
 "33811": {
 "candidates": 1,
@@ -6078,12 +6106,14 @@
 "via": "handle"
 },
 "6257": {
-"candidates": 3,
+"candidates": 1,
 "checked": "2026-09-22",
 "handle": "Lukas123​#4178",
 "kzId": "4pQDOBpI6Mwjg2IWmZYxJe2MXMRB",
 "name": "lukas123",
-"score": 14
+"score": 100,
+"simHandle": "Lukas123#4178",
+"via": "handle"
 },
 "62836": {
 "candidates": 1,
@@ -6500,8 +6530,14 @@
 "via": "handle"
 },
 "69725": {
-"checked": "2026-09-21",
-"name": "ShibaShiba"
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "Shiba​#9095",
+"kzId": "OSM2zbeOR7asCdU3Y1Dna6pLhNaK",
+"name": "ShibaShiba",
+"score": 100,
+"simHandle": "Shiba#9095",
+"via": "handle"
 },
 "69927": {
 "candidates": 1,
@@ -7573,8 +7609,14 @@
 "via": "handle"
 },
 "8807": {
-"checked": "2026-09-21",
-"name": "WaterPanda"
+"candidates": 1,
+"checked": "2026-09-22",
+"handle": "ok3333​#7110",
+"kzId": "GEviWDqU7nRcbDzeQ7tpOlBo8oRt",
+"name": "WaterPanda",
+"score": 100,
+"simHandle": "ok3333#7110",
+"via": "handle"
 },
 "8811": {
 "candidates": 1,
@@ -8144,12 +8186,12 @@
 },
 "99161": {
 "candidates": 1,
-"checked": "2026-09-21",
-"handle": "teranon​#84455",
-"kzId": "K1slKUDi9FjPMuuTmrHYdFQklrNy",
+"checked": "2026-09-22",
+"handle": "PVTCG​#2222",
+"kzId": "3VUfDzf1jGs9E5NmZdPYLWcEFBny",
 "name": "PV TCG",
 "score": 100,
-"simHandle": "teranon#84455",
+"simHandle": "PVTCG#2222",
 "via": "handle"
 },
 "99336": {
