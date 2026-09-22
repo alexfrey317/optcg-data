@@ -219,6 +219,7 @@ def build_cards(code: str, kz: dict) -> dict:
                 "id": c.get("card"), "games": c.get("games"), "usage": pct(c.get("usage_rate")),
                 "winRate": pct(c.get("win_rate")), "winRateVsLeader": pct(c.get("win_rate_vs_leader"), 2),
                 "avgCopies": round(c.get("avg_copies_when_included") or 0, 2),
+                "pilots": c.get("unique_pilots"), "lists": c.get("unique_decklists"),
                 "firstWinRate": pct(c.get("first_win_rate")), "secondWinRate": pct(c.get("second_win_rate")),
                 "quantities": [{"qty": q.get("quantity"), "games": q.get("games"), "winRate": pct(q.get("win_rate"))}
                                for q in (c.get("quantities") or [])],
@@ -535,24 +536,98 @@ def build_stats_cards(days: list[dict], code: str) -> dict | None:
     if not lg or not acc:
         return None
     by_card: dict[str, dict] = {}
-    for key, (g, w, *_rest) in acc.items():
+    for key, (g, w, kf, ks, whf, lhf, whs, lhs) in acc.items():
         m = CARD_RE.match(key)
         if not m or not g:
             continue
         qty, cid = int(m.group(1)), m.group(2).upper()
-        c = by_card.setdefault(cid, {"g": 0, "w": 0, "copies": 0, "q": []})
+        c = by_card.setdefault(cid, {"g": 0, "w": 0, "copies": 0, "q": [], "hand": 0, "hw": 0, "hl": 0})
         c["g"] += g; c["w"] += w; c["copies"] += qty * g
+        c["hand"] += kf + ks; c["hw"] += whf + whs; c["hl"] += lhf + lhs
         c["q"].append({"qty": qty, "games": g, "winRate": round(100 * w / g, 1)})
     leader_wr = 100 * lw / lg
     cards = []
     for cid, c in by_card.items():
         wr = 100 * c["w"] / c["g"]
+        hg = c["hw"] + c["hl"]
         cards.append({"id": cid, "games": c["g"], "usage": round(100 * c["g"] / lg, 1), "winRate": round(wr, 1),
                       "winRateVsLeader": round(wr - leader_wr, 2), "avgCopies": round(c["copies"] / c["g"], 2),
-                      "firstWinRate": None, "secondWinRate": None, "quantities": sorted(c["q"], key=lambda q: q["qty"])})
+                      "firstWinRate": None, "secondWinRate": None, "quantities": sorted(c["q"], key=lambda q: q["qty"]),
+                      # opening hand: share of the card's games where it was in the kept opening hand, and the win rate of those games
+                      "handRate": round(100 * c["hand"] / c["g"], 1) if c["hand"] else None,
+                      "handWinRate": round(100 * c["hw"] / hg, 1) if hg else None, "handGames": hg})
     cards.sort(key=lambda c: -c["games"])
     return {"leader": code, "cards": cards, "openingHand": [], "tech": {},
             "leaderStats": {"games": lg, "winRate": round(leader_wr, 1), "uniqueDecklists": len(lists), "uniquePilots": None}}
+
+
+def build_trends(days: list[dict]) -> dict[str, list]:
+    """Per leader, one point per day from the published stats: [date, games, winRate, playRate]."""
+    out: dict[str, list] = defaultdict(list)
+    for day in days:
+        total = int(day.get("matches") or 0)
+        g = defaultdict(int); w = defaultdict(int)
+        for B in (day.get("brackets") or {}).values():
+            for code, s in (B.get("leaders") or {}).items():
+                g[code] += int(s.get("g") or 0); w[code] += int(s.get("w") or 0)
+        for code in g:
+            if g[code]:
+                out[code].append([day.get("date"), g[code], round(100 * w[code] / g[code], 1), round(100 * g[code] / total, 2) if total else None])
+    return out
+
+
+def build_mirrors(days: list[dict], min_edge: int = 10) -> dict[str, dict]:
+    """Mirror-match card impact from the replay archive, for every leader in one pass.
+
+    For each mirror game with both lists known, a card that only one side runs decides an "edge" game:
+    edgeWinRate is how often the side with the card won those.  usage is the share of mirror lists
+    running the card.  The archive is a ~47% sample of ranked games; games/withDecks say how many."""
+    text: dict[str, str] = {}
+    for day in days:
+        text.update(day.get("decks") or {})
+    parsed: dict[str, dict[str, int]] = {}
+
+    def deck(h):
+        if h not in parsed:
+            t = text.get(h)
+            parsed[h] = {c["id"]: c["qty"] for c in parse_deck(t)} if t else {}
+        return parsed[h]
+
+    games = defaultdict(int); both = defaultdict(int)
+    run = defaultdict(lambda: defaultdict(int))                  # code -> card -> sides running it
+    edge = defaultdict(lambda: defaultdict(lambda: [0, 0]))      # code -> card -> [edge games, wins with card]
+    for day in days:
+        for m in day.get("matches") or []:
+            W, L = m["w"], m["l"]
+            code = W.get("l")
+            if not code or L.get("l") != code:
+                continue
+            games[code] += 1
+            cw, cl = (deck(W["d"]) if W.get("d") else {}), (deck(L["d"]) if L.get("d") else {})
+            if not cw or not cl:
+                continue
+            both[code] += 1
+            for cid in set(cw) | set(cl):
+                if cid in cw:
+                    run[code][cid] += 1
+                if cid in cl:
+                    run[code][cid] += 1
+                if (cid in cw) != (cid in cl):
+                    e = edge[code][cid]
+                    e[0] += 1; e[1] += cid in cw
+    out = {}
+    for code in games:
+        cards = []
+        n = both[code]
+        for cid, e in edge[code].items():
+            if e[0] < min_edge:
+                continue
+            wr = 100 * e[1] / e[0]
+            cards.append({"id": cid, "usage": round(100 * run[code][cid] / (2 * n), 1) if n else None,
+                          "edgeGames": e[0], "edgeWinRate": round(wr, 1), "lift": round(wr - 50, 1)})
+        cards.sort(key=lambda c: -c["lift"])
+        out[code] = {"games": games[code], "withDecks": n, "cards": cards}
+    return out
 
 
 def merge_stats_archive(st_leaders: dict, ar_leaders: dict, st_decks: dict, ar_decks: dict) -> tuple[dict, dict]:

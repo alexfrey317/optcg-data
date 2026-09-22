@@ -20,18 +20,32 @@ export interface Leader {
   code: string; name: string; color: string | null; img: string | null;
   sources: Record<string, SourceStats>; matchups: Record<string, Record<string, SourceStats>>;
   deckCount: number; cardCount: number;
+  /** one point per day in the window: [date, games, winRate, playRate] */
+  trend?: [string, number, number, number | null][];
 }
 export interface Deck { hash: string; cards: { id: string; qty: number }[]; size: number; sources: Record<string, SourceStats> }
 export interface DeckFile { leader: string; decks: Deck[]; topPilots: { name: string; rank?: number; wins: number; games: number; winRate: number | null; handle?: string; bounty?: number; ladderId?: string | null }[] }
 export interface CardStat {
   id: string; games: number; usage: number; winRate: number; winRateVsLeader: number; avgCopies: number;
   firstWinRate: number | null; secondWinRate: number | null; quantities: { qty: number; games: number; winRate: number }[];
+  /** opening hand (published stats): share of the card's games where it was in the kept hand, and those games' win rate */
+  handRate?: number | null; handWinRate?: number | null; handGames?: number;
+  /** distinct sim accounts running the card last week (Card Kaizoku, sim-wide) */
+  pilots?: number | null; lists?: number | null;
 }
+export interface MirrorCard { id: string; usage: number | null; edgeGames: number; edgeWinRate: number; lift: number }
 export interface CardFile {
   leader: string; cards: CardStat[]; openingHand: { id: string; rate: number }[];
   tech: Record<string, { id: string; lift: number; winRateWith: number; winRateWithout: number; gamesWith: number }[]>;
-  leaderStats?: { games: number; winRate: number; uniqueDecklists: number; uniquePilots: number };
+  leaderStats?: { games: number; winRate: number; uniqueDecklists: number; uniquePilots: number | null; weeklyLists?: number | null };
+  /** mirror-match card impact from the replay archive (sample), see ingest.normalize.build_mirrors */
+  mirror?: { games: number; withDecks: number; archiveDays: number; cards: MirrorCard[] };
 }
+/** Card Kaizoku weekly curve analysis: most common plays per turn, going first / second, overall and per opponent. */
+export interface CurvePlay { c: string; n: number; r: number }
+export interface CurveTurn { t: number; n: number; top: CurvePlay[]; vs: Record<string, CurvePlay[]> }
+export interface CurveFile { leader: string; date: string; first: CurveTurn[]; second: CurveTurn[] }
+export const curveFile = (code: string) => readJson<CurveFile | null>(join(LATEST, 'curves', `${code}.json`), null);
 export interface Card { name: string; type: string; cost: string; color: string; power: string; counter: string; rarity: string; img: string; set: string }
 export interface Meta { generatedAt: string; date: string; status: Record<string, string>; players: number; leaders: number; sources: { name: string; url: string; support?: string }[]; [k: string]: unknown }
 
@@ -158,10 +172,12 @@ const COUNTRY_CODES: Record<string, string> = {
 };
 
 /* ---------------------------------------------------------------- time windows */
-export type Win = '7d' | '30d';
+export type Win = '1d' | '7d' | '30d' | '90d';
 export const WINDOWS: Record<Win, { label: string; short: string; base: string }> = {
+  '1d': { label: 'Yesterday', short: 'yesterday', base: '/1d' },
   '7d': { label: 'Last 7 Days', short: '7 days', base: '' },
   '30d': { label: 'Last 30 Days', short: '30 days', base: '/30d' },
+  '90d': { label: 'Last 90 Days', short: '90 days', base: '/90d' },
 };
 export const WINDOW_KEYS = Object.keys(WINDOWS) as Win[];
 const WDIR = join(ROOT, 'windows');
@@ -232,7 +248,9 @@ export const parseCompactDeck =(txt: string) => txt.split(/\s+/).filter(Boolean)
 export const matchupIn = (ls: Record<string, Leader>, a: string, b: string) => {
   const m = ls[a]?.matchups?.[b];
   const s = m?.ranked ?? m?.kaizoku ?? m?.opbounty, k = m?.kaizoku;
-  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: k?.firstWinRate == null ? null : Number(k.firstWinRate), second: k?.secondWinRate == null ? null : Number(k.secondWinRate) } : null;
+  const first = s?.firstWinRate ?? k?.firstWinRate, second = s?.secondWinRate ?? k?.secondWinRate;
+  return s ? { games: Number(s.games ?? 0), winRate: s.winRate == null ? null : Number(s.winRate), first: first == null ? null : Number(first), second: second == null ? null : Number(second),
+    firstGames: s.firstGames == null ? null : Number(s.firstGames), secondGames: s.secondGames == null ? null : Number(s.secondGames) } : null;
 };
 /** Route prefix for a window: '' for the default 7-day view, '/30d' otherwise. */
 export const wpath = (w: Win, path: string) => `${WINDOWS[w].base}${path}`;

@@ -1,10 +1,10 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, WINDOWS, type Win } from '../lib/data';
+import { leadersByVolumeFor, fmt, pct, players, leaderStats, imgUrl, imgOnError, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, type Win } from '../lib/data';
 interface Props { window: Win }
 const { window: W } = Astro.props;
-const rows = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l) }));
+const rows = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
 rows.sort((a, b) => (b.s.weighted ?? b.s.winRate ?? 0) - (a.s.weighted ?? a.s.winRate ?? 0));
 const pilots = new Map<string, number>();
 for (const p of players.slice(0, 1000)) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
@@ -31,12 +31,13 @@ if (W === '7d') {
       <th class="num sortable hide-m" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
       <th class="num sortable" data-k="play">Play Rate <Info text="Share of all ranked games in the window in which this leader appeared." /></th>
       <th class="num sortable" data-k="games">Games</th>
+      <th class="num sortable hide-m" data-k="pilots">Pilots <Info text="Distinct sim accounts that played this leader last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></th>
       <th class="num sortable" data-k="first">1st WR <Info text="Win rate when this leader took the first turn." /></th>
       <th class="num sortable" data-k="second">2nd WR <Info text="Win rate when this leader took the second turn." /></th>
       <th class="num sortable hide-m" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
     </tr></thead>
-    <tbody>{rows.map(({ l, s }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); return (
-      <tr data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
+    <tbody>{rows.map(({ l, s, pilots: up }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); return (
+      <tr data-wtd={s.weighted ?? 0} data-wr={s.winRate ?? 0} data-play={s.playRate ?? 0} data-games={s.games} data-pilots={up ?? 0} data-first={s.first ?? 0} data-second={s.second ?? 0} data-top={pilots.get(l.code) ?? 0}>
         <td class="num c-rank"><span class="pill-rank">{i + 1}</span></td>
         {W === '7d' && <td class:list={['num', 'delta', 'hide-m', d == null || d === 0 ? 'dim' : d > 0 ? 'good' : 'bad']}>{d == null || d === 0 ? '—' : d > 0 ? `↑${d}` : `↓${-d}`}</td>}
         <td class="hide-m"><a href={wpath(W, `/leaders/${l.code}/`)} class="art-wide" style={`--lc:${colorVar(l.color)}`}><img src={imgUrl(l.code)} alt="" loading="lazy" onerror={imgOnError(l.code)} /></a></td>
@@ -45,6 +46,7 @@ if (W === '7d') {
         <td class:list={['num', 'hide-m', (s.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.winRate)}</td>
         <td class="num">{pct(s.playRate)}</td>
         <td class="num muted">{fmt(s.games, 0)}</td>
+        <td class="num muted hide-m">{up == null ? '–' : fmt(up, 0)}</td>
         <td class:list={['num', (s.first ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.first)}</td>
         <td class:list={['num', (s.second ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.second)}</td>
         <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>

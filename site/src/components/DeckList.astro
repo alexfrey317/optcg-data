@@ -1,9 +1,10 @@
 ---
 import Info from './Info.astro';
 /** Wraps a list of <DeckCard>s; shows the first `limit`, the rest behind a "Show more" button.
- *  With `sortable`, adds a sort bar (client-side reorder + renumber, handled in Base.astro). */
-interface Props { limit?: number; total: number; noun?: string; sortable?: boolean }
-const { limit = 5, total, noun = 'lists', sortable = false } = Astro.props;
+ *  With `sortable`, adds a sort bar (client-side reorder + renumber, handled in Base.astro).
+ *  With `filterable`, adds a card filter (select + active chip); rows elsewhere with data-filter-card drive it too. */
+interface Props { limit?: number; total: number; noun?: string; sortable?: boolean; filterable?: boolean; filterCards?: { id: string; name: string }[] }
+const { limit = 5, total, noun = 'lists', sortable = false, filterable = false, filterCards = [] } = Astro.props;
 const SORTS: [string, string, string][] = [
   ['score', 'Most Successful', 'Win rate corrected for sample size: each list is treated as if it had 25 extra games at exactly 50%, then re-ranked. A 3-0 list lands near 55%, while 58% over 200 games stays near 57%, so proven lists rank above lucky ones. The correction fades once a list has a few hundred games.'],
   ['games', 'Most Played', 'Total ranked games played with this exact 50-card list, added up across everyone who ran it.'],
@@ -11,8 +12,12 @@ const SORTS: [string, string, string][] = [
   ['pilots', 'Pilots', 'How many different players ran the list. One player grinding 100 games is 1 pilot; twenty players trying it five times each is 20 pilots. This count is only published for a handful of lists per leader, so lists without it sort last.'],
 ];
 ---
-<div class="decklist" data-limit={limit} data-noun={noun}>
-  {sortable && <div class="deck-sort" role="toolbar" aria-label="Sort lists"><span class="muted small">Sort by</span>{SORTS.map(([k, label, tip], i) => <span class="sort-opt"><button type="button" class:list={['sort-btn', { on: i === 0 }]} data-sort={k}>{label}</button><Info text={tip} /></span>)}</div>}
+<div class="decklist" data-limit={limit} data-noun={noun} data-filterable={filterable ? '' : undefined}>
+  {(sortable || filterable) && <div class="deck-sort" role="toolbar" aria-label="Sort and filter lists">
+    {sortable && <><span class="muted small">Sort by</span>{SORTS.map(([k, label, tip], i) => <span class="sort-opt"><button type="button" class:list={['sort-btn', { on: i === 0 }]} data-sort={k}>{label}</button><Info text={tip} /></span>)}</>}
+    {filterable && <select class="deck-filter-select" aria-label="Only lists running a card" style="margin-left:auto"><option value="">Lists running any card…</option>{filterCards.map((c) => <option value={c.id}>{c.name}</option>)}</select>}
+  </div>}
+  {filterable && <div class="deck-filter" hidden><span>Only lists running <b class="deck-filter-name"></b> · <span class="deck-filter-n muted"></span></span><button type="button" class="copy deck-filter-clear" style="margin-left:auto">Show all lists</button></div>}
   <slot />
   {total > limit && <button type="button" class="show-more copy" data-total={total}>Show {total - limit} more {noun}</button>}
 </div>

@@ -1,0 +1,95 @@
+---
+import Info from './Info.astro';
+import WindowToggle from './WindowToggle.astro';
+import { leadersByVolumeFor, leadersFor, matchupIn, imgUrl, colorVar, WINDOWS, type Win } from '../lib/data';
+/** Pick the leaders you keep losing to; see which leaders beat that selection, weighted by how often you would face each. */
+interface Props { window: Win }
+const { window: W } = Astro.props;
+const ls = leadersFor(W);
+const all = leadersByVolumeFor(W);
+const MIN_GAMES = 200;
+const pool = all.filter((l) => Number(l.sources.ranked?.matches ?? 0) >= MIN_GAMES).slice(0, 60);
+const data = {
+  leaders: pool.map((l) => ({ code: l.code, name: l.name, color: colorVar(l.color), games: Number(l.sources.ranked?.matches ?? 0), playRate: Number(l.sources.ranked?.playRate ?? 0), wr: Number(l.sources.ranked?.winRate ?? 0) })),
+  mu: Object.fromEntries(pool.map((a) => [a.code, Object.fromEntries(pool.map((b) => { const m = a.code === b.code ? null : matchupIn(ls, a.code, b.code); return [b.code, m ? [m.games, m.winRate ?? 50] : [0, 50]]; }))])),
+  img: imgUrl('X').replace('X.webp', ''),
+};
+const defaults = pool.slice(0, 3).map((l) => l.code);
+---
+<div class="hero"><div style="flex:1"><h1>Counter Finder <Info text="Pick the leaders you want to beat. Every other leader is scored by its win rate against your picks, weighted by how many games each pick sees, and shrunk toward 50% when the matchup sample is small. Consistency is the worst single matchup among your picks: a high floor means no bad draws in the bracket." /></h1>
+  <div class="meta">Choose the leaders you keep running into. The table ranks what beats them, Standard ranked, {WINDOWS[W].label.toLowerCase()}.</div>
+  <WindowToggle current={W} path="/counter/" /></div></div>
+
+<div class="panel" id="cf" data-cf={JSON.stringify(data)} data-default={defaults.join(' ')}>
+  <div class="cf-picks">
+    <div class="cf-selected" id="cf-selected"></div>
+    <details class="cf-add"><summary class="copy">+ Add leader</summary>
+      <input type="search" id="cf-q" placeholder="Find a leader…" autocomplete="off" style="margin:.5rem 0;width:100%" />
+      <div class="cf-options" id="cf-options"></div>
+    </details>
+  </div>
+</div>
+
+<h2>What Beats Them <span class="sub" id="cf-note"></span></h2>
+<div class="panel scroll">
+  <table class="cf-table" id="cf-table"><thead><tr><th>#</th><th>Leader</th><th class="num">Score <Info text="Games-weighted win rate against your picks, shrunk toward 50% for small samples (100 games of prior weight)." /></th><th class="num hide-m">Raw WR vs Picks</th><th class="num">Floor <Info text="Worst single matchup among your picks. Higher is more consistent." /></th><th class="num hide-m">Games vs Picks</th><th class="num hide-m">Overall WR</th><th class="cf-cells">By Pick</th></tr></thead><tbody></tbody></table>
+</div>
+
+<script>
+  const box = document.getElementById('cf')!;
+  const D = JSON.parse(box.dataset.cf!) as { leaders: { code: string; name: string; color: string; games: number; playRate: number; wr: number }[]; mu: Record<string, Record<string, [number, number]>>; img: string };
+  const byCode = Object.fromEntries(D.leaders.map((l) => [l.code, l]));
+  const sel = new Set<string>((new URLSearchParams(location.search).get('vs') || sessionStorage.getItem('cf-picks') || box.dataset.default || '').split(/[ ,]+/).filter((c) => byCode[c]));
+  if (!sel.size) (box.dataset.default || '').split(' ').forEach((c) => byCode[c] && sel.add(c));
+  const selBox = document.getElementById('cf-selected')!, opts = document.getElementById('cf-options')!, q = document.getElementById('cf-q') as HTMLInputElement, tbody = document.querySelector('#cf-table tbody')!, note = document.getElementById('cf-note')!;
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  const art = (code: string, size = 'sm') => `<span class="leader leader-${size}" style="--lc:${byCode[code].color}" title="${esc(byCode[code].name)}"><span class="leader-frame"><img src="${D.img}${code}.webp" alt="" loading="lazy"></span></span>`;
+  const heat = (wr: number) => { const d = Math.max(-15, Math.min(15, wr - 50)) / 15; return d >= 0 ? `rgba(79,209,143,${(0.08 + 0.32 * d).toFixed(2)})` : `rgba(239,90,96,${(0.08 - 0.32 * d).toFixed(2)})`; };
+  const cls = (wr: number) => (wr >= 50 ? 'good' : 'bad');
+  const K = 100;
+  function render() {
+    sessionStorage.setItem('cf-picks', [...sel].join(' '));
+    history.replaceState(null, '', sel.size ? `?vs=${[...sel].join(',')}` : location.pathname);
+    selBox.innerHTML = [...sel].map((c) => `<button type="button" class="chip cf-chip" data-rm="${c}" title="Remove">${art(c)}<span>${esc(byCode[c].name)}</span><b>✕</b></button>`).join('') || '<span class="muted">No leaders picked yet.</span>';
+    const term = q.value.trim().toLowerCase();
+    opts.innerHTML = D.leaders.filter((l) => !sel.has(l.code) && (!term || l.name.toLowerCase().includes(term) || l.code.toLowerCase().includes(term))).slice(0, 40)
+      .map((l) => `<button type="button" class="chip cf-opt" data-add="${l.code}">${art(l.code)}<span>${esc(l.name)}</span><span class="muted small">${l.playRate.toFixed(1)}%</span></button>`).join('');
+    const picks = [...sel];
+    if (!picks.length) { tbody.innerHTML = ''; note.textContent = ''; return; }
+    const rows = D.leaders.filter((l) => !sel.has(l.code)).map((l) => {
+      let g = 0, w = 0, floor = 100, low = false; const cells: [string, number, number][] = [];
+      for (const p of picks) { const [mg, mwr] = D.mu[l.code]?.[p] ?? [0, 50]; g += mg; w += mg * mwr / 100; floor = Math.min(floor, mg ? mwr : 50); if (mg < 30) low = true; cells.push([p, mwr, mg]); }
+      const raw = g ? (100 * w) / g : 50, score = (100 * w + 50 * K) / (g + K);
+      return { l, g, raw, score, floor, low, cells };
+    }).filter((r) => r.g > 0).sort((a, b) => b.score - a.score);
+    tbody.innerHTML = rows.slice(0, 40).map((r, i) => `<tr><td class="num"><span class="pill-rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">${i + 1}</span></td>` +
+      `<td><a class="leader leader-sm" href="${location.pathname.replace(/counter\/?$/, '')}leaders/${r.l.code}/" style="--lc:${r.l.color}"><span class="leader-frame"><img src="${D.img}${r.l.code}.webp" alt="" loading="lazy"></span><span class="leader-label"><span class="leader-name">${esc(r.l.name)}</span><span class="leader-sub">${r.l.playRate.toFixed(1)}% play</span></span></a></td>` +
+      `<td class="num ${cls(r.score)}" style="font-weight:800;font-size:1.02rem">${r.score.toFixed(1)}%${r.low ? ' <span class="dim" title="A pick has under 30 games against this leader">*</span>' : ''}</td>` +
+      `<td class="num hide-m ${cls(r.raw)}">${r.raw.toFixed(1)}%</td><td class="num ${cls(r.floor)}">${r.floor.toFixed(1)}%</td><td class="num muted hide-m">${r.g.toLocaleString()}</td><td class="num muted hide-m">${r.l.wr.toFixed(1)}%</td>` +
+      `<td class="cf-cells"><div class="cf-cellrow">${r.cells.map(([p, wr, mg]) => `<span class="cf-cell" style="background:${heat(wr)}" title="vs ${esc(byCode[p].name)}: ${wr.toFixed(1)}% over ${mg} games">${art(p)}<b class="${cls(wr)}">${wr.toFixed(0)}%</b><i>${mg}</i></span>`).join('')}</div></td></tr>`).join('');
+    note.textContent = `${rows.length} leaders with games against ${picks.map((p) => byCode[p].name).join(', ')} · * = a pick has under 30 games`;
+  }
+  box.addEventListener('click', (e) => {
+    const rm = (e.target as HTMLElement).closest<HTMLElement>('[data-rm]'), add = (e.target as HTMLElement).closest<HTMLElement>('[data-add]');
+    if (rm) { sel.delete(rm.dataset.rm!); render(); }
+    if (add) { sel.add(add.dataset.add!); render(); }
+  });
+  q.addEventListener('input', render);
+  render();
+</script>
+
+<style is:global>
+  .cf-picks { display: grid; gap: .6rem; }
+  .cf-selected, .cf-options { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .cf-chip, .cf-opt { cursor: pointer; padding: .3rem .7rem .3rem .35rem; font: inherit; font-size: .85rem; color: var(--text); min-height: 44px; }
+  .cf-chip { border-color: var(--accent); background: rgba(232,192,74,.1); } .cf-chip b { color: var(--muted); margin-left: .2rem; } .cf-chip:hover b { color: var(--bad); }
+  .cf-opt:hover { border-color: var(--line-2); background: var(--panel-2); }
+  .cf-chip .leader-sm .leader-frame, .cf-opt .leader-sm .leader-frame, .cf-cell .leader-sm .leader-frame { width: 26px; height: 36px; border-radius: 4px; }
+  .cf-add summary { list-style: none; display: inline-block; cursor: pointer; } .cf-add summary::-webkit-details-marker { display: none; }
+  .cf-options { max-height: 260px; overflow: auto; padding-bottom: .25rem; }
+  .cf-cellrow { display: flex; gap: .35rem; flex-wrap: wrap; }
+  .cf-cell { display: inline-grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-items: center; column-gap: .35rem; padding: .2rem .45rem .2rem .25rem; border-radius: 8px; font-variant-numeric: tabular-nums; }
+  .cf-cell .leader { grid-row: 1 / 3; } .cf-cell b { font-size: .85rem; line-height: 1.1; } .cf-cell i { font-style: normal; color: var(--muted); font-size: .68rem; line-height: 1.1; }
+  .cf-table td { vertical-align: middle; }
+  @media (max-width: 720px) { .cf-cell { padding: .15rem .35rem .15rem .2rem; } .cf-cell b { font-size: .78rem; } .cf-cell .leader-sm .leader-frame { width: 22px; height: 30px; } }
+</style>

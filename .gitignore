@@ -6,3 +6,5 @@ site/dist/
 site/.astro/
 .env
 .wrangler/
+data/windows/
+data/latest/curves/

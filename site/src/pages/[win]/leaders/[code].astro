@@ -1,0 +1,12 @@
+---
+import Base from '../../../layouts/Base.astro';
+import LeaderDetail from '../../../components/LeaderDetail.astro';
+import { leadersByVolumeFor, WINDOWS, WINDOW_KEYS, type Leader, type Win } from '../../../lib/data';
+// every window except the default 7-day one, which lives at /leaders/<code>/
+export function getStaticPaths() {
+  return WINDOW_KEYS.filter((w) => w !== '7d').flatMap((w) => leadersByVolumeFor(w).map((l) => ({ params: { win: w, code: l.code }, props: { leader: l } })));
+}
+const { leader } = Astro.props as { leader: Leader };
+const win = Astro.params.win as Win;
+---
+<Base title={`${leader.name} [${leader.code}] · ${WINDOWS[win].label}`} wide><LeaderDetail window={win} leader={leader} /></Base>

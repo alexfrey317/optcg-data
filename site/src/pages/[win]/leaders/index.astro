@@ -1,0 +1,8 @@
+---
+import Base from '../../../layouts/Base.astro';
+import LeaderRankings from '../../../components/LeaderRankings.astro';
+import { WINDOWS, WINDOW_KEYS, type Win } from '../../../lib/data';
+export function getStaticPaths() { return WINDOW_KEYS.filter((w) => w !== '7d').map((w) => ({ params: { win: w } })); }
+const win = Astro.params.win as Win;
+---
+<Base title={`Leader Rankings · ${WINDOWS[win].label}`} wide><LeaderRankings window={win} /></Base>

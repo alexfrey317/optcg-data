@@ -3,12 +3,13 @@ import { meta } from '../lib/data';
 interface Props { title: string; description?: string; wide?: boolean }
 const { title, description = 'OPTCG Sim ranked ladder: top players, bounties, leaders, decks and cards. Daily snapshot.', wide = false } = Astro.props;
 const path = Astro.url.pathname;
-const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups']];
-const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href) || path.startsWith(`/30d${href}`));
+const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups'], ['/counter/', 'Counter']];
+const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/ladder/') : path.startsWith(href) || /^\/(1d|30d|90d)/.test(path) && path.replace(/^\/(1d|30d|90d)/, '').startsWith(href));
 const ICONS: Record<string, string> = {
   '/': 'M3 20h4V10H3zM10 20h4V4h-4zM17 20h4v-7h-4z',
   '/leaders/': 'M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z',
   '/matchups/': 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z',
+  '/counter/': 'M12 2a10 10 0 100 20 10 10 0 000-20zm0 4a6 6 0 110 12 6 6 0 010-12zm0 3.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z',
 };
 ---
 <!doctype html>
@@ -180,22 +181,50 @@ const ICONS: Record<string, string> = {
       zoom.addEventListener('click', (e) => { if (zoom.getAttribute('data-swiped')) { e.stopImmediatePropagation(); } }, true);
 
       // Deck lists: "Show more" keeps the first data-limit lists visible; the sort bar reorders by a data-* key and renumbers.
+      // A card filter (set from the Card Usage table or the filter select on leader pages) keeps only lists running that card.
       document.querySelectorAll<HTMLElement>('.decklist').forEach((box) => {
         const limit = Number(box.dataset.limit ?? 5), noun = box.dataset.noun ?? 'lists';
         let items = [...box.querySelectorAll<HTMLElement>(':scope > details.deck')];
         const btn = box.querySelector<HTMLButtonElement>(':scope > .show-more');
-        let open = false;
-        const render = () => { items.forEach((d, i) => { d.hidden = !open && i >= limit; }); if (btn) btn.textContent = open ? `Show fewer ${noun}` : `Show ${items.length - limit} more ${noun}`; };
+        const chip = box.querySelector<HTMLElement>(':scope > .deck-filter');
+        let open = false, filter = '';
+        const visible = () => (filter ? items.filter((d) => (d.dataset.cards ?? '').split(' ').some((c) => c.startsWith(filter + ':'))) : items);
+        const render = () => {
+          const vis = visible(); const hid = new Set(items); vis.forEach((d) => hid.delete(d));
+          hid.forEach((d) => { d.hidden = true; });
+          vis.forEach((d, i) => { d.hidden = !open && i >= limit; const r = d.querySelector('.deck-rank'); if (r) r.textContent = String(i + 1); });
+          if (btn) { btn.hidden = vis.length <= limit; btn.textContent = open ? `Show fewer ${noun}` : `Show ${vis.length - limit} more ${noun}`; }
+          if (chip) { chip.hidden = !filter; const n = chip.querySelector('.deck-filter-n'); if (n) n.textContent = `${vis.length} of ${items.length} ${noun}`; }
+          box.classList.toggle('filtered', !!filter);
+        };
+        (box as any).setCardFilter = (id: string, name?: string) => {
+          filter = id || ''; open = false;
+          const nm = chip?.querySelector('.deck-filter-name'); if (nm) nm.textContent = name || id;
+          box.querySelectorAll<HTMLSelectElement>('.deck-filter-select').forEach((s) => { s.value = filter; });
+          render();
+          if (filter) box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        };
+        chip?.querySelector('.deck-filter-clear')?.addEventListener('click', () => (box as any).setCardFilter(''));
+        box.querySelectorAll<HTMLSelectElement>('.deck-filter-select').forEach((s) => s.addEventListener('change', () => (box as any).setCardFilter(s.value, s.selectedOptions[0]?.textContent ?? s.value)));
         btn?.addEventListener('click', () => { open = !open; render(); if (!open) box.scrollIntoView({ block: 'nearest' }); });
         box.querySelectorAll<HTMLButtonElement>('.sort-btn').forEach((sb) => sb.addEventListener('click', () => {
           const key = sb.dataset.sort!;
           box.querySelectorAll('.sort-btn').forEach((x) => x.classList.remove('on')); sb.classList.add('on');
           items.sort((a, b) => Number(b.dataset[key] ?? 0) - Number(a.dataset[key] ?? 0) || Number(b.dataset.games ?? 0) - Number(a.dataset.games ?? 0));
           const anchor = btn ?? null;
-          items.forEach((d, i) => { const r = d.querySelector('.deck-rank'); if (r) r.textContent = String(i + 1); d.open = i === 0; anchor ? box.insertBefore(d, anchor) : box.appendChild(d); });
+          items.forEach((d, i) => { d.open = i === 0; anchor ? box.insertBefore(d, anchor) : box.appendChild(d); });
           render();
         }));
         render();
+      });
+      // Card Usage rows (and mirror / hand cards) carry data-filter-card: clicking one filters the page's main decklist.
+      document.addEventListener('click', (e) => {
+        const t = e.target as HTMLElement;
+        if (t.closest('a, button, .info')) return;
+        const row = t.closest<HTMLElement>('[data-filter-card]'); if (!row) return;
+        const box = document.querySelector<HTMLElement>('.decklist[data-filterable]'); if (!box) return;
+        const id = row.dataset.filterCard!, name = row.dataset.filterName || id;
+        (box as any).setCardFilter(box.classList.contains('filtered') && box.querySelector('.deck-filter-name')?.textContent === name ? '' : id, name);
       });
 
       // Copy buttons: clipboard with a fallback for older mobile browsers (execCommand on a temporary textarea).
@@ -267,7 +296,7 @@ const ICONS: Record<string, string> = {
     header nav { display: none; }
     header.top .wrap { gap: 1rem; }
     .snap-l { display: none; }
-    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(11,14,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: .3rem max(.25rem, var(--sar)) calc(.3rem + var(--sab)) max(.25rem, var(--sal)); }
+    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(11,14,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: .3rem max(.25rem, var(--sar)) calc(.3rem + var(--sab)) max(.25rem, var(--sal)); }
     .tabbar a { display: grid; justify-items: center; gap: .15rem; padding: .35rem 0; color: var(--dim); font-size: .68rem; font-weight: 600; letter-spacing: .02em; border-radius: 10px; min-height: 48px; }
     .tabbar a:hover { text-decoration: none; } .tabbar a.active { color: var(--accent); }
     .tabbar a:active { background: var(--panel-2); }
@@ -397,6 +426,29 @@ const ICONS: Record<string, string> = {
   .sort-btn { padding: .3rem .7rem; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; min-height: 32px; }
   .sort-btn:hover { color: var(--text); } .sort-btn.on { background: var(--accent); color: #1a1405; border-color: var(--accent); }
   .decklist > .show-more { display: block; width: 100%; padding: .6rem; margin-top: .25rem; font-size: .9rem; min-height: 44px; }
+  .decklist > .show-more[hidden] { display: none; }
+  .deck-filter { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: 0 0 .6rem; padding: .5rem .8rem; border-radius: 10px; background: rgba(232,192,74,.08); border: 1px solid rgba(232,192,74,.35); font-size: .88rem; }
+  .deck-filter[hidden] { display: none; } .deck-filter b { color: var(--accent-2); }
+  .deck-filter-select { max-width: 100%; }
+  [data-filter-card] { cursor: pointer; } tr[data-filter-card]:hover td { background: rgba(232,192,74,.06); }
+  tr[data-filter-card].on td { background: rgba(232,192,74,.12); }
+  /* copies breakdown + small bars */
+  .qbar { display: inline-flex; height: 8px; width: 72px; border-radius: 4px; overflow: hidden; background: var(--panel-2); vertical-align: middle; margin-right: .4rem; }
+  .qbar i { display: block; height: 100%; } .qbar i.q4 { background: var(--accent); } .qbar i.q3 { background: #b8901f; } .qbar i.q2 { background: #7a6420; } .qbar i.q1 { background: #4a4020; }
+  .qtxt { font-size: .74rem; color: var(--muted); white-space: nowrap; }
+  /* trend sparkline */
+  .trend { display: block; width: 100%; height: 56px; }
+  /* curve analysis */
+  .curve-tabs { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: .6rem; }
+  .curve table { width: auto; min-width: 100%; } .curve th, .curve td { padding: .4rem .5rem; vertical-align: top; }
+  .curve th.turn { text-align: center; white-space: nowrap; color: var(--muted); font-size: .8rem; position: sticky; left: 0; background: var(--panel); z-index: 2; }
+  .curve th.turn b { display: block; color: var(--text); font-size: 1rem; }
+  .play { display: flex; align-items: center; gap: .4rem; padding: .25rem .4rem; border-radius: 8px; background: var(--panel-2); min-width: 150px; }
+  .play .stack { display: flex; } .play .stack .mini { margin-left: -14px; } .play .stack .mini:first-child { margin-left: 0; }
+  .play .plab { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; } .play .plab b { font-size: .95rem; } .play .plab span { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+  .play.none { color: var(--dim); background: transparent; border: 1px dashed var(--line); }
+  .curve td .plays { display: grid; gap: .35rem; }
+  @media (max-width: 720px) { .play { min-width: 120px; } .play .plab span { max-width: 96px; } .qbar { width: 48px; } }
   /* rankings: wide landscape crop of the card art */
   .art-wide { display: block; width: 132px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line-2); position: relative; }
   .art-wide img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block; }

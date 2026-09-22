@@ -38,6 +38,8 @@ jobs:
             data/latest/profiles
             data/latest/matches
             data/latest/players
+            data/latest/curves
+            data/windows
           key: perplayer-${{ github.run_id }}
           restore-keys: perplayer-
 

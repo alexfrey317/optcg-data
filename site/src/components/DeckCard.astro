@@ -15,7 +15,7 @@ const simText = [`1x${leader}`, ...deck.cards.map((c) => `${c.qty}x${c.id}`)].jo
 // Header preview: the list's highest-cost cards, most copies first, so the "core" is visible while collapsed.
 const preview = [...deck.cards].sort((a, b) => b.qty - a.qty || Number(card(b.id).cost || 0) - Number(card(a.id).cost || 0)).slice(0, 9);
 ---
-<details class="deck" open={open} id={deck.hash} data-games={s.games} data-wr={s.winRate ?? 0} data-pilots={s.pilots ?? 0} data-score={deckScore(s)}>
+<details class="deck" open={open} id={deck.hash} data-games={s.games} data-wr={s.winRate ?? 0} data-pilots={s.pilots ?? 0} data-score={deckScore(s)} data-cards={deck.cards.map((c) => `${c.id}:${c.qty}`).join(' ')}>
   <summary>
     <span class="deck-head">
       <span class="deck-title">

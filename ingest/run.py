@@ -17,14 +17,17 @@ from pathlib import Path
 
 from . import link, normalize as N
 from .http import get_json
-from .sources import kaizoku, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_stats, optcgone
+from .sources import kaizoku, kaizoku_curves, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_stats, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
 LATEST = ROOT / "data" / "latest"
 HISTORY = ROOT / "data" / "history"
 DAILY = ROOT / "data" / "daily"
-WINDOWS = {"7d": 7, "30d": 30}  # built from the match archive + Card Kaizoku dailies; the site reads these
+# time windows the site offers, in finished UTC days; numbers come from the published stats (complete),
+# pilots / mirror card impact from the replay archive (kept ARCHIVE_DAYS deep), 1st/2nd extras from Card Kaizoku
+WINDOWS = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
+ARCHIVE_DAYS = 31
 
 
 def dump(path: Path, obj):
@@ -77,6 +80,7 @@ def main(argv=None):
         print(f"[daily] {status['daily']} {json.dumps(daily_status) if daily_status else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
     step("optcgone", optcgone.fetch_all)
     step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
+    step("curves", lambda: kaizoku_curves.fetch_all(RAW / "kaizoku_curves_state.json", LATEST / "curves"))
     step("opbounty", opbounty.fetch_all)
 
     # OPBounty ranked match archive (Firestore). Needs OPB_FS_EMAIL/OPB_FS_PASSWORD; skipped otherwise.
@@ -152,7 +156,7 @@ def main(argv=None):
             used_cards.add(t["code"])
 
     # link ladder rows to sim handles via the match archive, and write per-player match histories
-    archive_days = link.load_days(max(WINDOWS.values()) + 1) if link.MATCHES.exists() else []
+    archive_days = link.load_days(ARCHIVE_DAYS) if link.MATCHES.exists() else []
     links = {}
     if archive_days:
         try:
@@ -215,7 +219,10 @@ def main(argv=None):
             dump(wdir / "decks" / f"{code}.json", dfile)
             for d in dfile["decks"]:
                 used_cards.update(c["id"] for c in d["cards"])
-        # per-card stats for the window from the complete published files; Card Kaizoku's weekly tech/hands ride along
+        # per-card stats for the window from the complete published files; Card Kaizoku's weekly tech/hands/pilots ride
+        # along; mirror card impact comes from the archive days inside the window
+        mirrors = N.build_mirrors(ar_days) if ar_days else {}
+        trends = N.build_trends(st_days) if st_days else {}
         for code in st_leaders:
             cf = N.build_stats_cards(st_days, code)
             if not cf:
@@ -223,8 +230,18 @@ def main(argv=None):
             weekly = load(LATEST / "cards" / f"{code}.json", {})
             cf["tech"] = weekly.get("tech") or {}
             cf["openingHand"] = weekly.get("openingHand") or []
+            wk = {c["id"]: c for c in weekly.get("cards") or []}
+            for c in cf["cards"]:
+                c["pilots"] = (wk.get(c["id"]) or {}).get("pilots")
+            cf["leaderStats"]["uniquePilots"] = (weekly.get("leaderStats") or {}).get("uniquePilots")
+            cf["leaderStats"]["weeklyLists"] = (weekly.get("leaderStats") or {}).get("uniqueDecklists")
+            cf["mirror"] = mirrors.get(code) or {"games": 0, "withDecks": 0, "cards": []}
+            cf["mirror"]["archiveDays"] = len(ar_days)
             dump(wdir / "cards" / f"{code}.json", cf)
             used_cards.update(c["id"] for c in cf["cards"])
+            used_cards.update(c["id"] for c in cf["mirror"]["cards"])
+        for code, L in w_leaders.items():
+            L["trend"] = trends.get(code) or []
         used_cards.update(w_leaders)
         dump(wdir / "leaders.json", w_leaders)
         span = st_days or ar_days or kz_days
@@ -234,6 +251,13 @@ def main(argv=None):
                               "statsDays": len(st_days), "archiveDays": len(ar_days), "kaizokuDays": len(kz_days),
                               "archiveMatches": sum(len(d.get("matches") or []) for d in ar_days)}
         dump(wdir / "meta.json", window_meta[wname])
+
+    # cards named in the curve plays need names/images too
+    for f in (LATEST / "curves").glob("*.json") if (LATEST / "curves").exists() else []:
+        for side in ("first", "second"):
+            for t in load(f, {}).get(side) or []:
+                for play in t.get("top", []) + [p for v in t.get("vs", {}).values() for p in v]:
+                    used_cards.update(c for c in play["c"].split("+") if c and c != "NO_PLAY")
 
     dump(LATEST / "players.json", players)
     dump(LATEST / "leaders.json", leaders)
