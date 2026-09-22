@@ -245,10 +245,12 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
       const pts = JSON.parse(box.dataset.points || '[]') as { t: string | null; b: number; n?: number; x: number; y: number; ln?: string; on?: string; won?: boolean }[];
       const total = Number(box.dataset.total || pts.length);
       const svg = box.querySelector('svg')!, cur = box.querySelector<SVGLineElement>('.bc-cursor')!, dot = box.querySelector<SVGCircleElement>('.bc-dot')!, tip = box.querySelector<HTMLElement>('.bc-tip')!;
-      const W = svg.viewBox.baseVal.width;
       const fmtT = (t: string) => { const d = new Date(t.endsWith('Z') || t.includes('+') ? t : t + 'Z'); return isNaN(+d) ? t : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+      // map between client pixels and viewBox units through the SVG's real transform: the drawing is letterboxed inside the box
+      const toView = (cx: number) => { const m = svg.getScreenCTM(); if (!m) return 0; const pt = svg.createSVGPoint(); pt.x = cx; pt.y = 0; return pt.matrixTransform(m.inverse()).x; };
+      const toClient = (vx: number, vy: number) => { const m = svg.getScreenCTM()!; const pt = svg.createSVGPoint(); pt.x = vx; pt.y = vy; return pt.matrixTransform(m); };
       const show = (clientX: number) => {
-        const r = svg.getBoundingClientRect(); const vx = ((clientX - r.left) / r.width) * W;
+        const vx = toView(clientX);
         let best = 0; for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i].x - vx) < Math.abs(pts[best].x - vx)) best = i;
         const p = pts[best]; if (!p) return;
         cur.setAttribute('x1', String(p.x)); cur.setAttribute('x2', String(p.x)); cur.style.display = '';
@@ -257,8 +259,8 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
         const when = p.t ? fmtT(p.t) : p.n ? `Game ${p.n} of ${total}` : '';
         tip.innerHTML = `<b>฿${Math.round(p.b).toLocaleString()}</b>${delta == null ? '' : ` <span style="color:${delta >= 0 ? 'var(--good)' : 'var(--bad)'}">${delta >= 0 ? '+' : ''}${delta.toFixed(0)}</span>`}<br>${when}${p.ln ? `<br>${p.ln} vs ${p.on ?? '?'} · <span style="color:${p.won ? 'var(--good)' : 'var(--bad)'}">${p.won ? 'Win' : 'Loss'}</span>` : ''}`;
         tip.style.display = '';
-        const px = (p.x / W) * r.width; const tw = tip.offsetWidth;
-        tip.style.left = `${Math.min(Math.max(px - tw / 2, 0), r.width - tw)}px`; tip.style.top = `${(p.y / svg.viewBox.baseVal.height) * r.height - tip.offsetHeight - 14}px`;
+        const b = box.getBoundingClientRect(); const c = toClient(p.x, p.y); const tw = tip.offsetWidth;
+        tip.style.left = `${Math.min(Math.max(c.x - b.left - tw / 2, 0), b.width - tw)}px`; tip.style.top = `${c.y - b.top - tip.offsetHeight - 14}px`;
       };
       svg.addEventListener('mousemove', (e) => show(e.clientX));
       svg.addEventListener('touchmove', (e) => { show(e.touches[0].clientX); }, { passive: true });
