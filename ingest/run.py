@@ -195,10 +195,13 @@ def main(argv=None):
     # windows: match archive (games, matchups, decks, pilots) + Card Kaizoku dailies (1st/2nd, card stats stay weekly)
     window_meta = {}
     daily_files = sorted(DAILY.glob("*.json")) if DAILY.exists() else []
-    stats_days_all = opbounty_stats.load_days(max(WINDOWS.values()) + 1)
+    # windows cover the last N *finished* UTC days: today's partial day would make the numbers drift with the run time
+    stats_days_all = [d for d in opbounty_stats.load_days(max(WINDOWS.values()) + 1) if d.get("date", "") < today]
+    archive_full = [d for d in archive_days if d.get("date", "") < today]
+    daily_full = [f for f in daily_files if f.stem < today]
     for wname, days in WINDOWS.items():
-        kz_days = [load(f, {}) for f in daily_files[-days:]]
-        ar_days = archive_days[-days:]
+        kz_days = [load(f, {}) for f in daily_full[-days:]]
+        ar_days = archive_full[-days:]
         st_days = stats_days_all[-days:]
         if not kz_days and not ar_days and not st_days:
             continue

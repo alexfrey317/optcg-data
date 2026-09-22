@@ -72,7 +72,7 @@ const topGames = seasonRows.reduce((n, r) => n + (r.games ?? 0), 0);
 const otherGames = seasonGames && topGames ? Math.max(0, seasonGames - topGames) : 0;
 const main = seasonRows[0] ? { code: seasonRows[0].code, winRate: seasonRows[0].winRate, matches: seasonRows[0].games } : null;
 const noDeckGames = rec.filter((g) => !g.deck).length;
-const recent = [...rec].reverse().slice(0, 30);
+const recent = [...rec].reverse().slice(0, player.rank <= 1000 ? 30 : 12);
 const recSpan = rec.length ? `${rec[0].ts.slice(0, 10)} → ${rec[rec.length - 1].ts.slice(0, 10)}` : '';
 const coverage = seasonGames && rec.length ? Math.min(100, Math.round((100 * rec.length) / seasonGames)) : null;
 

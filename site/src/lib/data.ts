@@ -39,7 +39,7 @@ export interface Meta { generatedAt: string; date: string; status: Record<string
  *  (Card Kaizoku's CDN 403s on foreign referers; Bandai's official images send CORP: same-site and are blocked by browsers.) */
 export const imgUrl = (id: string) => `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${id.split('-')[0]}/${id}_EN.webp`;
 /** Inline onerror handler: swap in a labelled placeholder (promos are missing upstream). */
-export const imgOnError = (_id: string) => `this.style.visibility='hidden';this.parentElement.classList.add('noimg')`;
+export const imgOnError = (_id: string): string | undefined => undefined; // handled once per page by the delegated listener in Base.astro
 
 export const meta = readJson<Meta>(join(LATEST, 'meta.json'), { generatedAt: '', date: '', status: {}, players: 0, leaders: 0, sources: [] });
 export const players = readJson<Player[]>(join(LATEST, 'players.json'), []);

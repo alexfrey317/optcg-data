@@ -31,6 +31,16 @@ jobs:
           key: raw-${{ github.run_id }}
           restore-keys: raw-
 
+      - name: Restore per-player files (regenerated each run; fallback if a source fails)
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/latest/profiles
+            data/latest/matches
+            data/latest/players
+          key: perplayer-${{ github.run_id }}
+          restore-keys: perplayer-
+
       - name: Ingest
         id: ingest
         env:

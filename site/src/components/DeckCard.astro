@@ -34,7 +34,7 @@ const preview = [...deck.cards].sort((a, b) => b.qty - a.qty || Number(card(b.id
   <div class="cards">
     {sorted.map((c) => { const k = card(c.id); return (
       <div class="card" title={`${k.name} (${c.id})${k.cost ? ` · cost ${k.cost}` : ''}${k.power && k.power !== '0' ? ` · ${k.power} power` : ''}`}>
-        <img src={imgUrl(c.id)} alt={k.name} loading="lazy" decoding="async" onerror={imgOnError(c.id)} />
+        <img src={imgUrl(c.id)} alt={k.name} loading="lazy" onerror={imgOnError(c.id)} />
         <span class="qty">{c.qty}</span>
         <div class="cname">{k.name}</div>
       </div>

@@ -22,3 +22,8 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# regenerated every run from committed sources (archive, public rows) or re-pulled (profiles, Card Kaizoku accounts); cached between CI runs, not versioned
+data/latest/profiles/
+data/latest/matches/
+data/latest/players/

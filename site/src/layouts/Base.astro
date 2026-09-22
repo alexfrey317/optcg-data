@@ -30,6 +30,8 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
     <div id="tip" role="tooltip"></div>
     <div id="zoom" role="dialog" aria-modal="true" aria-label="Card preview" hidden><figure><img alt="" /><figcaption></figcaption></figure></div>
     <script>
+      // one delegated handler instead of an inline onerror on every image: promos are missing upstream
+      document.addEventListener('error', (e) => { const el = e.target as HTMLElement; if (el instanceof HTMLImageElement) { el.style.visibility = 'hidden'; el.parentElement?.classList.add('noimg'); } }, true);
       const tip = document.getElementById('tip')!;
       let current: HTMLElement | null = null;
       function show(el: HTMLElement) {
