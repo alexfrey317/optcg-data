@@ -3,13 +3,12 @@ import { meta } from '../lib/data';
 interface Props { title: string; description?: string; wide?: boolean }
 const { title, description = 'OPTCG Sim ranked ladder: top players, bounties, leaders, decks and cards. Daily snapshot.', wide = false } = Astro.props;
 const path = Astro.url.pathname;
-const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups'], ['/about/', 'About']];
+const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups']];
 const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href) || path.startsWith(`/30d${href}`));
 const ICONS: Record<string, string> = {
   '/': 'M3 20h4V10H3zM10 20h4V4h-4zM17 20h4v-7h-4z',
   '/leaders/': 'M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z',
   '/matchups/': 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z',
-  '/about/': 'M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a1.3 1.3 0 110 2.6A1.3 1.3 0 0112 7zm-1 4h2v6h-2z',
 };
 ---
 <!doctype html>
@@ -227,7 +226,7 @@ const ICONS: Record<string, string> = {
       window.addEventListener('appinstalled', () => { installBtn.hidden = true; });
     </script>
     <footer class:list={['wrap', { wide }]}>
-      <div>Standard ranked data, refreshed once a day. <a href="/about/">Sources and methodology</a>.</div>
+      <div>Standard ranked data, refreshed once a day.</div>
       <div>Unofficial fan project. One Piece Card Game is a trademark of Bandai. Not affiliated with Bandai or OPTCG Sim.</div>
     </footer>
   </body>
@@ -268,7 +267,7 @@ const ICONS: Record<string, string> = {
     header nav { display: none; }
     header.top .wrap { gap: 1rem; }
     .snap-l { display: none; }
-    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(11,14,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: .3rem max(.25rem, var(--sar)) calc(.3rem + var(--sab)) max(.25rem, var(--sal)); }
+    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(11,14,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: .3rem max(.25rem, var(--sar)) calc(.3rem + var(--sab)) max(.25rem, var(--sal)); }
     .tabbar a { display: grid; justify-items: center; gap: .15rem; padding: .35rem 0; color: var(--dim); font-size: .68rem; font-weight: 600; letter-spacing: .02em; border-radius: 10px; min-height: 48px; }
     .tabbar a:hover { text-decoration: none; } .tabbar a.active { color: var(--accent); }
     .tabbar a:active { background: var(--panel-2); }

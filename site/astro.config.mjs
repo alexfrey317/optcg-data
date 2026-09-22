@@ -6,5 +6,5 @@ export default defineConfig({
   output: 'static',
   build: { format: 'directory' },
   trailingSlash: 'ignore',
-  redirects: { '/ladder/1': '/' },
+  redirects: { '/ladder/1': '/', '/about': '/' },
 });
