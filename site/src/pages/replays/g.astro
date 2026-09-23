@@ -51,16 +51,19 @@ import { IMG_BASE } from '../../lib/data';
 
     const fresh = (): Side => ({ deck: 50, hand: [], chars: [], stage: null, life: [], trash: [], donDeck: 10, donArea: 0, donRested: 0, donAtt: 0, leaderRested: false, leaderDon: 0 });
     let S: Record<number, Side> = { 1: fresh(), 2: fresh() };
-    let active = 1, turn = 1, hl: { atk?: string; tgt?: string; seat?: number; done?: boolean } = {}, cur = 0;
+    let active = 1, turn = 1, refreshing = 0, hl: { atk?: string; tgt?: string; seat?: number; done?: boolean } = {}, cur = 0;
     const take = (arr: string[], cid: string) => { const i = arr.indexOf(cid); if (i >= 0) arr.splice(i, 1); return i >= 0; };
     const zoneList = (s: Side, z: number): string[] | null => z === 1 ? s.hand : z === 6 ? s.trash : z === 3 ? s.life : null;
     const applyMove = (st: Extract<Step, { 0: 'm' }>) => {
       const [, seat, cid, zf, zt, rested, deck, donDeck, donArea, donAtt] = st; const s = S[seat];
       s.deck = deck; s.donDeck = donDeck; s.donArea = donArea; s.donAtt = donAtt;
       if (cid === 'Don') {
-        if (zf === 5 && zt === 5 && rested) s.donRested++;
-        else if (zf === 9 && zt === 5) s.donRested++;
-        else if (zf === 5 && zt === 4) s.donRested = Math.min(s.donRested, s.donArea);
+        // the flag is the DON's rest state after the move: 5→5 rest/activate, 4→5 draw (possibly rested), 5→9 attach (a rested
+        // DON leaves the rested pile), 9→5 return (rested per the rules, except during the refresh phase which sets everything active)
+        if (zf === 5 && zt === 5) s.donRested += rested ? 1 : -1;
+        else if (zf === 4 && zt === 5 && rested) s.donRested++;
+        else if (zf === 5 && zt === 9 && rested) s.donRested--;
+        else if (zf === 9 && zt === 5 && rested && refreshing !== seat) s.donRested++;
         s.donRested = Math.max(0, Math.min(s.donRested, s.donArea));
         return;
       }
@@ -84,21 +87,36 @@ import { IMG_BASE } from '../../lib/data';
       if (hl.done || kind === 'end' || kind === 'deploy' || kind === 'draw' || kind === 'don') hl = {};
       if (kind === 'hit' || kind === 'fail') hl.done = true;
       if (!seat) return;
+      if (seat === refreshing && kind !== 'end') refreshing = 0;
       const s = S[seat];
       // leaders may be alt-art prints whose id differs from the archive's, so anything that is not a character on board is the leader
       const isChar = (side: Side, cid: string) => side.chars.some((c) => c.id === cid);
+      const ID = /\[([A-Z0-9]+-\d+(?:_p\d+)?)\]/;
+      // rest or activate a card by id: a character on either board, else the named leader (alt-art prints fall back to `own`)
+      const setRest = (cid: string, rested: boolean, own: number) => {
+        for (const side of [S[own], S[3 - own]]) { const c = side.chars.find((c) => c.id === cid && c.rested !== rested) ?? side.chars.find((c) => c.id === cid); if (c) { c.rested = rested; return; } }
+        const who = cid === P[3 - own].leader ? 3 - own : own; S[who].leaderRested = rested;
+      };
+      // blockers rest when they block; effects rest or activate cards by name ("Rest X [ID]", "Set X [ID] to Active"); "Rest N Don" is in the DON rows
+      if (kind === 'block') { const id = ID.exec(text)?.[1]; if (id) setRest(id, true, seat); return; }
+      if (kind === 'effect') {
+        const body = text.replace(/^.*?\]: /, '');
+        const r = /^Rest (?!\d+ Don\b)(?!Don\b)/.test(body) ? ID.exec(body) : null; if (r) setRest(r[1], true, 3 - seat);
+        const a = /^Set .*\] to Active$/.test(body) ? ID.exec(body) : null; if (a) setRest(a[1], false, seat);
+      }
       if (kind === 'attack') { const ids = [...text.matchAll(CARD)].map((m) => m[1]); let atk = ids[0], tgt = ids[1]; const o = S[3 - seat];
         if (!isChar(s, atk)) { atk = P[seat].leader; s.leaderRested = true; } else { const c = s.chars.find((c) => c.id === atk && !c.rested) ?? s.chars.find((c) => c.id === atk); if (c) c.rested = true; }
         if (tgt && !isChar(o, tgt)) tgt = P[3 - seat].leader;
         hl = { atk, tgt, seat }; return; }
-      const a = ATTACH.exec(text);
+      const a = ATTACH.exec(text.replace(/^.*?\]: /, ''));
       if (a) { const n = Number(a[1]), total = a[4] ? Number(a[4]) : null, tid = a[3];
         const c = s.chars.find((c) => c.id === tid); if (c) c.don = total ?? c.don + n; else s.leaderDon = total ?? s.leaderDon + n; }
-      if (kind === 'end') { active = 3 - seat; turn++; const n = S[active]; n.chars.forEach((c) => { c.rested = false; c.don = 0; }); n.leaderRested = false; n.leaderDon = 0; n.donRested = 0; }
+      if (kind === 'end') { active = 3 - seat; refreshing = active; turn++; const n = S[active]; n.chars.forEach((c) => { c.rested = false; c.don = 0; }); n.leaderRested = false; n.leaderDon = 0; n.donRested = 0; }
     };
     const rebuild = (toEvent: number) => {
-      S = { 1: fresh(), 2: fresh() }; active = 1; turn = 1; hl = {};
-      const last = events[Math.min(toEvent, events.length - 1)];
+      S = { 1: fresh(), 2: fresh() }; active = 1; turn = 1; refreshing = 0; hl = {};
+      // an event's text precedes the card moves it causes, so apply everything up to the next event: "Attach 4 Don" shows them attached
+      const e = Math.min(toEvent, events.length - 1); const last = e + 1 < events.length ? events[e + 1] - 1 : G.steps.length - 1;
       for (let i = 0; i <= last; i++) { const st = G.steps[i]; if (st[0] === 'm') applyMove(st); else if (st[0] === 's') applySnap(st); else applyEvent(st); }
       cur = toEvent;
     };
@@ -112,7 +130,7 @@ import { IMG_BASE } from '../../lib/data';
       // the wrapper carries the rested rotation so attached DON turn sideways with their card, as in the sim
       return badge.startsWith('<span class="atts"') ? `<span class="cwrap${/\brested\b/.test(cls) ? ' rested' : ''}">${badge}${inner}</span>` : inner;
     };
-    const donBadge = (n: number) => n ? `<span class="atts" title="${n} DON attached (+${n}000 power)">${Array.from({ length: n }, (_, k) => `<span class="att" style="--k:${k}"></span>`).join('')}</span>` : '';
+    const donBadge = (n: number) => n ? `<span class="atts" title="${n} DON attached (+${n}000 power)">${Array.from({ length: n }, (_, k) => `<span class="att" style="--k:${k}"></span>`).join('')}</span><span class="pw">+${n}000</span>` : '';
     const rich = (text: string) => esc(text).replace(CARD, (_m, cid: string) => `<span class="ct" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${cid}" loading="lazy"></span>`);
     const back = (cls = '', inner = '') => `<span class="cd back ${cls}">${inner}</span>`;
     const halfHtml = (seat: number, top: boolean) => {
