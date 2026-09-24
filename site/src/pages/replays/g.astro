@@ -146,8 +146,9 @@ import { IMG_BASE } from '../../lib/data';
       const trash = `<button type="button" class="pile trash" data-peek="trash" data-seat="${seat}" title="Trash">${s.trash.length ? card(s.trash[s.trash.length - 1], 'trash-top') : '<span class="cd slot"></span>'}<b>${s.trash.length}</b><span class="pl">Trash</span></button>`;
       const donDeck = `<span class="pile dondeck" title="DON deck"><span class="cd back don"></span><b>${s.donDeck}</b><span class="pl">DON</span></span>`;
       const cost = `<div class="area cost"><span class="al">Cost · ${donActive} active${s.donRested ? ` · ${s.donRested} rested` : ''}${s.donAtt ? ` · ${s.donAtt} attached` : ''}</span><div class="toks">${tokens || '<span class="dim small">no DON yet</span>'}</div></div>`;
-      const charArea = `<div class="area chars"><span class="al">Character area</span><div class="cards">${chars}</div></div>`;
-      const mid = `<div class="mid">${life}${donDeck}${cost}<div class="center">${leader}${stage}</div>${deck}${trash}</div>`;
+      // life sits to the left of the character area from that player's point of view: left for the bottom player, right for the top one
+      const charArea = `<div class="area chars"><span class="al">Character area</span><div class="row">${top ? `<div class="cards">${chars}</div>${life}` : `${life}<div class="cards">${chars}</div>`}</div></div>`;
+      const mid = `<div class="mid">${donDeck}${cost}<div class="center">${leader}${stage}</div>${deck}${trash}</div>`;
       const label = `<div class="who" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span>${isActive ? '<span class="turnpill">Active</span>' : ''}</div>`;
       return `<section class="half${top ? ' top' : ' bottom'}${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}">${top ? label + mid + charArea : charArea + mid + label}</section>`;
     };
@@ -166,15 +167,22 @@ import { IMG_BASE } from '../../lib/data';
       if (!peek) return '';
       const s = S[peek.seat], p = P[peek.seat];
       let title = '', body = '';
-      if (peek.zone === 'trash') { title = `Trash · ${s.trash.length}`; body = s.trash.length ? [...s.trash].reverse().map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
-      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game. The log records them, so you can peek. Top of the stack first.</p>` + (s.life.length ? [...s.life].reverse().map((c) => card(c)).join('') : '<span class="dim">none</span>'); }
-      else if (peek.zone === 'hand') { title = `Hand · ${s.hand.length}`; body = s.hand.length ? s.hand.map((c) => card(c)).join('') : '<span class="dim">empty</span>'; }
+      // every zone lists its cards in order, numbered from the top of the pile
+      const ordered = (ids: string[]) => ids.map((c, i) => `<span class="pk">${card(c)}<i>${i + 1}</i></span>`).join('');
+      if (peek.zone === 'trash') { title = `Trash · ${s.trash.length}`; body = s.trash.length ? `<p class="muted small">Top of the pile first.</p>` + ordered([...s.trash].reverse()) : '<span class="dim">empty</span>'; }
+      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game. The log records them, so you can peek. Top of the stack first.</p>` + (s.life.length ? ordered([...s.life].reverse()) : '<span class="dim">none</span>'); }
+      else if (peek.zone === 'hand') { title = `Hand · ${s.hand.length}`; body = s.hand.length ? ordered(s.hand) : '<span class="dim">empty</span>'; }
       else {
+        // the log tells us which cards leave the deck from here on, so the top of the deck is known in order; the rest comes from the decklist
+        const last = events[cur]; const future: string[] = [];
+        for (let i = last + 1; i < G.steps.length && future.length < s.deck; i++) { const st = G.steps[i]; if (st[0] === 'm' && st[1] === peek.seat && st[3] === 0 && st[4] !== 0 && st[2] !== 'Don') future.push(String(st[2])); }
         const dk = deckOf(p);
-        if (!dk.size) { title = `Deck · ${s.deck} cards`; body = '<span class="muted">Decklist not recorded for this player, so the remaining cards are unknown.</span>'; }
-        else { for (const c of [...s.hand, ...s.chars.map((c) => c.id), ...s.trash, ...s.life, ...(s.stage ? [s.stage] : [])]) if (dk.has(c)) dk.set(c, dk.get(c)! - 1);
-          const left = [...dk.entries()].filter(([, n]) => n > 0).sort((a, b) => a[0].localeCompare(b[0]));
-          title = `Deck · ${s.deck} cards left`; body = `<p class="muted small">Decklist minus everything seen so far. Order unknown.</p>` + left.map(([c, n]) => card(c, '', `<b class="qty">${n}</b>`)).join(''); }
+        for (const c of [...s.hand, ...s.chars.map((c) => c.id), ...s.trash, ...s.life, ...(s.stage ? [s.stage] : []), ...future]) if (dk.has(c) && dk.get(c)! > 0) dk.set(c, dk.get(c)! - 1);
+        const rest = [...dk.entries()].filter(([, n]) => n > 0).sort((a, b) => a[0].localeCompare(b[0]));
+        title = `Deck · ${s.deck} cards left`;
+        body = (future.length ? `<p class="muted small">Top of the deck, in the order the cards leave it from this point on.</p>` + ordered(future) : '')
+          + (rest.length ? `<p class="muted small">${future.length ? 'Further down, order unknown' : 'Decklist minus everything seen so far. Order unknown'}.</p>` + rest.map(([c, n]) => card(c, '', `<b class="qty">${n}</b>`)).join('') : '')
+          + (!future.length && !dk.size ? '<span class="muted">Decklist not recorded for this player, so the remaining cards are unknown.</span>' : '');
       }
       return `<div class="peek" style="--lc:${lcolor(p.leader)}"><div class="peek-h"><span class="rg-seat">P${peek.seat}</span> <b>${esc(title)}</b><button type="button" class="copy" data-close-peek>✕</button></div><div class="cards wrap">${body}</div></div>`;
     };
