@@ -277,7 +277,14 @@ export type ReplayStep =
   | ['s', seat: 1 | 2, hand: string[], chars: string[], trash: string[], life: number];
 export interface ReplayGame { v: number; id: string; ts: string; date: string; players: ReplayPlayer[]; first: 1; winner: 1 | 2; endTurns: number; end: ReplaySummary['end']; finished: boolean; steps: ReplayStep[] }
 const REPLAYS = join(ROOT, 'replays');
-export const replayBest = (): ReplayBest => readJson<ReplayBest>(join(REPLAYS, 'best.json'), { window: { start: null, end: null, days: 0 }, leaders: [], perBucket: 5, pairs: {} });
+/** The archive records "Mobile" instead of a leader for some mobile clients; only real card codes are leaders. */
+export const LEADER_CODE = /^[A-Z]{1,3}\d{2}-\d{3}$/;
+export const replayBest = (): ReplayBest => {
+  const b = readJson<ReplayBest>(join(REPLAYS, 'best.json'), { window: { start: null, end: null, days: 0 }, leaders: [], perBucket: 5, pairs: {} });
+  b.leaders = b.leaders.filter((c) => LEADER_CODE.test(c));
+  b.pairs = Object.fromEntries(Object.entries(b.pairs).filter(([k]) => k.split('|').every((c) => LEADER_CODE.test(c))));
+  return b;
+};
 export const replayGame = (id: string): ReplayGame | null => {
   const p = join(REPLAYS, 'games', `${id}.json.gz`);
   return existsSync(p) ? (JSON.parse(gunzipSync(readFileSync(p)).toString('utf8')) as ReplayGame) : null;

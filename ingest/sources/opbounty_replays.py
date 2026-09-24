@@ -255,12 +255,15 @@ def bucket_key(pair: tuple[str, str], winner_leader: str, winner_first: bool) ->
     return f"{winner_leader}:{1 if winner_first else 2}"
 
 
+LEADER_CODE = re.compile(r"^[A-Z]{1,3}\d{2}-\d{3}$")  # the archive records "Mobile" instead of a leader for some mobile clients
+
+
 def contenders(days: list[dict]) -> list[str]:
     seats = defaultdict(int); total = 0
     for d in days:
         for m in d["matches"]:
             seats[m["w"]["l"]] += 1; seats[m["l"]["l"]] += 1; total += 2
-    ranked = sorted(seats, key=lambda c: -seats[c])
+    ranked = sorted((c for c in seats if LEADER_CODE.match(c or "")), key=lambda c: -seats[c])
     return [c for c in ranked if 100 * seats[c] / total >= MIN_SEAT_SHARE][:MAX_LEADERS] if total else []
 
 
