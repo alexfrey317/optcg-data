@@ -11,10 +11,15 @@ import { IMG_BASE } from '../../lib/data';
 </Base>
 
 <script>
+  import { parseLog } from '../../lib/replayParse';
   const root = document.getElementById('rg')!;
   const IMG = root.dataset.img!;
   const q = new URLSearchParams(location.search);
   const pair = q.get('p') || '', id = q.get('id') || '';
+  // ?log=<storage path>&w=&l=&wb=&lb=&ts=[&wd=&ld=][&back=]: parse a combat log in the browser (any archived game, e.g. from a player page)
+  const logPath = q.get('log') || '';
+  const back = q.get('back') && /^\/players\/\d+\/$/.test(q.get('back')!) ? q.get('back')! : '';
+  const backLink = () => back ? `<a href="${back}" class="muted small">← Player</a>` : `<a href="/replays/" class="muted small">← Study Games</a>`;
   const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
   const CARD = /\[([A-Z]{1,3}\d{2}-\d{3}(?:_p\d+)?)\]/g;
   type Player = { seat: 1 | 2; leader: string; bounty: number; won: boolean; first: boolean; deck: string | null; mulligan: string[] | null };
@@ -189,7 +194,7 @@ import { IMG_BASE } from '../../lib/data';
     const render = () => {
       const topSeat = flip ? 1 : 2, botSeat = 3 - topSeat;
       root.innerHTML = `
-        <div class="rg-bar"><a href="/replays/?a=${P[1].leader}&b=${P[2].leader}" class="muted small">← Study Games</a>
+        <div class="rg-bar">${back ? backLink() : `<a href="/replays/?a=${P[1].leader}&b=${P[2].leader}" class="muted small">← Study Games</a>`}
           <span class="rg-title"><b style="color:${lcolor(P[1].leader)}">${esc(lname(P[1].leader))}</b> <span class="muted">vs</span> <b style="color:${lcolor(P[2].leader)}">${esc(lname(P[2].leader))}</b></span>
           <span class="muted small">${G.date} · <b style="color:${lcolor(W.leader)}">${esc(lname(W.leader))}</b> won in ${G.endTurns} turns, ${esc(lname(L.leader))} ${ending}</span></div>
         <div class="table">
@@ -248,7 +253,20 @@ import { IMG_BASE } from '../../lib/data';
     go(Number.isFinite(startAt) ? startAt : 0);
   }
 
-  if (!pair || !id) fail('This link is missing the matchup or game id.');
+  if (logPath) {
+    const need = ['w', 'l', 'wb', 'lb', 'ts'].filter((k) => !q.get(k));
+    if (need.length || !id) fail('This link is missing the game details.');
+    else Promise.all([
+      fetch('/replays/cards.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ names: Record<string, string>; leaders: Bundle['leaders'] }>; }),
+      fetch(`/log/${logPath.split('/').map(encodeURIComponent).join('/')}`).then((r) => { if (r.status === 404) throw new Error('The combat log for this game is no longer stored upstream.'); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); }),
+    ]).then(([cards, raw]) => {
+      const decks: Record<string, string> = {}; if (q.get('wd')) decks.w = q.get('wd')!; if (q.get('ld')) decks.l = q.get('ld')!;
+      const G = parseLog(raw, { id, ts: q.get('ts')!, w: { l: q.get('w')!, b: Number(q.get('wb')), d: decks.w ? 'w' : null }, l: { l: q.get('l')!, b: Number(q.get('lb')), d: decks.l ? 'l' : null }, decks });
+      if (!G) throw new Error('The players in this log could not be told apart, so it cannot be shown.');
+      start({ pair: '', leaders: cards.leaders, names: cards.names, games: { [id]: G as Game } }, G as Game);
+    }).catch((e: Error) => fail(e.message));
+  }
+  else if (!pair || !id) fail('This link is missing the matchup or game id.');
   else fetch(`/replays/data/${pair.replace('|', '__')}.json`).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<Bundle>; })
     .then((B) => { const G = B.games[id]; if (!G) throw new Error('This game is no longer in the selection; it may have aged out of the window.'); if (!G.steps) throw new Error('This game was stored in an older format; it will be rebuilt by the next data run.'); start(B, G); })
     .catch((e: Error) => fail(e.message));

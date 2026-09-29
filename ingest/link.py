@@ -78,7 +78,7 @@ def handle_series(dailies: list[dict]) -> tuple[dict[str, list[dict]], dict[str,
                 # bounty-proximity resolution below
                 sides = {h1: None, h2: None}
             for h in (h1, h2):
-                series[h].append({"ts": m["ts"], "ct": m.get("ct"), "id": m["id"], "_side": sides[h], "_w": w, "_l": l})
+                series[h].append({"ts": m["ts"], "ct": m.get("ct"), "id": m["id"], "log": m.get("log"), "_side": sides[h], "_w": w, "_l": l})
     for h, rows in series.items():
         rows.sort(key=clock)
         prev = None

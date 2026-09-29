@@ -210,7 +210,7 @@ export const cardFileFor = (w: Win, code: string): CardFile & { complete: boolea
 };
 export interface TopPilot { handle: string; name: string; games: number; wins: number; winRate: number | null; bounty: number; ladderId: string | null }
 /** Per-player ranked history from the match archive (linked ladder players only). */
-export interface PlayerGame { ts: string; id: string; side: 'w' | 'l'; b: number; leader: string; deck: string | null; opp: string; oppB: number; oppDeck: string | null; won: boolean }
+export interface PlayerGame { ts: string; id: string; side: 'w' | 'l'; b: number; leader: string; deck: string | null; opp: string; oppB: number; oppDeck: string | null; won: boolean; log?: string | null }
 export interface PlayerMatches { handle: string; name: string; games: PlayerGame[]; decks: Record<string, string> }
 export const playerMatches = (id: string | number) => readJson<PlayerMatches | null>(join(LATEST, 'matches', `${id}.json`), null);
 /** OPBounty personal profile (Firestore PublicUsers): complete season record, top-3 leader stats, bounty-per-game series, newest public matches. */

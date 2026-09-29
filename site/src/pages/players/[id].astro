@@ -23,11 +23,20 @@ const seasonLosses = prof?.losses ?? player.losses;
 const seasonWR = prof?.winRate ?? player.winRate;
 
 /* ---- recorded games: replay archive (by sim handle) + public match rows from profiles, deduplicated ---- */
-type Rec = { ts: string; leader: string; opp: string; won: boolean; b: number; oppB: number; deck: string | null; oppDeck: string | null; oppName?: string; src: 'archive' | 'public' };
+type Rec = { ts: string; leader: string; opp: string; won: boolean; b: number; oppB: number; deck: string | null; oppDeck: string | null; oppName?: string; src: 'archive' | 'public'; id?: string; log?: string | null };
 const pm = playerMatches(pid);
 const pub = publicMatches();
 const decks: Record<string, string> = { ...(pm?.decks ?? {}), ...pub.decks, ...(prof?.decks ?? {}) };
-const rec: Rec[] = (pm?.games ?? []).map((g) => ({ ts: (g as any).ct || g.ts, leader: g.leader, opp: g.opp, won: g.won, b: g.b, oppB: g.oppB, deck: g.deck, oppDeck: g.oppDeck, src: 'archive' }));
+const rec: Rec[] = (pm?.games ?? []).map((g) => ({ ts: (g as any).ct || g.ts, leader: g.leader, opp: g.opp, won: g.won, b: g.b, oppB: g.oppB, deck: g.deck, oppDeck: g.oppDeck, src: 'archive', id: g.id, log: g.log }));
+// archived games have a combat log: the viewer fetches and parses it in the browser (winner/loser leaders, bounties and lists let it tell the players apart)
+const watchHref = (g: Rec) => {
+  if (!g.log || !g.id) return null;
+  const me = { l: g.leader, b: g.b, d: g.deck ? pm?.decks[g.deck] : null }, op = { l: g.opp, b: g.oppB, d: g.oppDeck ? pm?.decks[g.oppDeck] : null };
+  const [w, l] = g.won ? [me, op] : [op, me];
+  const p = new URLSearchParams({ log: g.log, id: g.id, ts: g.ts, w: w.l, l: l.l, wb: String(w.b), lb: String(l.b), back: `/players/${pid}/` });
+  if (w.d) p.set('wd', w.d); if (l.d) p.set('ld', l.d);
+  return `/replays/g/?${p}`;
+};
 const near = (a: string, b: string) => Math.abs(new Date(a + 'Z').getTime() - new Date(b + 'Z').getTime()) < 20 * 60 * 1000;
 for (const m of pub.byPlayer.get(pid) ?? []) {
   if (m.winner == null) continue; // cancelled / never started
@@ -224,12 +233,13 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
       <h2>Recent Games <span class="sub">{fmt(rec.length, 0)} recorded · {recSpan}</span> <Info text="Most recent recorded ranked games first, from the replay archive and profile match rows. Bounty is this player's rating after that game." /></h2>
       <div class="panel scroll" style="max-height:560px">
         <table>
-          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num hide-m">Opp. Bounty</th></tr></thead>
-          <tbody>{recent.map((g) => (
+          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num hide-m">Opp. Bounty</th><th>Replay <Info text="Step through the game on the sim-style board. The combat log is fetched and read in your browser when you open it; games from the profile rows have no log." /></th></tr></thead>
+          <tbody>{recent.map((g) => { const href = watchHref(g); return (
             <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
               <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" sub={g.oppName} /></td>
               <td class={g.won ? 'good' : 'bad'} style="font-weight:600">{g.won ? 'Win' : 'Loss'}</td>
-              <td class="num gold">{berry(g.b)}</td><td class="num muted hide-m">{berry(g.oppB)}</td></tr>))}</tbody>
+              <td class="num gold">{berry(g.b)}</td><td class="num muted hide-m">{berry(g.oppB)}</td>
+              <td>{href ? <a href={href} class="copy sm">Watch</a> : <span class="dim">–</span>}</td></tr>); })}</tbody>
         </table>
       </div>
     </>
