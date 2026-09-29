@@ -255,7 +255,7 @@ def bucket_key(pair: tuple[str, str], winner_leader: str, winner_first: bool) ->
     return f"{winner_leader}:{1 if winner_first else 2}"
 
 
-LEADER_CODE = re.compile(r"^[A-Z]{1,3}\d{2}-\d{3}$")  # the archive records "Mobile" instead of a leader for some mobile clients
+LEADER_CODE = re.compile(r"^(?:[A-Z]{1,3}\d{2}|P)-\d{3}$")  # card codes incl. P-xxx promos; the archive records "Mobile" instead of a leader for some mobile clients
 
 
 def contenders(days: list[dict]) -> list[str]:

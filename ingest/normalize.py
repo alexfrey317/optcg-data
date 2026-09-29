@@ -132,7 +132,7 @@ def build_leaders(opb: dict, kz: dict, card_db: dict) -> dict:
         L["name"] = row.get("leaderName") or L["name"]
         L["sources"]["kaizoku"] = {
             "matches": row.get("number_of_matches"), "wins": row.get("wins"),
-            "winRate": pct(row.get("raw_win_rate")), "weightedWinRate": pct(row.get("weighted_win_rate")),
+            "winRate": pct(row.get("raw_win_rate")), "weightedWinRate": pct(row.get("weighted_win_rate"), 2),
             "playRate": pct(row.get("play_rate"), 2),
             "firstWinRate": pct(row.get("first_win_rate")), "secondWinRate": pct(row.get("second_win_rate")),
         }
@@ -348,6 +348,9 @@ def build_window(dailies: list[dict], card_db: dict) -> tuple[dict, dict]:
                 cur["p"] = max(cur["p"], d.get("p") or 0)
 
     leaders: dict[str, dict] = {}
+    for code in [c for c in acc if not LEADER_CODE.match(strip_prefix(c) or "")]:
+        acc.pop(code)
+    field_mean, K = kaizoku_weight({c: (a["w"], a["g"]) for c, a in acc.items()})
     for code, a in acc.items():
         c = card_db.get(code, {})
         g, w = a["g"], a["w"]
@@ -359,10 +362,13 @@ def build_window(dailies: list[dict], card_db: dict) -> tuple[dict, dict]:
                                          "secondWinRate": rate(v[5], v[4]), "firstGames": v[2], "secondGames": v[4]}}
         leaders[code] = {
             "code": code, "name": a["name"] or c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
+            # total_matches counts every leader seat, so play rate is g / total and games in the window are total / 2
             "sources": {"kaizoku": {"matches": g, "wins": w, "winRate": rate(w, g),
-                                    "weightedWinRate": round(100 * (w + 50) / (g + 100), 1) if g else None,
-                                    "playRate": round(50 * g / total, 2) if total else None,
-                                    "firstWinRate": rate(fw, fg), "secondWinRate": rate(sw, sg)}},
+                                    "weightedWinRate": round(100 * (w + field_mean * K) / (g + K), 2) if g else None,
+                                    "fieldWinRate": round(100 * field_mean, 1), "weightK": round(K),
+                                    "playRate": round(100 * g / total, 2) if total else None,
+                                    "firstWinRate": rate(fw, fg), "secondWinRate": rate(sw, sg), "firstGames": fg, "secondGames": sg,
+                                    "days": len(dailies)}},
             "matchups": matchups, "deckCount": len(deck_acc.get(code, {})), "cardCount": 0,
         }
     decks_by_leader: dict[str, dict] = {}
@@ -463,7 +469,7 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
 
 
 # ---------------------------------------------------------------- OPBounty published stats windows (complete)
-LEADER_CODE = re.compile(r"^[A-Z]{1,3}\d{2}-\d{3}$")  # the archive writes "Mobile" instead of a leader for some mobile clients
+LEADER_CODE = re.compile(r"^(?:[A-Z]{1,3}\d{2}|P)-\d{3}$")  # the archive writes "Mobile" instead of a leader for some mobile clients
 # Card Kaizoku's weighting, reproduced exactly from their published files (fits every leader to 1e-16 on three snapshots):
 # shrink each leader's raw win rate toward the unweighted mean raw win rate of all leaders with games, with a prior worth
 # WEIGHT_SHARE of the mean number of games per leader. Sample sizes and totals differ between our data and theirs, so the
@@ -685,13 +691,18 @@ def merge_stats_archive(st_leaders: dict, ar_leaders: dict, st_decks: dict, ar_d
     return st_leaders, decks
 
 
-def merge_windows(kz_leaders: dict, ar_leaders: dict, kz_decks: dict, ar_decks: dict) -> tuple[dict, dict]:
-    """Archive numbers win; Card Kaizoku contributes 1st/2nd win rates (not in the archive) and any
-    leaders/decks the archive lacks."""
+def merge_windows(kz_leaders: dict, ar_leaders: dict, kz_decks: dict, ar_decks: dict, headline: str = "ranked") -> tuple[dict, dict]:
+    """Combine the Card Kaizoku view (sources.kaizoku) with the OPBounty view (sources.ranked) of a window.
+    `headline` names the source the site shows for a leader's overall numbers (games, win rates, play rate):
+    "kaizoku" once their files cover the window, else "ranked". It is copied to sources.headline so the site
+    never has to choose; matchups, decks and cards keep their own per-source records."""
     leaders = {}
     for code in set(kz_leaders) | set(ar_leaders):
         base = dict(ar_leaders.get(code) or kz_leaders[code])
         base["sources"] = {**(kz_leaders.get(code, {}).get("sources") or {}), **(ar_leaders.get(code, {}).get("sources") or {})}
+        pick = headline if base["sources"].get(headline) else ("ranked" if base["sources"].get("ranked") else "kaizoku")
+        if base["sources"].get(pick):
+            base["sources"]["headline"] = {**base["sources"][pick], "source": pick}
         mus = {}
         for opp in set((kz_leaders.get(code, {}).get("matchups") or {})) | set((ar_leaders.get(code, {}).get("matchups") or {})):
             mus[opp] = {**(kz_leaders.get(code, {}).get("matchups", {}).get(opp) or {}), **(ar_leaders.get(code, {}).get("matchups", {}).get(opp) or {})}

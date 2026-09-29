@@ -90,7 +90,7 @@ export const leaderHistory = (code: string) => readJson<(string | number | null)
 
 export const card = (id: string): Card => cards[id] ?? { name: id, type: '', cost: '', color: '', power: '', counter: '', rarity: '', img: imgUrl(id), set: id.split('-')[0] };
 /** Match volume behind a leader row: the complete ranked archive when present, else the two sampled feeds added. */
-export const volume = (l: Leader) => l.sources.ranked ? Number(l.sources.ranked.matches ?? 0) : Number(l.sources.kaizoku?.matches ?? 0) + Number(l.sources.opbounty?.matches ?? 0);
+export const volume = (l: Leader) => l.sources.headline ? Number(l.sources.headline.matches ?? 0) : l.sources.ranked ? Number(l.sources.ranked.matches ?? 0) : Number(l.sources.kaizoku?.matches ?? 0) + Number(l.sources.opbounty?.matches ?? 0);
 
 /** Consolidated deck stats. The ladder feed and the ranked-decklist feed describe the same match pool, so we take the
  *  larger of the two rather than adding them; the sim-wide pool is a separate set of games and is added. Win rate is games-weighted. */
@@ -123,20 +123,23 @@ export const berry = (n: number | null | undefined) => (n == null ? '–' : `฿
 export const MIN_PLAY_RATE = 0.25;
 export const leaderStats = (l: Leader) => {
   const k = l.sources.kaizoku ?? {}, o = l.sources.opbounty ?? {}, r = l.sources.ranked;
-  // games, win rate and play rate come from the complete ranked archive when we have it; 1st/2nd only exist in the sim-wide feed
-  const main = r ?? k;
-  const games = r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0);
+  // the ingest picks the headline source per window (sources.headline: Card Kaizoku once their files cover the window, else
+  // OPBounty's published stats); older files without it fall back to ranked, then the sim-wide feed
+  const main = l.sources.headline ?? r ?? k;
+  const source: 'kaizoku' | 'ranked' = (main.source as any) ?? (r ? 'ranked' : 'kaizoku');
+  const games = main.matches != null ? Number(main.matches) : Number(k.matches ?? 0) + Number(o.matches ?? 0);
   // weighted win rate is computed by the ingest per window (Card Kaizoku's scheme); it needs the whole field's mean and size
   const weighted = main.weightedWinRate == null ? null : Number(main.weightedWinRate);
   return {
+    source,
     games,
     winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
     weighted,
     fieldWinRate: main.fieldWinRate == null ? null : Number(main.fieldWinRate),
     weightK: main.weightK == null ? null : Number(main.weightK),
     playRate: main.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(main.playRate),
-    first: (r?.firstWinRate ?? k.firstWinRate) == null ? null : Number(r?.firstWinRate ?? k.firstWinRate),
-    second: (r?.secondWinRate ?? k.secondWinRate) == null ? null : Number(r?.secondWinRate ?? k.secondWinRate),
+    first: (main.firstWinRate ?? r?.firstWinRate ?? k.firstWinRate) == null ? null : Number(main.firstWinRate ?? r?.firstWinRate ?? k.firstWinRate),
+    second: (main.secondWinRate ?? r?.secondWinRate ?? k.secondWinRate) == null ? null : Number(main.secondWinRate ?? r?.secondWinRate ?? k.secondWinRate),
     avgDuration: o.avgDuration == null ? null : Number(o.avgDuration),
   };
 };
@@ -179,7 +182,9 @@ export const WINDOWS: Record<Win, { label: string; short: string; base: string }
 };
 export const WINDOW_KEYS = Object.keys(WINDOWS) as Win[];
 const WDIR = join(ROOT, 'windows');
-export interface WindowMeta { days: number; targetDays: number; start: string | null; end: string | null; matches: number }
+export interface WindowMeta { days: number; targetDays: number; start: string | null; end: string | null; matches: number; rankedMatches?: number; leaderSource?: 'kaizoku' | 'ranked'; kaizokuCoverage?: number; kaizokuUpdated?: string | null; kaizokuDays?: number }
+/** Human label for where a window's leader headline numbers come from. */
+export const sourceLabel = (src: 'kaizoku' | 'ranked' | null | undefined) => (src === 'kaizoku' ? 'Card Kaizoku' : 'OPBounty ranked stats');
 const hasWindow = (w: Win) => existsSync(join(WDIR, w, 'leaders.json'));
 export const windowMeta = (w: Win): WindowMeta | null =>
   hasWindow(w) ? readJson<WindowMeta | null>(join(WDIR, w, 'meta.json'), null)
@@ -279,7 +284,7 @@ export type ReplayStep =
 export interface ReplayGame { v: number; id: string; ts: string; date: string; players: ReplayPlayer[]; first: 1; winner: 1 | 2; endTurns: number; end: ReplaySummary['end']; finished: boolean; steps: ReplayStep[] }
 const REPLAYS = join(ROOT, 'replays');
 /** The archive records "Mobile" instead of a leader for some mobile clients; only real card codes are leaders. */
-export const LEADER_CODE = /^[A-Z]{1,3}\d{2}-\d{3}$/;
+export const LEADER_CODE = /^(?:[A-Z]{1,3}\d{2}|P)-\d{3}$/;
 export const replayBest = (): ReplayBest => {
   const b = readJson<ReplayBest>(join(REPLAYS, 'best.json'), { window: { start: null, end: null, days: 0 }, leaders: [], perBucket: 5, pairs: {} });
   b.leaders = b.leaders.filter((c) => LEADER_CODE.test(c));

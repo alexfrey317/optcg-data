@@ -27,6 +27,7 @@ DAILY = ROOT / "data" / "daily"
 # time windows the site offers, in finished UTC days; numbers come from the published stats (complete),
 # pilots / mirror card impact from the replay archive (kept ARCHIVE_DAYS deep), 1st/2nd extras from Card Kaizoku
 WINDOWS = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
+KZ_MIN_COVERAGE = 0.9  # share of a window's days Card Kaizoku dailies must cover before they become the leader headline source
 ARCHIVE_DAYS = 31
 
 
@@ -178,11 +179,22 @@ def main(argv=None):
         st_days = stats_days_all[-days:]
         if not kz_days and not ar_days and not st_days:
             continue
-        kz_leaders, kz_decks = N.build_window(kz_days, card_db) if kz_days else ({}, {})
+        # Leader headline numbers come from Card Kaizoku (the whole sim) once their files cover the window: the weekly file
+        # for 7d (their own table, so the numbers match their site), summed dailies elsewhere when at least KZ_MIN_COVERAGE
+        # of the days exist. Their dailies are kept forever in data/daily, so 30d/90d switch over by themselves as they fill.
+        kz_weekly = wname == "7d" and bool(kz.get("stats"))
+        if kz_weekly:
+            kz_leaders, kz_decks = N.build_leaders({}, kz, card_db), {}
+            for L in kz_leaders.values():
+                L["sources"]["kaizoku"]["days"] = 7
+        else:
+            kz_leaders, kz_decks = N.build_window(kz_days, card_db) if kz_days else ({}, {})
+        kz_cover = 1.0 if kz_weekly else len(kz_days) / days
+        headline = "kaizoku" if kz_leaders and kz_cover >= KZ_MIN_COVERAGE else "ranked"
         ar_leaders, ar_decks = N.build_archive_window(ar_days, card_db, handles_by_day, links) if ar_days else ({}, {})
         st_leaders, st_decks = N.build_stats_window(st_days, card_db) if st_days else ({}, {})
         r_leaders, r_decks = N.merge_stats_archive(st_leaders, ar_leaders, st_decks, ar_decks)
-        w_leaders, w_decks = N.merge_windows(kz_leaders, r_leaders, kz_decks, r_decks)
+        w_leaders, w_decks = N.merge_windows(kz_leaders, r_leaders, kz_decks, r_decks, headline)
         wdir = ROOT / "data" / "windows" / wname
         for code, dfile in w_decks.items():
             dump(wdir / "decks" / f"{code}.json", dfile)
@@ -214,10 +226,16 @@ def main(argv=None):
         used_cards.update(w_leaders)
         dump(wdir / "leaders.json", w_leaders)
         span = st_days or ar_days or kz_days
+        ranked_matches = (sum(int(d.get("matches") or 0) for d in st_days) if st_days
+                          else sum(len(d.get("matches") or []) for d in ar_days))
+        # Card Kaizoku's total_matches counts leader seats, so games are half of it
+        kz_matches = (max((int(r.get("total_matches") or 0) for r in kz.get("stats") or []), default=0) // 2 if kz_weekly
+                      else sum(int(d.get("total") or 0) for d in kz_days) // 2)
         window_meta[wname] = {"days": len(span), "targetDays": days, "start": span[0].get("date"), "end": span[-1].get("date"),
-                              "matches": sum(int(d.get("matches") or 0) for d in st_days) if st_days
-                              else sum(len(d.get("matches") or []) for d in ar_days) if ar_days else sum(int(d.get("total") or 0) for d in kz_days),
-                              "statsDays": len(st_days), "archiveDays": len(ar_days), "kaizokuDays": len(kz_days),
+                              "matches": kz_matches if headline == "kaizoku" else ranked_matches, "rankedMatches": ranked_matches,
+                              "leaderSource": headline, "kaizokuCoverage": round(kz_cover, 3),
+                              "kaizokuUpdated": kz.get("manifest_date") if kz_weekly else (kz_days[-1].get("date") if kz_days else None),
+                              "statsDays": len(st_days), "archiveDays": len(ar_days), "kaizokuDays": 7 if kz_weekly else len(kz_days),
                               "archiveMatches": sum(len(d.get("matches") or []) for d in ar_days)}
         dump(wdir / "meta.json", window_meta[wname])
 

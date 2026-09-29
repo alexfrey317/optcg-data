@@ -4,7 +4,7 @@ import DeckCard from './DeckCard.astro';
 import DeckList from './DeckList.astro';
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, replayBest, pairKey, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, type Win, type Leader, type CurveTurn } from '../lib/data';
+import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, replayBest, pairKey, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, sourceLabel, type Win, type Leader, type CurveTurn } from '../lib/data';
 interface Props { window: Win; leader: Leader }
 const { window: W, leader: L } = Astro.props;
 const ls = leadersFor(W);
@@ -91,9 +91,9 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
     <h1 style="text-align:center;margin-bottom:.5rem">{L.name} <span class="sub">[{L.code}] · {L.color}</span></h1>
     <div style="display:flex;justify-content:center;margin-bottom:1rem"><WindowToggle current={W} path={`/leaders/${L.code}/`} /></div>
     <div class="grid stats three" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="label">Weighted Win Rate <Info text={`Raw win rate shrunk toward the field's average leader win rate (${pct(s.fieldWinRate)}) as if this leader had ${s.weightK == null ? 'a fixed number of' : fmt(s.weightK, 0)} extra games at that average (35% of the mean games per leader in this window), the exact weighting Card Kaizoku uses. Small samples move the most.`} /></div><div class:list={['value', wrClass(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
+      <div class="stat"><div class="label">Weighted Win Rate <Info text={`Raw win rate shrunk toward the field's average leader win rate (${pct(s.fieldWinRate)}) as if this leader had ${s.weightK == null ? 'a fixed number of' : fmt(s.weightK, 0)} extra games at that average (35% of the mean games per leader in this window), Card Kaizoku's exact weighting. Small samples move the most.`} /></div><div class:list={['value', wrClass(s.weighted ?? s.winRate)]}>{pct(s.weighted ?? s.winRate)}</div></div>
       <div class="stat"><div class="label">Play Rate <Info text={`Share of all decks in ranked games over the ${WINDOWS[W].short} window that were this leader. Every game has two decks, so all leaders sum to 100%.`} /></div><div class="value">{pct(s.playRate)}</div></div>
-      <div class="stat"><div class="label">Total Games</div><div class="value">{fmt(s.games, 0)}</div></div>
+      <div class="stat"><div class="label">Total Games <Info text={`Headline numbers (games, win rates, play rate) for this window come from ${sourceLabel(s.source)}${s.source === 'kaizoku' ? ', which records the whole sim. The matchup, decklist and card tables below come from OPBounty\'s published ranked stats, a smaller set of games, so their totals differ a little.' : '.'}`} /></div><div class="value">{fmt(s.games, 0)}</div><div class="muted small">{sourceLabel(s.source)}</div></div>
       <div class="stat"><div class="label">1st Win Rate <Info text="Win rate when taking the first turn." /></div><div class:list={['value', wrClass(s.first)]}>{pct(s.first)}</div></div>
       <div class="stat"><div class="label">2nd Win Rate <Info text="Win rate when taking the second turn. Compare with 1st to decide the coin flip." /></div><div class:list={['value', wrClass(s.second)]}>{pct(s.second)}</div></div>
       <div class="stat"><div class="label">Pilots <Info text="Distinct sim accounts that played this leader in ranked last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></div><div class="value">{uniquePilots == null ? '–' : fmt(uniquePilots, 0)}</div></div>
