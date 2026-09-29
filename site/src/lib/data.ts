@@ -116,9 +116,9 @@ export const deckScore = (s: { games: number; winRate: number | null }) => {
 export const berry = (n: number | null | undefined) => (n == null ? '–' : `฿${fmt(n, 0)}`);
 
 /** Leader headline numbers from whichever pool has them. */
-/** Games in the prior behind the weighted win rate (Card Kaizoku's K). The ingest shrinks each leader's raw rate toward
- *  the field's unweighted mean leader win rate (sources.ranked.fieldWinRate, ~36%) as if it had WEIGHT_K extra games at that rate. */
-export const WEIGHT_K = 2000;
+/** Weighted win rate is Card Kaizoku's exact scheme, computed by the ingest per window: each leader's raw rate is shrunk toward
+ *  the field's unweighted mean leader win rate (sources.ranked.fieldWinRate) as if it had sources.ranked.weightK extra games at
+ *  that rate, where weightK is 35% of the mean number of games per leader in the window. */
 /** Leaders below this share of seats are "rarely played": listed separately so a 5-game leader never sits among the real contenders. */
 export const MIN_PLAY_RATE = 0.25;
 export const leaderStats = (l: Leader) => {
@@ -126,13 +126,14 @@ export const leaderStats = (l: Leader) => {
   // games, win rate and play rate come from the complete ranked archive when we have it; 1st/2nd only exist in the sim-wide feed
   const main = r ?? k;
   const games = r ? Number(r.matches ?? 0) : Number(k.matches ?? 0) + Number(o.matches ?? 0);
-  // weighted win rate is computed by the ingest per window (Card Kaizoku's scheme, see WEIGHT_K); it needs the whole field's mean
+  // weighted win rate is computed by the ingest per window (Card Kaizoku's scheme); it needs the whole field's mean and size
   const weighted = main.weightedWinRate == null ? null : Number(main.weightedWinRate);
   return {
     games,
     winRate: (main.winRate ?? o.winRate) == null ? null : Number(main.winRate ?? o.winRate),
     weighted,
     fieldWinRate: main.fieldWinRate == null ? null : Number(main.fieldWinRate),
+    weightK: main.weightK == null ? null : Number(main.weightK),
     playRate: main.playRate == null ? (o.popularity == null ? null : Number(o.popularity)) : Number(main.playRate),
     first: (r?.firstWinRate ?? k.firstWinRate) == null ? null : Number(r?.firstWinRate ?? k.firstWinRate),
     second: (r?.secondWinRate ?? k.secondWinRate) == null ? null : Number(r?.secondWinRate ?? k.secondWinRate),

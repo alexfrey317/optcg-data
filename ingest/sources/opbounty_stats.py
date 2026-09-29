@@ -73,7 +73,8 @@ def fetch_chunk(key: str) -> dict:
     return _decode(raw)
 
 
-LEADER_RE = re.compile(r"\b((?:OP|ST|EB|PRB|P)\d{0,2}-\d{3})\b", re.I)
+# no leading word boundary: since 2026-09-22 the files write leaders as "1xOP17-079", and "x" + "O" is not a boundary
+LEADER_RE = re.compile(r"((?:OP|ST|EB|PRB|P)\d{0,2}-\d{3})\b", re.I)
 
 
 def _code(x) -> str | None:

@@ -401,8 +401,8 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
         hmap = handles_by_day.get(day["date"], {})
         for m in day["matches"]:
             W, L = m["w"], m["l"]
-            if not W.get("l") or not L.get("l"):
-                continue  # a handful of documents lack a leader; they cannot be attributed
+            if not LEADER_CODE.match(W.get("l") or "") or not LEADER_CODE.match(L.get("l") or ""):
+                continue  # a handful of documents lack a leader (or say "Mobile"); they cannot be attributed
             total += 1
             g[W["l"]] += 1; g[L["l"]] += 1; w[W["l"]] += 1
             mu[W["l"]][L["l"]][0] += 1; mu[W["l"]][L["l"]][1] += 1
@@ -426,6 +426,7 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
                         p["ts"], p["b"] = m["ts"] or "", S["b"]
 
     leaders: dict[str, dict] = {}
+    field_mean, K = kaizoku_weight({c: (w[c], g[c]) for c in g})
     for code in g:
         c = card_db.get(code, {})
         matchups = {}
@@ -434,7 +435,7 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
         leaders[code] = {
             "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"ranked": {"matches": g[code], "wins": w[code], "winRate": rate(w[code], g[code]),
-                                   "weightedWinRate": round(100 * (w[code] + 50) / (g[code] + 100), 1),
+                                   "weightedWinRate": round(100 * (w[code] + field_mean * K) / (g[code] + K), 2), "fieldWinRate": round(100 * field_mean, 1), "weightK": round(K),
                                    "playRate": round(50 * g[code] / total, 2) if total else None}},
             "matchups": matchups, "deckCount": len(dk.get(code, {})), "cardCount": 0,
         }
@@ -462,7 +463,21 @@ def build_archive_window(days: list[dict], card_db: dict, handles_by_day: dict[s
 
 
 # ---------------------------------------------------------------- OPBounty published stats windows (complete)
-WEIGHT_K = 2000
+LEADER_CODE = re.compile(r"^[A-Z]{1,3}\d{2}-\d{3}$")  # the archive writes "Mobile" instead of a leader for some mobile clients
+# Card Kaizoku's weighting, reproduced exactly from their published files (fits every leader to 1e-16 on three snapshots):
+# shrink each leader's raw win rate toward the unweighted mean raw win rate of all leaders with games, with a prior worth
+# WEIGHT_SHARE of the mean number of games per leader. Sample sizes and totals differ between our data and theirs, so the
+# numbers only coincide when the underlying games do, but the formula is theirs.
+WEIGHT_SHARE = 0.35
+
+
+def kaizoku_weight(stats: dict[str, tuple[int, int]]) -> tuple[float, float]:
+    """stats: code -> (wins, games). Returns (field_mean, K) for weighted = (w + field_mean*K) / (n + K)."""
+    played = [(w, n) for w, n in stats.values() if n]
+    if not played:
+        return 0.5, 0.0
+    field_mean = sum(w / n for w, n in played) / len(played)
+    return field_mean, WEIGHT_SHARE * sum(n for _, n in played) / len(played)
 
 
 def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
@@ -492,27 +507,27 @@ def build_stats_window(days: list[dict], card_db: dict) -> tuple[dict, dict]:
             for k in ("g", "w", "fw", "fl", "sw", "sl"):
                 d[k] += int(s.get(k) or 0)
 
-    # Card Kaizoku's weighting: shrink toward the unweighted mean leader win rate of the field (~36%, dragged down by the
-    # long tail of rarely played leaders) with a WEIGHT_K-game prior. Verified against their table: OP13-001 at 8,940 games,
-    # 51.66% raw -> (0.5166*8940 + 0.363*2000)/10940 = 48.85%.
-    played = [a for a in L.values() if a["g"]]
-    field_mean = sum(a["w"] / a["g"] for a in played) / len(played) if played else 0.5
+    for code in [c for c in L if not LEADER_CODE.match(c or "")]:
+        L.pop(code); mu.pop(code, None)
+    field_mean, K = kaizoku_weight({c: (a["w"], a["g"]) for c, a in L.items()})
 
     def weighted(w, n):
-        return round(100 * (w + field_mean * WEIGHT_K) / (n + WEIGHT_K), 1) if n else None
+        return round(100 * (w + field_mean * K) / (n + K), 2) if n else None
 
     leaders: dict[str, dict] = {}
     for code, a in L.items():
         c = card_db.get(code, {})
         matchups = {}
         for opp, m in sorted(mu[code].items(), key=lambda kv: -kv[1][0]):
+            if not LEADER_CODE.match(opp or ""):
+                continue
             g, w, fw, fl, sw, sl = m
             matchups[opp] = {"ranked": {"games": g, "winRate": rate(w, g), "firstWinRate": rate(fw, fw + fl), "secondWinRate": rate(sw, sw + sl),
                                         "firstGames": fw + fl, "secondGames": sw + sl}}
         leaders[code] = {
             "code": code, "name": c.get("name") or code, "color": c.get("color"), "img": c.get("img"),
             "sources": {"ranked": {"matches": a["g"], "wins": a["w"], "winRate": rate(a["w"], a["g"]),
-                                   "weightedWinRate": weighted(a["w"], a["g"]), "fieldWinRate": round(100 * field_mean, 1),
+                                   "weightedWinRate": weighted(a["w"], a["g"]), "fieldWinRate": round(100 * field_mean, 1), "weightK": round(K),
                                    # share of seats: every match has two leaders
                                    "playRate": round(50 * a["g"] / total, 2) if total else None,
                                    "firstWinRate": rate(a["fw"], a["fw"] + a["fl"]), "secondWinRate": rate(a["sw"], a["sw"] + a["sl"]),
