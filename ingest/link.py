@@ -15,6 +15,7 @@ Outputs:
 from __future__ import annotations
 
 import json
+from datetime import datetime
 import re
 import sys
 from collections import defaultdict
@@ -176,6 +177,45 @@ def link(players: list[dict], series: dict[str, list[dict]], snapshot_ts: str, p
             out[pid] = {**prev, "confidence": prev.get("confidence", "exact").rstrip("*") + "*", "gap": round(abs(b - float(p.get("bounty") or 0)), 2),
                         "lastSeen": ts, "lastBounty": round(b, 2), "games": len(series[prev["handle"]])}
     return out
+
+
+def crosslink_public(archive_days: list[dict], public_dir: Path) -> dict:
+    """Tie profile match rows (data/matches/public, no combat log) to replay-archive documents so the site can
+    offer a replay for them. An archive document stores both players' pre-game bounties to 2 decimals and is
+    stamped when the game ends, so (winner leader, loser leader, both bounties) within the following hour is a
+    near-certain match; ambiguous cases are left alone. Writes `aid` (archive id) and `log` into the public rows."""
+    idx: dict[tuple, list[dict]] = defaultdict(list)
+    dates: set[str] = set()
+    for d in archive_days:
+        dates.add(d["date"])
+        for m in d["matches"]:
+            if m.get("log"):
+                idx[(m["w"]["l"], m["l"]["l"], round(m["w"]["b"]), round(m["l"]["b"]))].append(m)
+    if not idx:
+        return {"linked": 0, "rows": 0}
+    lo, hi = min(dates), max(dates)
+    linked = rows = 0
+    for f in sorted(public_dir.glob("*.json")):
+        if not (lo <= f.stem <= hi):
+            continue
+        day = json.loads(f.read_text())
+        changed = False
+        for m in day.get("matches", {}).values():
+            if m.get("log") or not m.get("winner"):
+                continue
+            w, l = m[m["winner"]], m["p2" if m["winner"] == "p1" else "p1"]
+            if not w.get("leader") or not l.get("leader"):
+                continue
+            rows += 1
+            t0 = datetime.fromisoformat(m["ts"])
+            cands = [a for a in idx.get((w["leader"], l["leader"], round(w["b"]), round(l["b"])), [])
+                     if abs(a["w"]["b"] - w["b"]) < 0.06 and abs(a["l"]["b"] - l["b"]) < 0.06
+                     and -60 <= (datetime.fromisoformat(a["ts"]) - t0).total_seconds() <= 3600]
+            if len(cands) == 1:
+                m["aid"] = cands[0]["id"]; m["log"] = cands[0]["log"]; linked += 1; changed = True
+        if changed:
+            f.write_text(json.dumps(day, separators=(",", ":"), ensure_ascii=False))
+    return {"linked": linked, "rows": rows}
 
 
 def write_player_matches(links: dict, series: dict, decks: dict):

@@ -208,7 +208,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       {techOpps.map(([opp, techs]) => (
         <div style="display:flex;gap:.9rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)">
           <LeaderArt code={opp} size="sm" label={false} href={wpath(W, `/leaders/${opp}/`)} />
-          <div style="font-size:.85rem;display:flex;flex-wrap:wrap;gap:.3rem">{techs.map((t) => <span class="chip" data-filter-card={t.id} data-filter-name={card(t.id).name} title={`${pct(t.winRateWith)} with vs ${pct(t.winRateWithout)} without · ${t.gamesWith} games · ${pct(usage.get(t.id) ?? null)} of lists run it · click to show lists with it`}>{card(t.id).name} <b class="good">+{fmt(t.lift)}</b></span>)}</div>
+          <div style="font-size:.85rem;display:flex;flex-wrap:wrap;gap:.3rem">{techs.map((t) => <span class="chip tech" data-filter-card={t.id} data-filter-name={card(t.id).name} title={`${pct(t.winRateWith)} with vs ${pct(t.winRateWithout)} without · ${t.gamesWith} games · ${pct(usage.get(t.id) ?? null)} of lists run it · click the name to show lists with it, the art to zoom`}><span class="ct"><img src={imgUrl(t.id)} alt={card(t.id).name} loading="lazy" /></span>{card(t.id).name} <b class="good">+{fmt(t.lift)}</b></span>)}</div>
         </div>
       ))}
     </div>

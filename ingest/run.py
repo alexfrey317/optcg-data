@@ -165,6 +165,8 @@ def main(argv=None):
             used_cards.update(c["id"] for c in d["cards"])
 
     handles_by_day = {d["date"]: load(link.HANDLES / f"{d['date']}.json", {}) for d in archive_days}
+    # profile match rows gain the archive id + combat-log path of the same game when the archive has it (player-page replays)
+    crosslink_status = guard("crosslink", lambda: link.crosslink_public(archive_days, opbounty_profiles.PUBLIC), unavailable=not archive_days)
 
     # windows: match archive (games, matchups, decks, pilots) + Card Kaizoku dailies (1st/2nd, card stats stay weekly)
     window_meta = {}
@@ -273,7 +275,7 @@ def main(argv=None):
         "playerDecks": player_stats,
         "daily": daily_status,
         "matches": matches_status,
-        "replays": replays_status,
+        "replays": replays_status, "crosslink": crosslink_status,
         "profiles": profiles_status,
         "stats": stats_status,
         "linked": len(links),

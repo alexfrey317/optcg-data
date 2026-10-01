@@ -221,7 +221,7 @@ const ICONS: Record<string, string> = {
       // Card Usage rows (and mirror / hand cards) carry data-filter-card: clicking one filters the page's main decklist.
       document.addEventListener('click', (e) => {
         const t = e.target as HTMLElement;
-        if (t.closest('a, button, .info')) return;
+        if (t.closest('a, button, .info') || t.closest('.chip.tech img')) return; // tech-chip art zooms instead of filtering
         const row = t.closest<HTMLElement>('[data-filter-card]'); if (!row) return;
         const box = document.querySelector<HTMLElement>('.decklist[data-filterable]'); if (!box) return;
         const id = row.dataset.filterCard!, name = row.dataset.filterName || id;
@@ -458,6 +458,8 @@ const ICONS: Record<string, string> = {
   .art-wide { display: block; width: 132px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line-2); position: relative; }
   .art-wide img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block; }
   .art-wide::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--lc); }
+  .rank-table .c-leader .art-m { display: none; } /* the Card column carries the art on desktop; on phones it moves into the sticky Leader cell */
+  .chip.tech { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .55rem .2rem .25rem; } .chip.tech .ct { width: 30px; height: 42px; margin: 0; border-radius: 4px; }
   .leader-link { color: var(--text); font-weight: 600; } .leader-link:hover { color: var(--accent-2); text-decoration: none; }
   .rank-table td { padding-top: .45rem; padding-bottom: .45rem; } .delta { font-weight: 600; }
   .rank-table tr.divider td { background: var(--panel-2); padding: .5rem .75rem; font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); position: sticky; left: 0; }
@@ -523,7 +525,7 @@ const ICONS: Record<string, string> = {
     .ladder .leader-sm .leader-frame { width: 40px; height: 56px; } .ladder .leader-sm .leader-name { font-size: .82rem; } .ladder .leader-sm .leader-sub { font-size: .7rem; }
     .ladder .leader { gap: .4rem; }
     /* leader rankings: fewer columns, the rest scroll */
-    .rank-table .art-wide { width: 72px; height: 40px; }
+    .rank-table .art-wide { width: 72px; height: 40px; } .rank-table .c-leader .art-m { display: block; margin-bottom: .3rem; }
     .rank-table td, .rank-table th { padding-left: .45rem; padding-right: .45rem; }
     .rank-table .c-rank, .rank-table .c-leader { position: sticky; z-index: 2; background: var(--panel); }
     .rank-table .c-rank { left: 0; width: 2.9rem; min-width: 2.9rem; padding-right: .2rem; } .rank-table .c-rank .pill-rank { min-width: 1.9rem; height: 1.8rem; font-size: .75rem; border-radius: 7px; padding: 0 .2rem; }

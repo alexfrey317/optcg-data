@@ -31,7 +31,7 @@ const rec: Rec[] = (pm?.games ?? []).map((g) => ({ ts: (g as any).ct || g.ts, le
 // archived games have a combat log: the viewer fetches and parses it in the browser (winner/loser leaders, bounties and lists let it tell the players apart)
 const watchHref = (g: Rec) => {
   if (!g.log || !g.id) return null;
-  const me = { l: g.leader, b: g.b, d: g.deck ? pm?.decks[g.deck] : null }, op = { l: g.opp, b: g.oppB, d: g.oppDeck ? pm?.decks[g.oppDeck] : null };
+  const me = { l: g.leader, b: g.b, d: g.deck ? decks[g.deck] : null }, op = { l: g.opp, b: g.oppB, d: g.oppDeck ? decks[g.oppDeck] : null };
   const [w, l] = g.won ? [me, op] : [op, me];
   const p = new URLSearchParams({ log: g.log, id: g.id, ts: g.ts, w: w.l, l: l.l, wb: String(w.b), lb: String(l.b), back: `/players/${pid}/` });
   if (w.d) p.set('wd', w.d); if (l.d) p.set('ld', l.d);
@@ -44,7 +44,7 @@ for (const m of pub.byPlayer.get(pid) ?? []) {
   const me = m[meSide], op = m[opSide];
   if (!me.leader || !op.leader) continue;
   if (rec.some((r) => r.src === 'archive' && r.leader === me.leader && r.opp === op.leader && near(r.ts, m.ts))) continue;
-  rec.push({ ts: m.ts, leader: me.leader, opp: op.leader, won: m.winner === meSide, b: Math.round((me.b + me.delta) * 100) / 100, oppB: op.b, deck: me.deck, oppDeck: op.deck, oppName: op.nick, src: 'public' });
+  rec.push({ ts: m.ts, leader: me.leader, opp: op.leader, won: m.winner === meSide, b: Math.round((me.b + me.delta) * 100) / 100, oppB: op.b, deck: me.deck, oppDeck: op.deck, oppName: op.nick, src: 'public', id: m.aid, log: m.log });
 }
 rec.sort((a, b) => a.ts.localeCompare(b.ts));
 const recWins = rec.filter((g) => g.won).length;
@@ -233,7 +233,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
       <h2>Recent Games <span class="sub">{fmt(rec.length, 0)} recorded · {recSpan}</span> <Info text="Most recent recorded ranked games first, from the replay archive and profile match rows. Bounty is this player's rating after that game." /></h2>
       <div class="panel scroll" style="max-height:560px">
         <table>
-          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num hide-m">Opp. Bounty</th><th>Replay <Info text="Step through the game on the sim-style board. The combat log is fetched and read in your browser when you open it; games from the profile rows have no log." /></th></tr></thead>
+          <thead><tr><th>When</th><th>Leader</th><th>Opponent</th><th>Result</th><th class="num">Bounty</th><th class="num hide-m">Opp. Bounty</th><th>Replay <Info text="Step through the game on the sim-style board. The combat log is fetched and read in your browser when you open it. Only games the replay archive recorded (about half of ranked games, those whose room host ran the OPBounty app) have a log; the rest show a dash." /></th></tr></thead>
           <tbody>{recent.map((g) => { const href = watchHref(g); return (
             <tr><td class="muted small" style="white-space:nowrap">{g.ts.replace('T', ' ').slice(0, 16)}</td>
               <td><LeaderArt code={g.leader} size="sm" /></td><td><LeaderArt code={g.opp} size="sm" sub={g.oppName} /></td>

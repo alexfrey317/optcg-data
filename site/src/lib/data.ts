@@ -216,7 +216,7 @@ export const playerMatches = (id: string | number) => readJson<PlayerMatches | n
 /** OPBounty personal profile (Firestore PublicUsers): complete season record, top-3 leader stats, bounty-per-game series, newest public matches. */
 export interface ProfileLeader { code: string; games: number; wins: number; losses: number; winRate: number | null; avgDuration: number | null; first: { games: number; winRate: number | null } | null; second: { games: number; winRate: number | null } | null }
 export interface ProfileSide { id: string; nick: string; b: number; delta: number; status: string; leader: string | null; deck: string | null }
-export interface ProfileMatch { idx: number; ts: string; dur: number; mode: number; p1: ProfileSide; p2: ProfileSide; winner: 'p1' | 'p2' | null }
+export interface ProfileMatch { idx: number; ts: string; dur: number; mode: number; p1: ProfileSide; p2: ProfileSide; winner: 'p1' | 'p2' | null; aid?: string; log?: string }
 export interface PlayerProfile { id: string; updated: string; writtenAt: string | null; wins: number; losses: number; games: number; winRate: number | null; avgDuration: number | null; leaders: ProfileLeader[]; graph: number[]; recent: ProfileMatch[]; decks: Record<string, string> }
 export const playerProfile = (id: string | number) => readJson<PlayerProfile | null>(join(LATEST, 'profiles', `${id}.json`), null);
 /** Best pilots per leader from OPBounty's leader-filtered ladder (complete): players with the leader among their most-played, ranked by bounty. */
