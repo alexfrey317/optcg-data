@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import link, normalize as N
 from .http import get_json
-from .sources import kaizoku, kaizoku_curves, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_replays, opbounty_stats, optcgone
+from .sources import card_text, kaizoku, kaizoku_curves, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_replays, opbounty_stats, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "raw"
@@ -42,7 +42,7 @@ def load(path: Path, default):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,players,matches,profiles,stats")
+    ap.add_argument("--skip", default="", help="comma list: opbounty,kaizoku,daily,optcgone,cards,cardtext,players,matches,profiles,stats")
     args = ap.parse_args(argv)
     skip = set(filter(None, args.skip.split(",")))
 
@@ -87,6 +87,8 @@ def main(argv=None):
     daily_status = guard("daily", lambda: kaizoku.fetch_daily(DAILY))
     step("optcgone", optcgone.fetch_all)
     step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
+    # card-text flags for the replay viewer (rest-as-cost abilities the sim never logs); the old file stays on failure
+    guard("cardtext", lambda: card_text.fetch_all(LATEST / "card_flags.json"))
     step("curves", lambda: kaizoku_curves.fetch_all(RAW / "kaizoku_curves_state.json", LATEST / "curves"))
     step("opbounty", opbounty.fetch_all)
 

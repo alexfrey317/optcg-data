@@ -1,5 +1,5 @@
 import type { APIRoute, GetStaticPaths } from 'astro';
-import { replayBest, replayGame, leaders, card, colorVar } from '../../../lib/data';
+import { replayBest, replayGame, leaders, card, cardFlags, colorVar } from '../../../lib/data';
 
 /** One bundle per matchup: every selected game of the pair plus the card names it needs. The viewer at /replays/g/ fetches it. */
 const CARD = /\[([A-Z]{1,3}\d{2}-\d{3}(?:_p\d+)?)\]/g;
@@ -26,6 +26,7 @@ export const GET: APIRoute = ({ params }) => {
     }
   }
   const names = Object.fromEntries([...used].map((id) => [id, card(id).name]));
+  const powers = Object.fromEntries([...used].filter((id) => Number(card(id).power)).map((id) => [id, Number(card(id).power)]));
   const lead = Object.fromEntries(key.split('|').map((c) => [c, { name: leaders[c]?.name ?? card(c).name ?? c, color: colorVar(leaders[c]?.color ?? card(c).color) }]));
-  return new Response(JSON.stringify({ pair: key, leaders: lead, names, games }), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+  return new Response(JSON.stringify({ pair: key, leaders: lead, names, powers, games, flags: { restCost: cardFlags.restCost.filter((id) => used.has(id)) } }), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 };

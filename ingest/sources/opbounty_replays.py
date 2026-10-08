@@ -79,11 +79,16 @@ def _deck_ids(text: str | None) -> set[str]:
     return {t.split("x", 1)[1] for t in (text or "").split() if "x" in t}
 
 
-PARSER_VERSION = 2
-# RZ1 state rows: RZ1|seq|player|card|fromZone|fromIdx|toZone|toIdx|f1|f2|rested|f4|f5 followed by
-# RZ1|CHK|seq|player|deck|hand|chars|life|donDeck|donActive|trash|stage|?|donAttached
-ZONES = {0: "deck", 1: "hand", 2: "chars", 3: "life", 4: "donDeck", 5: "don", 6: "trash", 7: "stage", 9: "attached"}
-MOVE = re.compile(r"^RZ1\|(\d+)\|([12])\|([^|]+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d)\|(\d)\|(\d)\|(\d)\|(\d)")
+PARSER_VERSION = 3
+# RZ1 state rows, written by the sim's ReplaySync (GameplayLogicScript.ReplaySync_EmitMove):
+#   RZ1|seq|player|card|fromZone|fromSlot|toZone|toSlot|visP1|visP2|rested|powerDelta|costDelta
+#   RZ1|CHK|seq|player|deck|hand|chars|life|donDeck|donCost|trash|stage|leader|donAttached
+# Zones: 0 deck (slot 0 = bottom, last = top), 1 hand, 2 characters (slot = board position), 3 life (last = top),
+# 4 DON deck, 5 DON cost area, 6 trash (last = top), 7 stage, 8 leader, 9 DON attached (slot = parent*100 + index,
+# parent 99 = leader).  The two visibility flags are both 1 for a face-up hand or life card.  The rested flag is the
+# card's state after the move; power/cost deltas are the sim's current modifiers for cards on the board.
+ZONES = {0: "deck", 1: "hand", 2: "chars", 3: "life", 4: "donDeck", 5: "don", 6: "trash", 7: "stage", 8: "leader", 9: "attached"}
+MOVE = re.compile(r"^RZ1\|(\d+)\|([12])\|([^|]+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d)\|(\d)\|(\d)\|(-?\d+)\|(-?\d+)")
 CHK = re.compile(r"^RZ1\|CHK\|(\d+)\|([12])\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)")
 DREW = re.compile(r"^Drew card from deck: .*\[([A-Z0-9]+-\d+(?:_p\d+)?)\]$")
 
@@ -98,7 +103,8 @@ def parse_log(raw: str, match: dict) -> dict | None:
     tied to a label by matching draw rows to the "Drew card" line that follows them.  Returns None when anything
     cannot be resolved, so nothing is ever shown with the wrong attribution.
 
-    steps: ["m", seat, card, fromZone, toZone, rested, deck, donDeck, donActive, donAttached]  card move (+ counts after it)
+    steps: ["m", seat, card, fromZone, toZone, rested, deck, donDeck, donCost, donAttached, fromSlot, toSlot, faceUp, powerDelta, costDelta]
+                                                                                                card move (+ counts after it)
            ["e", seat, kind, text]                                                              narrative event (seat 0 = neutral)
            ["s", seat, hand[], chars[], trash[], life]                                          state snapshot (viewer resyncs)"""
     decks = match.get("_decks") or {}
@@ -121,7 +127,8 @@ def parse_log(raw: str, match: dict) -> dict | None:
             zf, zt = int(m.group(4)), int(m.group(6))
             if zf == 0 and zt == 0:
                 continue  # deck shuffles
-            rows.append(("m", m.group(2), m.group(3), zf, zt, int(m.group(10))))
+            up = 1 if m.group(8) == "1" and m.group(9) == "1" else 0
+            rows.append(("m", m.group(2), m.group(3), zf, zt, int(m.group(10)), int(m.group(5)), int(m.group(7)), up, int(m.group(11)), int(m.group(12))))
             if zf == 0 and zt == 1:
                 if m.group(3) in pending_text:
                     num_label.setdefault(m.group(2), pending_text.pop(m.group(3)))
@@ -206,7 +213,7 @@ def parse_log(raw: str, match: dict) -> dict | None:
     ends = 0; snap: dict[int, dict] = {1: {}, 2: {}}
     for r in rows:
         if r[0] == "m":
-            steps.append(["m", num_seat[r[1]], r[2], r[3], r[4], r[5], None, None, None, None])
+            steps.append(["m", num_seat[r[1]], r[2], r[3], r[4], r[5], None, None, None, None, r[6], r[7], r[8], r[9], r[10]])
         elif r[0] == "c":
             if steps and steps[-1][0] == "m" and steps[-1][6] is None:
                 steps[-1][6:10] = list(r[2])

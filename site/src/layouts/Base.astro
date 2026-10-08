@@ -575,46 +575,51 @@ const ICONS: Record<string, string> = {
   .rg-seat.none { background: transparent; }
   .ct { display: inline-flex; vertical-align: middle; width: 26px; height: 36px; border-radius: 3px; overflow: hidden; margin: -4px .1rem -4px .25rem; box-shadow: 0 0 0 1px var(--line-2); background: var(--panel-2); }
   .ct img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; cursor: zoom-in; }
-  /* board: a play mat like the sim's. Top half is the opponent, mirrored so both character areas meet in the middle. */
+  /* board: the sim's table. Every element is placed in the sim's canvas units (card 100 x 138, mat 710 x 500) and scaled with
+     the stage width (--u = one unit); the top player's coordinates are the point reflection of the bottom player's. */
   .rg-bar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; padding: .5rem .9rem; margin-bottom: .6rem; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
   .rg-title { font-size: 1.15rem; font-weight: 800; }
   .table { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: .8rem; align-items: start; }
-  .mat { --cw: clamp(56px, min(6.4vw, 8vh), 132px); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: .35rem; padding: .5rem; border-radius: 18px; background: #0d1119; border: 1px solid var(--line); box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 20px 50px rgba(0,0,0,.45); }
-  .mat > *, .half, .area, .cards { min-width: 0; }
-  .arrow { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
-  .half { display: grid; gap: .3rem; padding: .4rem .5rem; border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--lc) 26%, #121722), color-mix(in srgb, var(--lc) 10%, #121722)); border: 1px solid color-mix(in srgb, var(--lc) 35%, var(--line)); }
-  .half.top { background: linear-gradient(0deg, color-mix(in srgb, var(--lc) 26%, #121722), color-mix(in srgb, var(--lc) 10%, #121722)); }
-  .half.active { box-shadow: 0 0 0 2px color-mix(in srgb, var(--lc) 70%, transparent), 0 0 30px color-mix(in srgb, var(--lc) 25%, transparent); }
-  .who { display: flex; gap: .5rem; align-items: center; padding: 0 .2rem; } .who .turnpill { margin-left: auto; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--lc); }
-  .area { position: relative; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.06); padding: .5rem .6rem .45rem; }
-  .al { position: absolute; left: .6rem; top: .3rem; font-size: .62rem; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.35); pointer-events: none; white-space: nowrap; }
-  .area.chars .row { display: flex; align-items: flex-start; justify-content: center; gap: calc(var(--cw) * .35); padding-top: .8rem; } .area.chars .cards { display: grid; grid-template-columns: repeat(5, var(--cw)); gap: calc(var(--cw) * .12); justify-content: center; align-items: start; padding: 0 0 calc(var(--cw) * .45); } .area.chars .pile.life { padding-top: 0; } .cslot { display: grid; place-items: center; width: var(--cw); height: calc(var(--cw) * 1.4); }
-  .area.cost { align-self: stretch; display: flex; align-items: center; } .area.cost .toks { display: grid; grid-template-columns: repeat(10, minmax(0, calc(var(--cw) * .5))); gap: calc(var(--cw) * .06); align-items: center; padding-top: .75rem; width: 100%; }
-  .tok { flex: none; width: calc(var(--cw) * .5); height: calc(var(--cw) * .7); border-radius: 4px; background: url(https://static.dotgg.gg/onepiece/card/DON-549342.webp) center / cover no-repeat; box-shadow: 0 0 0 1px #444, 0 2px 4px rgba(0,0,0,.5); transition: transform .25s, opacity .25s; }
-  .tok.rested { transform: rotate(90deg) scale(.86); opacity: .6; }
-  .mid { display: grid; grid-template-columns: calc(var(--cw) * .9) minmax(0, 1fr) auto calc(var(--cw) * .9) calc(var(--cw) * .9); grid-template-areas: 'don cost center deck trash'; gap: .4rem; align-items: center; } .mid .center { grid-area: center; display: flex; gap: .5rem; justify-content: center; align-items: start; padding: 0 .4rem calc(var(--cw) * .4); }
-   .mid .dondeck { grid-area: don; } .mid .cost { grid-area: cost; } .mid .deck { grid-area: deck; } .mid .trash { grid-area: trash; }
-  .pile { position: relative; display: grid; justify-items: center; gap: .15rem; padding: .25rem; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: 10px; } .pile:hover { background: rgba(255,255,255,.05); }
-  .pile b { position: absolute; top: 4px; right: 4px; font-size: .95rem; line-height: 1.3; padding: .05rem .4rem; border-radius: 999px; background: rgba(0,0,0,.88); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.25); } .pile .pl { font-size: .6rem; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.4); }
-  .pile.deck .cd.back, .pile.dondeck .cd.back { box-shadow: 0 0 0 1px rgba(255,255,255,.2), 2px 2px 0 #0a1330, 4px 4px 0 #0a1330, 4px 6px 12px rgba(0,0,0,.6); }
-  .pile.life .stack { position: relative; width: calc(var(--cw) * 1.3); height: calc(var(--cw) * 1.75); } .pile.life .lc { position: absolute; left: calc(var(--cw) * .22); top: calc(var(--i) * var(--cw) * .17 - var(--cw) * .17); width: calc(var(--cw) * .86); height: calc(var(--cw) * 1.2); border-radius: 5px; background: url(/icons/cardback.svg) center / cover no-repeat; transform: rotate(90deg); box-shadow: 0 0 0 1px #3a4460, 0 -2px 4px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.18); } .pile.life .lc.empty-life { background: transparent; border: 1px dashed rgba(255,255,255,.2); box-shadow: none; }
-  .pile.life b, .pile.dondeck b { top: 50%; right: auto; left: 50%; transform: translate(-50%, -50%); font-size: 1.15rem; padding: .1rem .55rem; } .pile.life b { background: var(--bad); box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 2px 8px rgba(0,0,0,.6); }
-  .pile.trash .cd { filter: saturate(.6) brightness(.85); }
-  .cd { position: relative; flex: none; width: var(--cw); height: calc(var(--cw) * 1.4); border-radius: calc(var(--cw) * .08); overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.45); transition: transform .25s ease, box-shadow .25s ease; }
-  .cd img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; display: block; cursor: zoom-in; }
-  .cd.hc { width: calc(var(--cw) * .72); height: calc(var(--cw) * 1.01); } .cd.leader { width: calc(var(--cw) * 1.12); height: calc(var(--cw) * 1.57); box-shadow: 0 0 0 2px var(--lc), 0 6px 16px rgba(0,0,0,.5); } .cd.stage, .pile .cd.back, .pile .cd.trash-top, .slot, .cd.slot { width: calc(var(--cw) * .82); height: calc(var(--cw) * 1.15); }
-  .cd.rested { transform: rotate(90deg) scale(.7); } .cd.leader.rested { transform: rotate(90deg) scale(.7); }
-  .cd.atk { box-shadow: 0 0 0 3px var(--accent), 0 0 22px rgba(232,192,74,.6); z-index: 2; } .cd.tgt { box-shadow: 0 0 0 3px var(--bad), 0 0 22px rgba(239,90,96,.6); z-index: 2; }
-  .cwrap { position: relative; display: inline-grid; place-items: start center; transition: transform .25s ease; } .cwrap > .cd { position: relative; z-index: 1; }
-  .cwrap.rested { transform: rotate(90deg) scale(.7); } .cwrap.rested > .cd.rested { transform: none; }
-  .cwrap .pw { position: absolute; z-index: 3; left: 50%; bottom: -4%; transform: translateX(-50%); font: 800 calc(var(--cw) * .17) / 1.3 system-ui, sans-serif; padding: 0 .45em; border-radius: 999px; background: #0a0a0a; color: #fff; box-shadow: 0 0 0 1.5px rgba(255,255,255,.7); white-space: nowrap; pointer-events: none; }
-  .atts { position: absolute; inset: 0; pointer-events: none; z-index: 0; } .att { position: absolute; left: 3%; width: 94%; height: 100%; top: calc((var(--k) + 1) * 14%); z-index: calc(20 - var(--k)); border-radius: 6%; background: url(https://static.dotgg.gg/onepiece/card/DON-549342.webp) center / 100% 100% no-repeat; box-shadow: 0 0 0 1px #111, 0 -1px 0 1px rgba(255,255,255,.55), 0 3px 6px rgba(0,0,0,.6); }
-  .cd .don { position: absolute; left: 3px; bottom: 3px; min-width: 1.5rem; text-align: center; font-size: .72rem; font-weight: 800; padding: .1rem .3rem; border-radius: 999px; background: #000; color: #fff; box-shadow: 0 0 0 1px #555; }
-  .cd .qty { position: absolute; right: 3px; bottom: 3px; font-size: .7rem; font-weight: 800; padding: .05rem .3rem; border-radius: 5px; background: rgba(0,0,0,.85); color: #fff; }
-  .cd.back { background: url(/icons/cardback.svg) center / cover no-repeat; box-shadow: 0 0 0 1px #3a4460, 0 4px 10px rgba(0,0,0,.45); } .cd.back.don { background: url(https://static.dotgg.gg/onepiece/card/DON-549342.webp) center / cover no-repeat; box-shadow: 0 0 0 1px #3a3a3a; } .cd.back i { color: #fff; font-style: normal; font-weight: 800; }
-  .slot, .cd.slot { display: grid; place-items: center; border-radius: 6px; border: 1px dashed rgba(255,255,255,.18); color: rgba(255,255,255,.3); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; background: transparent; box-shadow: none; } .slot i { font-style: normal; } .cslot .slot { width: var(--cw); height: calc(var(--cw) * 1.4); }
+  .board { display: grid; gap: .4rem; min-width: 0; width: 100%; max-width: calc((100vh - 9rem) * 1.36); margin: 0 auto; }
+  .stage { --sw: 1360; --ox: -960; --oy: 500; --u: calc(100cqw / var(--sw)); position: relative; width: 100%; aspect-ratio: 1360 / 1000; container-type: inline-size; border-radius: 14px; background: #0b0e15; border: 1px solid var(--line); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+  .stage .el { --w: 100; --h: 138; position: absolute; left: calc((var(--x) - var(--w) / 2 - var(--ox)) * var(--u)); top: calc((var(--oy) - var(--y) - var(--h) / 2) * var(--u)); width: calc(var(--w) * var(--u)); height: calc(var(--h) * var(--u)); z-index: var(--z, 10); }
+  .arrow { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 200; }
+  .el.mat { border-radius: calc(12 * var(--u)); background: linear-gradient(180deg, color-mix(in srgb, var(--lc) 22%, #151925), color-mix(in srgb, var(--lc) 12%, #151925)); box-shadow: inset 0 0 0 calc(2 * var(--u)) color-mix(in srgb, var(--lc) 40%, transparent); }
+  .el.mat.top { background: linear-gradient(0deg, color-mix(in srgb, var(--lc) 22%, #151925), color-mix(in srgb, var(--lc) 12%, #151925)); }
+  .el.mat.active { box-shadow: inset 0 0 0 calc(3 * var(--u)) color-mix(in srgb, var(--lc) 80%, transparent), 0 0 calc(30 * var(--u)) color-mix(in srgb, var(--lc) 30%, transparent); }
+  .el.box { display: grid; place-items: center; border-radius: calc(8 * var(--u)); border: calc(2 * var(--u)) solid rgba(255,255,255,.14); background: rgba(0,0,0,.18); pointer-events: none; }
+  .el.box i { font: 800 calc(13 * var(--u)) / 1 system-ui, sans-serif; font-style: normal; letter-spacing: .08em; color: rgba(255,255,255,.28); text-align: center; } .el.box.life-box { border-style: dashed; }
+  .el.box.wide i { font-size: calc(24 * var(--u)); }
+  .face { position: absolute; inset: 0; border-radius: calc(5 * var(--u)); overflow: hidden; background: var(--panel-2); box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 calc(3 * var(--u)) calc(8 * var(--u)) rgba(0,0,0,.5); transition: transform .25s ease, box-shadow .25s ease; }
+  .face img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+  .face.back { background: url(/icons/cardback.svg) center / cover no-repeat; box-shadow: 0 0 0 1px #3a4460, 0 calc(3 * var(--u)) calc(8 * var(--u)) rgba(0,0,0,.5); }
+  .face.don { background: #222; } .face.dim img { filter: saturate(.6) brightness(.85); }
+  .face.stacked { box-shadow: 0 0 0 1px rgba(255,255,255,.2), calc(2 * var(--u)) calc(2 * var(--u)) 0 #0a1330, calc(4 * var(--u)) calc(4 * var(--u)) 0 #0a1330, calc(5 * var(--u)) calc(7 * var(--u)) calc(12 * var(--u)) rgba(0,0,0,.6); }
+  .face.empty { background: transparent; box-shadow: none; }
+  .el.rested .face { transform: rotate(90deg); }
+  .el.char .face, .el.leader .face, .el.stage .face { box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 calc(4 * var(--u)) calc(10 * var(--u)) rgba(0,0,0,.55); }
+  .el.leader .face { box-shadow: 0 0 0 calc(2 * var(--u)) var(--lc), 0 calc(4 * var(--u)) calc(10 * var(--u)) rgba(0,0,0,.55); }
+  .el.atk .face { box-shadow: 0 0 0 calc(3 * var(--u)) var(--accent), 0 0 calc(22 * var(--u)) rgba(232,192,74,.6); } .el.tgt .face { box-shadow: 0 0 0 calc(3 * var(--u)) var(--bad), 0 0 calc(22 * var(--u)) rgba(239,90,96,.6); }
+  .el.atk, .el.tgt { z-index: 40; }
+  .el.pile, .el.life { cursor: pointer; } .el.pile:hover .face, .el.life:hover .face { box-shadow: 0 0 0 calc(2 * var(--u)) rgba(255,255,255,.6); }
+  .el.pile > b, .el.life > b { position: absolute; z-index: 3; right: calc(-8 * var(--u)); top: calc(-8 * var(--u)); min-width: 1.6em; text-align: center; font: 800 calc(17 * var(--u)) / 1.45 system-ui, sans-serif; padding: 0 .4em; border-radius: 999px; background: rgba(0,0,0,.9); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.3); pointer-events: none; }
+  .el.life > b { right: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: calc(22 * var(--u)); background: var(--bad); box-shadow: 0 0 0 calc(2 * var(--u)) rgba(255,255,255,.35), 0 2px 8px rgba(0,0,0,.6); }
+  .el.life .face.back { box-shadow: 0 0 0 1px #3a4460, 0 calc(-2 * var(--u)) calc(4 * var(--u)) rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.18); }
+  .el.donatt .face { box-shadow: 0 0 0 1px #111, 0 0 0 calc(2 * var(--u)) rgba(255,255,255,.45), 0 calc(3 * var(--u)) calc(6 * var(--u)) rgba(0,0,0,.6); }
+  .el.costdon .face { box-shadow: 0 0 0 1px #111, 0 0 0 calc(1.5 * var(--u)) rgba(255,255,255,.35), 0 calc(2 * var(--u)) calc(5 * var(--u)) rgba(0,0,0,.6); } .el.costdon.rested .face { filter: brightness(.7); }
+  .el.hand .face { box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 calc(4 * var(--u)) calc(10 * var(--u)) rgba(0,0,0,.55); } .stage.hidehands .el.hand .face { filter: brightness(.9); }
+  /* what the sim prints on a board card: DON!! count, power delta, counter total on the defender, battle power, status text */
+  .ov { position: absolute; z-index: 5; font: 800 calc(13 * var(--u)) / 1.35 system-ui, sans-serif; padding: 0 .4em; border-radius: 999px; background: rgba(0,0,0,.9); color: #fff; white-space: nowrap; pointer-events: none; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+  .ov.dn { left: 3%; top: 3%; background: #0a0a0a; } .ov.pd { right: 3%; top: 3%; } .ov.pd.up { color: #9fe29f; } .ov.pd.down { color: #ff9a9a; }
+  .ov.cn { left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: calc(22 * var(--u)); color: #9fe29f; }
+  .ov.bp { left: 50%; bottom: 14%; transform: translateX(-50%); font-size: calc(19 * var(--u)); background: var(--accent); color: #0b0e14; box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
+  .ov.st { left: 0; right: 0; bottom: 0; border-radius: 0 0 calc(5 * var(--u)) calc(5 * var(--u)); text-align: center; font-size: calc(10 * var(--u)); background: rgba(0,0,0,.78); box-shadow: none; white-space: normal; }
+  .who { display: flex; gap: .5rem; align-items: center; padding: .1rem .3rem; } .who .turnpill { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--lc); } .who .hl-btn { margin-left: auto; }
+  .cd { position: relative; display: inline-block; width: 54px; height: 76px; flex: none; } .cd.hc { width: 44px; height: 61px; }
+  .cd .qty { position: absolute; z-index: 2; right: 3px; bottom: 3px; font-size: .7rem; font-weight: 800; padding: .05rem .3rem; border-radius: 5px; background: rgba(0,0,0,.85); color: #fff; }
+  .cd .face { --u: .55px; }
   .empty { padding: .4rem .2rem; }
-  .handrow { display: flex; gap: .6rem; align-items: center; padding: .1rem .5rem; border-radius: 12px; background: rgba(255,255,255,.03); } .handrow .cards { display: flex; gap: .3rem; overflow-x: auto; padding: .3rem .1rem; flex: 1; min-width: 0; scrollbar-width: thin; }
+  .handrow { display: none; gap: .6rem; align-items: center; padding: .1rem .5rem; border-radius: 12px; background: rgba(255,255,255,.03); } .handrow .cards { display: flex; gap: .3rem; overflow-x: auto; padding: .3rem .1rem; flex: 1; min-width: 0; scrollbar-width: thin; }
   .hl-btn { flex: none; display: inline-flex; gap: .4rem; align-items: center; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .78rem; cursor: pointer; padding: .2rem .3rem; border-radius: 8px; } .hl-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
   .dock { display: grid; gap: .6rem; position: sticky; top: .6rem; }
   .turnbox { display: grid; grid-template-columns: auto 1fr; gap: .2rem .6rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
@@ -627,22 +632,18 @@ const ICONS: Record<string, string> = {
   .ctl-row { display: flex; gap: .4rem; align-items: center; } .ctl-row .copy { flex: 1; min-width: 0; } .ctl .copy.big { flex: 2; background: var(--accent); color: #0b0e14; border-color: var(--accent); font-weight: 800; } .ctl .copy.on { border-color: var(--accent); color: var(--accent); } .ctl .copy.sm { flex: none; padding: .2rem .6rem; min-height: 30px; }
   .ctl input[type=range] { width: 100%; accent-color: var(--accent); }
   .peek { border: 1px solid var(--line); border-left: 4px solid var(--lc); border-radius: 12px; background: var(--panel); padding: .6rem .8rem; }
-  .peek .cards { display: flex; flex-wrap: wrap; gap: .3rem; } .peek .cd { width: 54px; height: 76px; } .peek .pk { position: relative; display: flex; } .peek .pk i { position: absolute; left: -3px; top: -3px; min-width: 1.15rem; text-align: center; font: 700 .6rem / 1.15rem system-ui, sans-serif; font-style: normal; border-radius: 999px; background: rgba(0,0,0,.9); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+  .peek .cards { display: flex; flex-wrap: wrap; gap: .3rem; } .peek .pk { position: relative; display: flex; } .peek .pk i { position: absolute; z-index: 3; left: -3px; top: -3px; min-width: 1.15rem; text-align: center; font: 700 .6rem / 1.15rem system-ui, sans-serif; font-style: normal; border-radius: 999px; background: rgba(0,0,0,.9); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
   .peek-h { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; } .peek-h .copy { margin-left: auto; } .peek .cards.wrap p { flex: 1 1 100%; margin: 0 0 .2rem; }
   @media (max-width: 1100px) { .table { grid-template-columns: minmax(0, 1fr) 280px; } }
   @media (max-width: 860px) {
-    .table { grid-template-columns: 1fr; } .dock { position: static; }
+    .table { grid-template-columns: 1fr; } .dock { position: static; } .board { max-width: none; }
+    /* narrow screens: only the two mats fit, so the hands move to rows above and below the board */
+    .stage { --sw: 800; --ox: -400; aspect-ratio: 800 / 1000; } .stage .el.hs { display: none; } .handrow { display: flex; } .who .hl-btn { display: none; }
     .ctl { position: sticky; bottom: calc(3.9rem + var(--sab, 0px)); z-index: 20; background: rgba(11,14,20,.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
     .log { max-height: 9rem; }
   }
   @media (max-width: 720px) {
     .rp-grid, .rp-grid.two { grid-template-columns: 1fr; }
     .rg-title { font-size: 1rem; }
-    .mat { padding: .35rem; gap: .3rem; } .half { padding: .35rem; }
-    .mat { --cw: clamp(40px, 12vw, 56px); }
-    .area.chars .cards { padding-top: .7rem; }
-    .mid { grid-template-columns: calc(var(--cw) * .85) minmax(0, 1fr) calc(var(--cw) * .85) calc(var(--cw) * .85); grid-template-areas: 'center center deck trash' 'don cost cost cost'; } .area.chars .row { gap: calc(var(--cw) * .15); } .area.chars .pile.life { padding: 0; } .area.chars .pile.life .stack { width: calc(var(--cw) * 1.1); }
-    .area.cost { min-height: calc(var(--cw) * .9); } .al { font-size: .55rem; }
-    .pile .pl { display: none; }
   }
 </style>

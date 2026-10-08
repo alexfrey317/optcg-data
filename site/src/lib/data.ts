@@ -67,6 +67,8 @@ export const playerById = new Map(players.map((p) => [String(p.id), p]));
 export const LADDER_PAGE = 200;
 export const leaders = readJson<Record<string, Leader>>(join(LATEST, 'leaders.json'), {});
 export const cards = readJson<Record<string, Card>>(join(LATEST, 'cards.json'), {});
+/** Card-text flags for the replay viewer (ingest/sources/card_text.py): cards whose ability cost rests the card itself. */
+export const cardFlags = readJson<{ restCost: string[] }>(join(LATEST, 'card_flags.json'), { restCost: [] });
 for (const [id, c] of Object.entries(cards)) c.img = imgUrl(id);
 for (const [code, l] of Object.entries(leaders)) l.img = imgUrl(code);
 

@@ -1,10 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { IMG_BASE } from '../../lib/data';
-/** Game viewer: a sim-style board replayed step by step from the matchup's JSON bundle (/replays/data/A__B.json).
- *  One static page for every game (?p=A|B&id=…) keeps the site at one file per matchup rather than one per game. */
+/** Game viewer: the sim's board, replayed step by step from the matchup's JSON bundle (/replays/data/A__B.json) or from a
+ *  combat log parsed in the browser.  One static page for every game (?p=A|B&id=…) keeps the site at one file per matchup. */
 ---
-<Base title="Study Game" description="Step through a high-bounty ranked game on a sim-style board: every draw, play, attack and counter, with hands, trash and remaining deck." wide>
+<Base title="Study Game" description="Step through a high-bounty ranked game on the sim's board: every draw, play, attack and counter, with hands, trash and remaining deck." wide>
   <div id="rg" data-img={IMG_BASE}>
     <div class="hero rg-hero"><div style="flex:1"><div class="small"><a href="/replays/" class="muted">← Study Games</a></div><h1 style="margin:.3rem 0 .2rem">Loading game…</h1><div class="meta muted">Fetching the combat log.</div></div></div>
   </div>
@@ -14,6 +14,7 @@ import { IMG_BASE } from '../../lib/data';
   import { parseLog } from '../../lib/replayParse';
   const root = document.getElementById('rg')!;
   const IMG = root.dataset.img!;
+  const DON_IMG = 'https://static.dotgg.gg/onepiece/card/DON-549342.webp';
   const q = new URLSearchParams(location.search);
   const pair = q.get('p') || '', id = q.get('id') || '';
   // ?log=<storage path>&w=&l=&wb=&lb=&ts=[&wd=&ld=][&back=]: parse a combat log in the browser (any archived game, e.g. from a player page)
@@ -22,27 +23,51 @@ import { IMG_BASE } from '../../lib/data';
   const backLink = () => back ? `<a href="${back}" class="muted small">← Player</a>` : `<a href="/replays/" class="muted small">← Study Games</a>`;
   const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
   const CARD = /\[([A-Z]{1,3}\d{2}-\d{3}(?:_p\d+)?)\]/g;
+  const ID = /\[([A-Z0-9]+-\d+(?:_p\d+)?)\]/;
   type Player = { seat: 1 | 2; leader: string; bounty: number; won: boolean; first: boolean; deck: string | null; mulligan: string[] | null };
-  type Step = ['m', 1 | 2, string, number, number, 0 | 1, number, number, number, number] | ['e', 0 | 1 | 2, string, string] | ['s', 1 | 2, string[], string[], string[], number];
+  type Move = ['m', 1 | 2, string, number, number, 0 | 1, number, number, number, number, number?, number?, (0 | 1)?, number?, number?];
+  type Step = Move | ['e', 0 | 1 | 2, string, string] | ['s', 1 | 2, string[], string[], string[], number];
   type Game = { id: string; ts: string; date: string; players: Player[]; winner: 1 | 2; endTurns: number; end: { how: string; loserLife: number | null }; steps: Step[] };
-  type Bundle = { pair: string; leaders: Record<string, { name: string; color: string }>; names: Record<string, string>; games: Record<string, Game> };
-  type Char = { id: string; rested: boolean; don: number };
-  type Side = { deck: number; hand: string[]; chars: Char[]; stage: string | null; life: string[]; trash: string[]; donDeck: number; donArea: number; donRested: number; donAtt: number; leaderRested: boolean; leaderDon: number };
+  type Bundle = { pair: string; leaders: Record<string, { name: string; color: string }>; names: Record<string, string>; powers?: Record<string, number>; flags?: { restCost: string[] }; games: Record<string, Game> };
+  // what the sim keeps per card and shows on it: rest, "DON!! xN", a power delta, a counter total during battle, and status text
+  type Until = 'turn' | 'combat' | 'refresh' | 'ownerEnd' | 'oppEnd';
+  type Mod = { n?: number; base?: number; tag?: string; until: Until; turn: number };
+  type Card = { id: string; rested: boolean; frozen: boolean; don: number; mods: Mod[] };
+  type Life = { id: string; up: boolean };
+  type Side = { deck: number; hand: string[]; chars: Card[]; stage: Card | null; life: Life[]; trash: string[]; donDeck: number; don: boolean[]; donAtt: number; leader: Card };
+  type Ref = { seat: number; card: Card };
 
   const fail = (msg: string) => { root.innerHTML = `<div class="hero rg-hero"><div style="flex:1"><div class="small"><a href="/replays/" class="muted">← Study Games</a></div><h1 style="margin:.3rem 0 .2rem">Game not available</h1><div class="meta muted">${esc(msg)}</div></div></div>`; };
+
+  // ---- the sim's table (OPTCGSim 1.44a, LocationLogicScript for player 0; player 1 is the point reflection through the centre).
+  // Units are the sim's canvas units: cards are 100 x 138, each play mat 710 x 500, the two mats meet at y = 0, y grows upward.
+  const CW = 100, CH = 138;
+  const L = {
+    deploy: { x: -200, y: -90, step: 120 }, leader: { x: 48, y: -250 }, stage: { x: 167, y: -250 }, deck: { x: 285, y: -250 },
+    trash: { x: 285, y: -408 }, donDeck: { x: -285, y: -408 }, donCost: { x: -160, y: -408, step: 30 }, life: { x: -327, y: -238, step: 25 },
+    donEq: { x: -20, y: -30, step: 5, step2: -10 }, hand: { x: -875, y: -430, step: 100, width: 400 },
+  };
+  // zone boxes drawn on the mat, measured off the sim's playmat art (centre x, centre y, width, height)
+  const BOXES: [string, number, number, number, number][] = [
+    ['CHARACTER AREA', 36, -90, 597, 142], ['LEADER', 48, -250, 100, 140], ['STAGE', 167, -250, 100, 140], ['DECK', 285, -250, 100, 140],
+    ['DON!!', -285, -408, 97, 140], ['COST AREA', -4, -408, 430, 153], ['TRASH', 285, -408, 100, 140], ['LIFE', -327, -238, 100, 140],
+  ];
 
   function start(B: Bundle, G: Game) {
     const name = (c: string) => B.names[c] ?? c;
     const lname = (code: string) => B.leaders[code]?.name ?? name(code);
     const lcolor = (code: string) => B.leaders[code]?.color ?? 'var(--dim)';
+    const basePower = (c: string) => B.powers?.[c] ?? B.powers?.[c.replace(/_p\d+$/, '')] ?? null;
+    const restCost = new Set((B.flags?.restCost ?? []).map((c) => c));
+    const sameCard = (a: string, b: string) => a === b || a.replace(/_p\d+$/, '') === b.replace(/_p\d+$/, '');
     const P: Record<number, Player> = {}; for (const p of G.players) P[p.seat] = p;
-    const W = P[G.winner], L = P[G.winner === 1 ? 2 : 1];
+    const W = P[G.winner], Lo = P[G.winner === 1 ? 2 : 1];
     const ending = G.end.how === 'lethal' ? 'took lethal' : G.end.how === 'concede' ? (G.end.loserLife == null ? 'conceded' : `conceded at ${G.end.loserLife} life`) : (G.end.loserLife == null ? 'ended' : `ended at ${G.end.loserLife} life`);
     const deckOf = (p: Player) => { const m = new Map<string, number>(); for (const t of (p.deck || '').split(/\s+/).filter(Boolean)) { const [qn, cid] = t.split('x'); m.set(cid, (m.get(cid) ?? 0) + Number(qn)); } return m; };
     document.title = `${lname(P[1].leader)} vs ${lname(P[2].leader)} · ${G.date} · OPTCG Data`;
 
-    // narrative step indices: the user moves between these; moves and snapshots in between are applied silently
-    // narrative steps; the opening hands (both players' first draws, mulligans and life placement) collapse into one step
+    // narrative step indices: the user moves between these; moves and snapshots in between are applied silently.
+    // The opening (both players' first draws, mulligans and life placement) collapses into one step.
     const allEvents = G.steps.map((s, i) => (s[0] === 'e' ? i : -1)).filter((i) => i >= 0);
     const SETUP = new Set(['draw', 'mull', 'info']);
     let setupEnd = allEvents.findIndex((si) => !SETUP.has((G.steps[si] as Extract<Step, { 0: 'e' }>)[2]));
@@ -50,118 +75,232 @@ import { IMG_BASE } from '../../lib/data';
     const label: Record<number, string> = {};
     const events = setupEnd > 1 ? [allEvents[setupEnd - 1], ...allEvents.slice(setupEnd)] : allEvents;
     if (setupEnd > 1) label[allEvents[setupEnd - 1]] = 'Opening hands drawn, life set';
-    const turnStarts: number[] = [0]; // event index where each turn begins
+    const turnStarts: number[] = [0];
     events.forEach((si, ei) => { const s = G.steps[si]; if (s[0] === 'e' && s[2] === 'end' && ei + 1 < events.length) turnStarts.push(ei + 1); });
     const KIND_LABEL: Record<string, string> = { draw: 'Draw', don: 'DON', deploy: 'Play', attack: 'Attack', combat: 'Battle', hit: 'Damage', fail: 'Blocked', block: 'Blocker', counter: 'Counter', trash: 'Trash', mull: 'Mulligan', effect: 'Effect', end: 'End turn', concede: 'Concede', info: '' };
 
-    const fresh = (): Side => ({ deck: 50, hand: [], chars: [], stage: null, life: [], trash: [], donDeck: 10, donArea: 0, donRested: 0, donAtt: 0, leaderRested: false, leaderDon: 0 });
-    let S: Record<number, Side> = { 1: fresh(), 2: fresh() };
-    let active = 1, turn = 1, refreshing = 0, hl: { atk?: string; tgt?: string; seat?: number; done?: boolean } = {}, cur = 0;
-    const take = (arr: string[], cid: string) => { const i = arr.indexOf(cid); if (i >= 0) arr.splice(i, 1); return i >= 0; };
-    const zoneList = (s: Side, z: number): string[] | null => z === 1 ? s.hand : z === 6 ? s.trash : z === 3 ? s.life : null;
-    const applyMove = (st: Extract<Step, { 0: 'm' }>) => {
-      const [, seat, cid, zf, zt, rested, deck, donDeck, donArea, donAtt] = st; const s = S[seat];
-      s.deck = deck; s.donDeck = donDeck; s.donArea = donArea; s.donAtt = donAtt;
+    // ---- game state, rebuilt from the start for every step (cheap: a few thousand small steps)
+    const newCard = (cid: string, rested = false): Card => ({ id: cid, rested, frozen: false, don: 0, mods: [] });
+    const fresh = (seat: number): Side => ({ deck: 50, hand: [], chars: [], stage: null, life: [], trash: [], donDeck: 10, don: [], donAtt: 0, leader: newCard(P[seat].leader) });
+    let S: Record<number, Side> = { 1: fresh(1), 2: fresh(2) };
+    let active = 1, turn = 1, refreshing = 0, cur = 0;
+    // battle: attacker and target (the target moves to a blocker), the defender's counter total and the sim's power readout
+    let hl: { atk?: Ref; tgt?: Ref; counter: number; powA?: number; powD?: number; done?: boolean } = { counter: 0 };
+    let lastDeploy: Record<number, string> = {};
+    const insertAt = <T,>(arr: T[], i: number, v: T) => { arr.splice(Math.max(0, Math.min(arr.length, i)), 0, v); };
+    const removeId = (arr: string[], i: number, cid: string) => { if (arr[i] === cid) arr.splice(i, 1); else { const k = arr.indexOf(cid); if (k >= 0) arr.splice(k, 1); } };
+    const removeCard = (arr: Card[], i: number, cid: string): Card | null => { if (arr[i]?.id === cid) return arr.splice(i, 1)[0]; const k = arr.findIndex((c) => c.id === cid); return k >= 0 ? arr.splice(k, 1)[0] : null; };
+    const removeLife = (arr: Life[], i: number, cid: string) => { if (arr[i]?.id === cid) arr.splice(i, 1); else { const k = arr.findIndex((c) => c.id === cid); if (k >= 0) arr.splice(k, 1); } };
+    const parentOf = (s: Side, slot: number): Card | null => { const p = Math.floor(slot / 100); return p === 99 ? s.leader : s.chars[p] ?? null; };
+    const applyMove = (st: Move) => {
+      const [, seat, cid, zf, zt, rested, deck, donDeck, donArea, donAtt, sfRaw, stRaw] = st; const s = S[seat];
+      const sf = sfRaw ?? -1, sl = stRaw ?? -1;
+      s.deck = deck; s.donDeck = donDeck; s.donAtt = donAtt;
       if (cid === 'Don') {
-        // the flag is the DON's rest state after the move: 5→5 rest/activate, 4→5 draw (possibly rested), 5→9 attach (a rested
-        // DON leaves the rested pile), 9→5 return (rested per the rules, except during the refresh phase which sets everything active)
-        if (zf === 5 && zt === 5) s.donRested += rested ? 1 : -1;
-        else if (zf === 4 && zt === 5 && rested) s.donRested++;
-        else if (zf === 5 && zt === 9 && rested) s.donRested--;
-        else if (zf === 9 && zt === 5 && rested && refreshing !== seat) s.donRested++;
-        s.donRested = Math.max(0, Math.min(s.donRested, s.donArea));
+        // DON moves carry their slot and rest state, so the cost area is tracked card by card like the sim's Lgo_MyDonCostArea
+        if (zf === 5) { if (zt === 5 && sf === sl) { s.don[sl] = !!rested; } else s.don.splice(sf, 1); }
+        if (zf === 9) { const p = parentOf(s, sf); if (p) p.don = Math.max(0, p.don - 1); }
+        if (zt === 5 && !(zf === 5 && sf === sl)) insertAt(s.don, sl, !!rested && !(zf === 9 && refreshing === seat)); // refresh returns DON active
+        if (zt === 9) { const p = parentOf(s, sl); if (p) p.don++; }
+        if (zt !== 5 && zf !== 5 && zf !== 9 && zt !== 9) { /* DON deck shuffles */ }
+        while (s.don.length > donArea) s.don.pop(); while (s.don.length < donArea) s.don.push(false);
         return;
       }
-      if (zf === 2) { const i = s.chars.findIndex((c) => c.id === cid); if (i >= 0) s.chars.splice(i, 1); }
-      else if (zf === 7) { if (s.stage === cid) s.stage = null; }
-      else { const l = zoneList(s, zf); if (l) take(l, cid); }
-      if (zt === 2) s.chars.push({ id: cid, rested: false, don: 0 });
-      else if (zt === 7) s.stage = cid;
-      else { const l = zoneList(s, zt); if (l) l.push(cid); }
+      let moved: Card | null = null;
+      if (zf === 1) removeId(s.hand, sf, cid);
+      else if (zf === 2) moved = removeCard(s.chars, sf, cid);
+      else if (zf === 3) removeLife(s.life, sf, cid);
+      else if (zf === 6) removeId(s.trash, sf, cid);
+      else if (zf === 7) { if (s.stage?.id === cid) { moved = s.stage; s.stage = null; } }
+      const up = st[12] === 1;
+      if (zt === 1) insertAt(s.hand, sl, cid);
+      else if (zt === 2) { const c = zf === 2 && moved ? moved : newCard(cid, !!rested); if (zf !== 2) c.rested = !!rested; insertAt(s.chars, sl, c); }
+      else if (zt === 3) insertAt(s.life, sl, { id: cid, up });
+      else if (zt === 6) insertAt(s.trash, sl, cid);
+      else if (zt === 7) s.stage = zf === 7 && moved ? moved : newCard(cid, !!rested);
     };
     const applySnap = (st: Extract<Step, { 0: 's' }>) => {
       const [, seat, hand, chars, trash, life] = st; const s = S[seat];
       s.hand = [...hand]; s.trash = [...trash];
-      const old = [...s.chars]; s.chars = chars.map((cid) => { const i = old.findIndex((c) => c.id === cid); return i >= 0 ? old.splice(i, 1)[0] : { id: cid, rested: false, don: 0 }; });
-      while (s.life.length > life) s.life.shift(); while (s.life.length < life) s.life.push('?');
+      const old = [...s.chars]; s.chars = chars.map((cid) => { const i = old.findIndex((c) => c.id === cid); return i >= 0 ? old.splice(i, 1)[0] : newCard(cid); });
+      while (s.life.length > life) s.life.shift(); while (s.life.length < life) s.life.push({ id: '?', up: false });
     };
-    const ATTACH = /^Attach (\d+) (Rested )?Don to .*\[([A-Z0-9]+-\d+(?:_p\d+)?)\](?: \((\d+) Total\))?$/;
+    // find the card a log line names: a character on either board (prefer one whose rest state would change), a stage, else a leader
+    const find = (cid: string, own: number, wantRested?: boolean): Ref | null => {
+      for (const seat of [own, 3 - own]) { const side = S[seat]; const c = (wantRested === undefined ? null : side.chars.find((c) => c.id === cid && c.rested !== wantRested)) ?? side.chars.find((c) => c.id === cid); if (c) return { seat, card: c }; }
+      for (const seat of [own, 3 - own]) if (S[seat].stage?.id === cid) return { seat, card: S[seat].stage! };
+      if (sameCard(cid, P[3 - own].leader) && !sameCard(cid, P[own].leader)) return { seat: 3 - own, card: S[3 - own].leader };
+      return { seat: own, card: S[own].leader };
+    };
+    const onBoard = (seat: number, cid: string): Ref | null => { const s = S[seat]; const c = s.chars.find((c) => c.id === cid); if (c) return { seat, card: c }; if (s.stage?.id === cid) return { seat, card: s.stage }; if (sameCard(cid, s.leader.id)) return { seat, card: s.leader }; return null; };
+    const allCards = (seat: number) => [S[seat].leader, ...S[seat].chars, ...(S[seat].stage ? [S[seat].stage] : [])];
+    const addMod = (r: Ref | null, m: Omit<Mod, 'turn'>) => { if (r) r.card.mods.push({ ...m, turn }); };
+    const dropMods = (cards: Card[], until: Until) => { for (const c of cards) c.mods = c.mods.filter((m) => m.until !== until); };
+    const dropTag = (r: Ref | null, tag: string) => { if (r) r.card.mods = r.card.mods.filter((m) => m.tag !== tag); };
+    const endBattle = () => { hl.done = true; hl.counter = 0; for (const seat of [1, 2]) dropMods(allCards(seat), 'combat'); };
+    const PRE = /^(.*?)\[([A-Z0-9]+-\d+(?:_p\d+)?|Don)\]: (.*)$/;
+    const idsIn = (t: string) => [...t.matchAll(CARD)].map((m) => m[1]);
     const applyEvent = (st: Extract<Step, { 0: 'e' }>) => {
       const [, seat, kind, text] = st;
       // the attacker/target glow lasts from the attack through counters and blocks until the battle resolves
-      if (hl.done || kind === 'end' || kind === 'deploy' || kind === 'draw' || kind === 'don') hl = {};
-      if (kind === 'hit' || kind === 'fail') hl.done = true;
+      if (hl.done || kind === 'end' || kind === 'deploy' || kind === 'draw' || kind === 'don') hl = { counter: 0 };
+      if (kind === 'hit' || kind === 'fail') endBattle();
+      if (kind === 'combat') { const nums = [...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])); if (nums.length >= 2) { hl.powA = nums[0]; hl.powD = nums[1]; } }
       if (!seat) return;
       if (seat === refreshing && kind !== 'end') refreshing = 0;
       const s = S[seat];
-      // leaders may be alt-art prints whose id differs from the archive's, so anything that is not a character on board is the leader
-      const isChar = (side: Side, cid: string) => side.chars.some((c) => c.id === cid);
-      const ID = /\[([A-Z0-9]+-\d+(?:_p\d+)?)\]/;
-      // rest or activate a card by id: a character on either board, else the named leader (alt-art prints fall back to `own`)
-      const setRest = (cid: string, rested: boolean, own: number) => {
-        for (const side of [S[own], S[3 - own]]) { const c = side.chars.find((c) => c.id === cid && c.rested !== rested) ?? side.chars.find((c) => c.id === cid); if (c) { c.rested = rested; return; } }
-        const who = cid === P[3 - own].leader ? 3 - own : own; S[who].leaderRested = rested;
-      };
-      // blockers rest when they block; effects rest or activate cards by name ("Rest X [ID]", "Set X [ID] to Active"); "Rest N Don" is in the DON rows
-      if (kind === 'block') { const id = ID.exec(text)?.[1]; if (id) setRest(id, true, seat); return; }
-      if (kind === 'effect') {
-        const body = text.replace(/^.*?\]: /, '');
-        const r = /^Rest (?!\d+ Don\b)(?!Don\b)/.test(body) ? ID.exec(body) : null; if (r) setRest(r[1], true, 3 - seat);
-        const a = /^Set .*\] to Active$/.test(body) ? ID.exec(body) : null; if (a) setRest(a[1], false, seat);
+      if (kind === 'deploy' || kind === 'attack' || kind === 'end' || kind === 'don' || kind === 'draw') delete lastDeploy[seat];
+      if (kind === 'deploy') { const dId = idsIn(text)[0]; if (dId) lastDeploy[seat] = dId; }
+      if (kind === 'attack') {
+        const ids = idsIn(text); const atk = onBoard(seat, ids[0]) ?? { seat, card: s.leader }; atk.card.rested = true;
+        const tgt = ids[1] ? (onBoard(3 - seat, ids[1]) ?? { seat: 3 - seat, card: S[3 - seat].leader }) : { seat: 3 - seat, card: S[3 - seat].leader };
+        hl = { atk, tgt, counter: 0 }; return;
       }
-      if (kind === 'attack') { const ids = [...text.matchAll(CARD)].map((m) => m[1]); let atk = ids[0], tgt = ids[1]; const o = S[3 - seat];
-        if (!isChar(s, atk)) { atk = P[seat].leader; s.leaderRested = true; } else { const c = s.chars.find((c) => c.id === atk && !c.rested) ?? s.chars.find((c) => c.id === atk); if (c) c.rested = true; }
-        if (tgt && !isChar(o, tgt)) tgt = P[3 - seat].leader;
-        hl = { atk, tgt, seat }; return; }
-      const a = ATTACH.exec(text.replace(/^.*?\]: /, ''));
-      if (a) { const n = Number(a[1]), total = a[4] ? Number(a[4]) : null, tid = a[3];
-        const c = s.chars.find((c) => c.id === tid); if (c) c.don = total ?? c.don + n; else s.leaderDon = total ?? s.leaderDon + n; }
-      if (kind === 'end') { active = 3 - seat; refreshing = active; turn++; const n = S[active]; n.chars.forEach((c) => { c.rested = false; c.don = 0; }); n.leaderRested = false; n.leaderDon = 0; n.donRested = 0; }
+      if (kind === 'block') { const bid = ID.exec(text)?.[1]; const b = bid ? onBoard(seat, bid) : null; if (b) { b.card.rested = true; hl.tgt = b; } return; }
+      if (kind === 'counter') { const n = /Counter (\d+)/.exec(text); if (n) hl.counter += Number(n[1]); return; }
+      if (kind === 'end') {
+        // End Turn: the sim's EndTurn then PlayerUntap for the next player (ReturnCardDon, untap all but frozen cards, DON active)
+        for (const sd of [1, 2]) { dropMods(allCards(sd), 'turn'); dropMods(allCards(sd), sd === seat ? 'ownerEnd' : 'oppEnd'); }
+        active = 3 - seat; refreshing = active; turn++;
+        const n = S[active];
+        for (const c of allCards(active)) { if (c.frozen) c.frozen = false; else c.rested = false; }
+        dropMods(allCards(active), 'refresh');
+        n.don = n.don.map(() => false);
+        return;
+      }
+      // "Actor [ID]: body" lines; the actor is the card whose ability is resolving
+      const pm = PRE.exec(text); const actorId = pm && pm[2] !== 'Don' ? pm[2] : null; const body = pm ? pm[3] : text;
+      const actor = actorId ? onBoard(seat, actorId) : null;
+      const target = (t: string, wantRested?: boolean) => { const tid = ID.exec(t)?.[1]; return tid ? find(tid, seat, wantRested) : null; };
+      let m: RegExpExecArray | null;
+      if (/^Target of Attack changed to /.test(body)) { const t = target(body); if (t) hl.tgt = t; return; }
+      if (/^Rest (?!\d+ (?:Opponent )?Don\b)(?!Don\b)/.test(body)) { const t = target(body, true); if (t) t.card.rested = true; return; }
+      if (/^Set .*\] to Active$/.test(body)) { const t = target(body, false); if (t) t.card.rested = false; return; }
+      if (body === 'Set to Active') { if (actor) actor.card.rested = false; return; }
+      if (/will not Activate during next Refresh$/.test(body)) { const t = ID.test(body) ? target(body) : actor; if (t) { t.card.frozen = true; addMod(t, { tag: 'Freeze', until: 'refresh' }); } return; }
+      // power modifiers, as the sim logs them (the number is signed)
+      if ((m = /^Buff Self (-?\d+) for this Combat$/.exec(body))) { addMod(actor, { n: Number(m[1]), until: 'combat' }); return; }
+      if ((m = /^Buff (.*) (-?\d+) for the Combat$/.exec(body))) { addMod(target(m[1]), { n: Number(m[2]), until: 'combat' }); return; }
+      if ((m = /^(?:Trash|Return) (.*) for \+?(-?\d+) this Battle$/.exec(body))) { addMod(actor, { n: Number(m[2]), until: 'combat' }); return; }
+      if ((m = /^Buff Self (-?\d+)$/.exec(body))) { addMod(actor, { n: Number(m[1]), until: 'turn' }); return; }
+      if ((m = /^Buff (.*) (-?\d+)$/.exec(body))) { addMod(target(m[1]), { n: Number(m[2]), until: 'turn' }); return; }
+      if ((m = /^Give (.*\]) (-?\d+)$/.exec(body))) { addMod(target(m[1]), { n: Number(m[2]), until: 'turn' }); return; }
+      if ((m = /^Grant (.*\]) (-?\d+) until next turn$/.exec(body))) { addMod(target(m[1]), { n: Number(m[2]), until: 'refresh' }); return; }
+      if ((m = /^Grant (.*\]) (-?\d+) until next turn end$/.exec(body))) { addMod(target(m[1]), { n: Number(m[2]), until: 'ownerEnd' }); return; }
+      if ((m = /^Grant (.*\]) (-?\d+) until opponent's next turn end$/.exec(body))) { addMod(target(m[1]), { n: Number(m[2]), until: 'oppEnd' }); return; }
+      if ((m = /^Grant field (-?\d+) until next Turn Start$/.exec(body))) { for (const c of allCards(seat)) c.mods.push({ n: Number(m[1]), until: 'refresh', turn }); return; }
+      if ((m = /^Buff characters by (-?\d+)$/.exec(body))) { for (const c of s.chars) c.mods.push({ n: Number(m[1]), until: 'turn', turn }); return; }
+      if ((m = /^Leader gains (-?\d+) and can't draw from Life$/.exec(body))) { addMod({ seat, card: s.leader }, { n: Number(m[1]), until: 'turn' }); addMod({ seat, card: s.leader }, { tag: 'No Draw From Life', until: 'refresh' }); return; }
+      if ((m = /^Set (.*\]) Base Power to (-?\d+)$/.exec(body))) { addMod(target(m[1]), { base: Number(m[2]), until: 'refresh' }); return; }
+      if (/^Counter \d+$/.test(body)) { hl.counter += Number(body.slice(8)); return; }
+      // statuses the sim prints on the card (CardLogicScript status text); most clear at the owner's refresh like RefreshCardOncePerTurns
+      // the tagged card is the one named in the capture, else the acting card itself ("X Gains Rush" is logged without a prefix)
+      const tagLine = (re: RegExp, tag: string, until: Until = 'refresh') => { if (!(m = re.exec(body))) return false; const t = m[1] && ID.test(m[1]) ? target(m[1]) : actor ?? (ID.test(text) ? target(text) : null); addMod(t, { tag, until }); return true; };
+      if (tagLine(/^(.*\]) Gains Rush$/, 'Rush') || tagLine(/^Give (.*\]) Rush$/, 'Rush') || tagLine(/^Give (.*\]) Character Rush$/, 'CharRush')) return;
+      if (tagLine(/^(.*\]) Gains Banish(?: for this Combat)?$/, 'Banish') || tagLine(/^Give (.*\]) Banish$/, 'Banish')) return;
+      if (tagLine(/^(.*\]) Gains Double Attack(?: for this Combat)?$/, 'Double Attack') || tagLine(/^Give (.*\]) Double Attack$/, 'Double Attack')) return;
+      if (tagLine(/^Grant Unblockable to (.*\])$/, 'Unblockable') || tagLine(/^(.*\]) Gains Blocker$/, 'Blocker') || tagLine(/^(.*\]) Can't Block!$/, 'NoBlock')) return;
+      if (tagLine(/^(.*\]) can't attack next turn$/, "Can't Attack", 'ownerEnd') || tagLine(/^(.*\]) can't attack cost \d+ or less characters$/, "Can't Attack", 'ownerEnd')) return;
+      if (tagLine(/^(.*\]) Can Attack Active$/, 'Attack Active') || tagLine(/^(.*\]) can't be rested until next turn ends$/, 'NoRest', 'ownerEnd')) return;
+      if (tagLine(/^Nullify effects of (.*\])(?: until next turn end!)?$/, 'Nullify', 'ownerEnd')) return;
+      if (tagLine(/^(.*\]) is Immune this Combat!$/, 'Immune', 'combat') || tagLine(/^(.*\]) is immune to combat this turn!$/, 'Immune', 'turn') || tagLine(/^(.*\]) is Immune To Effects Until Next Turn!$/, 'Immune', 'refresh')) return;
+      if ((m = /^(.*\]) Cost (-?\d+)(?: until Opponent's Turn End)?$/.exec(body))) { addMod(target(m[1]), { tag: `Cost ${Number(m[2]) > 0 ? '+' : ''}${m[2]}`, until: 'refresh' }); return; }
+      if ((m = /^(.*\]) must Trash (\d+) Cards in order to Attack next turn!$/.exec(body))) { addMod(target(m[1]), { tag: `Tax ${m[2]}`, until: 'ownerEnd' }); return; }
+      if (tagLine(/^(.*\]) will go to Deck Bottom at End of Turn!$/, 'Ephemeral', 'turn')) return;
+      if (/ is no longer blocked from attacking$/.test(text)) { dropTag(target(text), "Can't Attack"); return; }
+      if (/ no longer nullified$/.test(text)) { dropTag(target(text), 'Nullify'); return; }
+      if (/ cost restored$/.test(text)) { const t = target(text); if (t) t.card.mods = t.card.mods.filter((x) => !x.tag?.startsWith('Cost')); return; }
+      if (/ is no longer immune to KO$/.test(text)) { dropTag(target(text), 'Immune'); return; }
+      // the sim taps a card whose ability cost is "rest this card" without logging it (SelfTap): infer it from the card text,
+      // unless this line is the card's On Play (it was just deployed) or When Attacking (it is the attacker) effect
+      if (kind === 'effect' && actor && restCost.has(actorId!.replace(/_p\d+$/, '')) && !actor.card.rested && lastDeploy[seat] !== actorId && hl.atk?.card !== actor.card && !hl.done && !hl.atk) actor.card.rested = true;
     };
+    // Which narrative event a card move belongs to.  The sim writes most log lines before the moves they cause ("Attach 2 Don"
+    // then the DON moves), but battle results go through its once-per-frame LogLineOnce buffer, so a KO'd card reaches the trash
+    // before "X[7000] vs Y[2000]" and "Y Destroyed" are written.  A move between events A and B belongs to A when A names the
+    // card, else to B when B names it or B is a battle resolution, else to A.
+    const isResolution = (st: Step) => st[0] === 'e' && (st[2] === 'combat' || st[2] === 'hit' || st[2] === 'fail' || (st[2] === 'trash' && / Destroyed$/.test(st[3])) || /^(?:Loses \d+ Life|Banished \d+ Life)$/.test(st[3]));
+    const mentions = (st: Step, cid: string) => st[0] === 'e' && (cid === 'Don' ? /\bDon\b/.test(st[3]) : st[3].includes(`[${cid}]`) || st[3].includes(`[${cid.replace(/_p\d+$/, '')}]`));
+    const ownerOf = new Int32Array(G.steps.length);
+    events.forEach((a, ei) => {
+      const b = ei + 1 < events.length ? events[ei + 1] : G.steps.length;
+      for (let i = a + 1; i < b; i++) {
+        const st = G.steps[i]; ownerOf[i] = ei;
+        if (st[0] !== 'm' || b >= G.steps.length) continue;
+        const resolving = isResolution(G.steps[b]) && (st[3] === 2 || st[3] === 3 || st[3] === 7); // a KO or life loss, written before the battle lines
+        if (!resolving && (mentions(G.steps[a], st[2]) || !(mentions(G.steps[b], st[2]) || isResolution(G.steps[b])))) continue;
+        ownerOf[i] = ei + 1;
+        // within the battle's lines, a life card leaving is the damage ("hit for N damage") and a character leaving is its KO ("X Destroyed")
+        if (resolving) for (let k = ei + 1; k < events.length && isResolution(G.steps[events[k]]); k++) {
+          const ev = G.steps[events[k]] as Extract<Step, { 0: 'e' }>;
+          if ((st[3] === 3 && ev[2] === 'hit') || (st[3] !== 3 && ev[2] === 'trash' && mentions(ev, st[2]))) { ownerOf[i] = k; break; }
+        }
+      }
+    });
     const rebuild = (toEvent: number) => {
-      S = { 1: fresh(), 2: fresh() }; active = 1; turn = 1; refreshing = 0; hl = {};
-      // an event's text precedes the card moves it causes, so apply everything up to the next event: "Attach 4 Don" shows them attached
-      const e = Math.min(toEvent, events.length - 1); const last = e + 1 < events.length ? events[e + 1] - 1 : G.steps.length - 1;
-      for (let i = 0; i <= last; i++) { const st = G.steps[i]; if (st[0] === 'm') applyMove(st); else if (st[0] === 's') applySnap(st); else applyEvent(st); }
+      S = { 1: fresh(1), 2: fresh(2) }; active = 1; turn = 1; refreshing = 0; hl = { counter: 0 }; lastDeploy = {};
+      const e = Math.min(toEvent, events.length - 1); const a = events[e], b = e + 1 < events.length ? events[e + 1] : G.steps.length;
+      for (let i = 0; i < b; i++) { const st = G.steps[i]; if (st[0] === 'm') { if (ownerOf[i] <= e) applyMove(st); } else if (st[0] === 's') { if (i <= a) applySnap(st); } else if (i <= a) applyEvent(st); }
       cur = toEvent;
     };
 
-    // ---- rendering: a play mat like the sim's, mirrored for the top player (their character area faces yours)
+    // ---- rendering: every element is placed in the sim's units; the top player's coordinates are the point reflection
     let flip = false, showHands = true, peek: { seat: number; zone: 'deck' | 'trash' | 'life' | 'hand' } | null = null;
-    // attached DON are drawn like the sim: DON cards tucked behind the card, each peeking out below with its +1000
-    const card = (cid: string, cls = '', badge = '', extra = '') => {
-      if (cid === '?') return `<span class="cd back ${cls}"><i>?</i></span>`;
-      const inner = `<span class="cd ${cls}" ${extra} title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy">${badge.startsWith('<b') ? badge : ''}</span>`;
-      // the wrapper carries the rested rotation so attached DON turn sideways with their card, as in the sim
-      return badge.startsWith('<span class="atts"') ? `<span class="cwrap${/\brested\b/.test(cls) ? ' rested' : ''}">${badge}${inner}</span>` : inner;
-    };
-    const donBadge = (n: number) => n ? `<span class="atts" title="${n} DON attached (+${n}000 power)">${Array.from({ length: n }, (_, k) => `<span class="att" style="--k:${k}"></span>`).join('')}</span><span class="pw">+${n}000</span>` : '';
+    const el = (cls: string, x: number, y: number, z: number, inner: string, attrs = '', w = CW, h = CH, style = '') => `<div class="el ${cls}" style="--x:${x};--y:${y};--z:${z}${w !== CW ? `;--w:${w}` : ''}${h !== CH ? `;--h:${h}` : ''}${style}" ${attrs}>${inner}</div>`;
+    const face = (cid: string, cls = '') => `<span class="face ${cls}" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${esc(name(cid))}" loading="lazy"></span>`;
+    const backFace = (cls = '') => `<span class="face back ${cls}"></span>`;
+    const donFace = (cls = '') => `<span class="face don ${cls}" title="DON!! card"><img src="${DON_IMG}" alt="DON!!" loading="lazy"></span>`;
     const rich = (text: string) => esc(text).replace(CARD, (_m, cid: string) => `<span class="ct" title="${esc(name(cid))} · ${cid}"><img src="${IMG}${cid}.webp" alt="${cid}" loading="lazy"></span>`);
-    const back = (cls = '', inner = '') => `<span class="cd back ${cls}">${inner}</span>`;
-    const halfHtml = (seat: number, top: boolean) => {
-      const s = S[seat], p = P[seat], isActive = active === seat;
-      const hlCls = (cid: string) => `${hl.atk === cid && hl.seat === seat ? ' atk' : ''}${hl.tgt === cid && hl.seat !== seat ? ' tgt' : ''}`;
-      const chars = s.chars.map((c, i) => `<span class="cslot">${card(c.id, `char${c.rested ? ' rested' : ''}${hlCls(c.id)}`, donBadge(c.don), `data-card="${c.id}" data-seat="${seat}" data-i="${i}"`)}</span>`).join('') + Array.from({ length: Math.max(0, 5 - s.chars.length) }, () => '<span class="cslot"><span class="slot"></span></span>').join('');
-      const leader = card(p.leader, `leader${s.leaderRested ? ' rested' : ''}${hlCls(p.leader)}`, donBadge(s.leaderDon), `data-card="${p.leader}" data-seat="${seat}"`);
-      const stage = s.stage ? card(s.stage, 'stage') : `<span class="slot stage-slot"><i>Stage</i></span>`;
-      const donActive = Math.max(0, s.donArea - s.donRested);
-      const tokens = Array.from({ length: s.donArea }, (_, i) => `<span class="tok${i >= donActive ? ' rested' : ''}"></span>`).join('');
-      const life = `<button type="button" class="pile life" data-peek="life" data-seat="${seat}" title="Life · face down in the real game"><span class="stack">${Array.from({ length: Math.min(s.life.length, 6) }, (_, i) => `<span class="lc" style="--i:${i}"></span>`).join('') || '<span class="lc empty-life"></span>'}</span><b>${s.life.length}</b><span class="pl">Life</span></button>`;
-      const deck = `<button type="button" class="pile deck" data-peek="deck" data-seat="${seat}" title="Deck"><span class="cd back"></span><b>${s.deck}</b><span class="pl">Deck</span></button>`;
-      const trash = `<button type="button" class="pile trash" data-peek="trash" data-seat="${seat}" title="Trash">${s.trash.length ? card(s.trash[s.trash.length - 1], 'trash-top') : '<span class="cd slot"></span>'}<b>${s.trash.length}</b><span class="pl">Trash</span></button>`;
-      const donDeck = `<span class="pile dondeck" title="DON deck"><span class="cd back don"></span><b>${s.donDeck}</b><span class="pl">DON</span></span>`;
-      const cost = `<div class="area cost"><span class="al">Cost · ${donActive} active${s.donRested ? ` · ${s.donRested} rested` : ''}${s.donAtt ? ` · ${s.donAtt} attached` : ''}</span><div class="toks">${tokens || '<span class="dim small">no DON yet</span>'}</div></div>`;
-      // life sits to the left of the character area from that player's point of view: left for the bottom player, right for the top one
-      const charArea = `<div class="area chars"><span class="al">Character area</span><div class="row">${top ? `<div class="cards">${chars}</div>${life}` : `${life}<div class="cards">${chars}</div>`}</div></div>`;
-      const mid = `<div class="mid">${donDeck}${cost}<div class="center">${leader}${stage}</div>${deck}${trash}</div>`;
-      const label = `<div class="who" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span>${isActive ? '<span class="turnpill">Active</span>' : ''}</div>`;
-      return `<section class="half${top ? ' top' : ' bottom'}${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}">${top ? label + mid + charArea : charArea + mid + label}</section>`;
+    const powerOf = (c: Card) => { let base = basePower(c.id); let delta = 0; for (const m of c.mods) { if (m.base !== undefined) base = m.base; if (m.n) delta += m.n; } return { base, delta }; };
+    // what the sim prints on a board card: "DON!! xN" (child 0), the power delta ignoring DON (child 1), the counter total on the defender (child 2), status text (child 5)
+    const overlays = (c: Card, r: Ref) => {
+      const { base, delta } = powerOf(c); const b0 = basePower(c.id);
+      const pd = delta + (base !== null && b0 !== null ? base - b0 : 0);
+      const tags = [...new Set(c.mods.filter((m) => m.tag).map((m) => m.tag!))];
+      const isTgt = hl.tgt?.card === c && hl.tgt?.seat === r.seat, isAtk = hl.atk?.card === c && hl.atk?.seat === r.seat;
+      return `${c.don ? `<span class="ov dn">DON!! ×${c.don}</span>` : ''}${pd ? `<span class="ov pd ${pd > 0 ? 'up' : 'down'}">${pd > 0 ? '+' : ''}${pd}</span>` : ''}`
+        + `${isTgt && hl.counter ? `<span class="ov cn">+${hl.counter}</span>` : ''}`
+        + `${(isAtk && hl.powA !== undefined) ? `<span class="ov bp">${hl.powA}</span>` : (isTgt && hl.powD !== undefined) ? `<span class="ov bp">${hl.powD}</span>` : ''}`
+        + `${tags.length ? `<span class="ov st">${esc(tags.join(' · '))}</span>` : ''}`;
     };
-    const handHtml = (seat: number, top: boolean) => {
+    const hlCls = (c: Card, seat: number) => `${hl.atk?.card === c && hl.atk.seat === seat ? ' atk' : ''}${hl.tgt?.card === c && hl.tgt.seat === seat ? ' tgt' : ''}`;
+    const sideHtml = (seat: number, top: boolean) => {
+      const s = S[seat], p = P[seat], m = top ? -1 : 1; // point reflection for the top player
+      const X = (x: number) => m * x, Y = (y: number) => m * y;
+      let out = '';
+      // the play mat with its zone boxes (the sim picks a mat by leader colour; the boxes are where its art draws them)
+      out += el(`mat${top ? ' top' : ''}${active === seat ? ' active' : ''}`, X(0), Y(-250), 0, '', '', 710, 500, `;--lc:${lcolor(p.leader)}`);
+      for (const [lab, bx, by, bw, bh] of BOXES) out += el(`box${lab === 'LIFE' ? ' life-box' : ''}${bw > 300 ? ' wide' : ''}`, X(bx), Y(by), 1, `<i>${lab}</i>`, '', bw, bh);
+      // character area: slot j at deploy.x + j*step, attached DON tucked behind at donEq offsets (sorting 10+k under the card's 30)
+      s.chars.forEach((c, j) => {
+        const cx = L.deploy.x + j * L.deploy.step, cy = L.deploy.y;
+        for (let k = 0; k < c.don; k++) out += el('card donatt', X(cx + L.donEq.x + k * L.donEq.step), Y(cy + L.donEq.y + k * L.donEq.step2), 10 + k, donFace());
+        out += el(`card char${c.rested ? ' rested' : ''}${hlCls(c, seat)}`, X(cx), Y(cy), 30, face(c.id) + overlays(c, { seat, card: c }), `data-card="${c.id}" data-seat="${seat}"`);
+      });
+      const ld = s.leader;
+      for (let k = 0; k < ld.don; k++) out += el('card donatt', X(L.leader.x + L.donEq.x + k * L.donEq.step), Y(L.leader.y + L.donEq.y + k * L.donEq.step2), 10 + k, donFace());
+      out += el(`card leader${ld.rested ? ' rested' : ''}${hlCls(ld, seat)}`, X(L.leader.x), Y(L.leader.y), 30, face(ld.id) + overlays(ld, { seat, card: ld }), `data-card="${ld.id}" data-seat="${seat}"`);
+      if (s.stage) out += el(`card stage${s.stage.rested ? ' rested' : ''}`, X(L.stage.x), Y(L.stage.y), 30, face(s.stage.id) + overlays(s.stage, { seat, card: s.stage }));
+      // piles: deck (back + count), trash (top card), DON deck; life cards stacked 25 units apart, face down unless the log flipped them
+      out += el('card pile deck', X(L.deck.x), Y(L.deck.y), 10, `${backFace('stacked')}<b>${s.deck}</b>`, `role="button" tabindex="0" data-peek="deck" data-seat="${seat}" title="Deck · ${s.deck} cards"`);
+      out += el('card pile trash', X(L.trash.x), Y(L.trash.y), 10, `${s.trash.length ? face(s.trash[s.trash.length - 1], 'dim') : '<span class="face empty"></span>'}<b>${s.trash.length}</b>`, `role="button" tabindex="0" data-peek="trash" data-seat="${seat}" title="Trash · ${s.trash.length} cards"`);
+      out += el('card pile dondeck', X(L.donDeck.x), Y(L.donDeck.y), 10, `${s.donDeck ? donFace('stacked') : '<span class="face empty"></span>'}<b>${s.donDeck}</b>`, `title="DON!! deck · ${s.donDeck} left"`);
+      s.life.forEach((lc, j) => out += el(`card life${j === s.life.length - 1 ? ' toplife' : ''}`, X(L.life.x), Y(L.life.y + j * L.life.step), 10 + j, (lc.up && lc.id !== '?' ? face(lc.id) : backFace()) + (j === s.life.length - 1 ? `<b>${s.life.length}</b>` : ''), `role="button" tabindex="0" data-peek="life" data-seat="${seat}" title="Life · ${s.life.length}"`));
+      if (!s.life.length) out += el('card life empty', X(L.life.x), Y(L.life.y), 10, `<span class="face empty"></span><b>0</b>`, `role="button" tabindex="0" data-peek="life" data-seat="${seat}" title="Life · 0"`);
+      // cost area: DON cards 30 units apart, rested ones turned like any rested card
+      s.don.forEach((rested, j) => out += el(`card costdon${rested ? ' rested' : ''}`, X(L.donCost.x + j * L.donCost.step), Y(L.donCost.y), 10 + j, donFace()));
+      // hand (sim: bottom-left for both players, 100 apart, squeezed into 400 units); mirrored in y only
+      const n = s.hand.length, step = Math.min(L.hand.step, L.hand.width / Math.max(1, n - 1));
+      s.hand.forEach((cid, j) => out += el('card hand hs', L.hand.x + j * step, Y(L.hand.y), 50 + j, showHands ? face(cid) : backFace(), `data-hand="${seat}"`));
+      return out;
+    };
+    const handRow = (seat: number, top: boolean) => {
       const s = S[seat];
-      const cards = showHands ? s.hand.map((c) => card(c, 'hc')).join('') : Array.from({ length: s.hand.length }, () => back('hc')).join('');
+      const cards = showHands ? s.hand.map((c) => `<span class="cd hc">${face(c)}</span>`).join('') : Array.from({ length: s.hand.length }, () => `<span class="cd hc">${backFace()}</span>`).join('');
       return `<div class="handrow${top ? ' top' : ' bottom'}" style="--lc:${lcolor(P[seat].leader)}"><button type="button" class="hl-btn" data-peek="hand" data-seat="${seat}"><span class="rg-seat">P${seat}</span> Hand · ${s.hand.length}</button><div class="cards">${cards || '<span class="dim small empty">empty</span>'}</div></div>`;
     };
+    const who = (seat: number) => { const p = P[seat], isActive = active === seat;
+      return `<div class="who${isActive ? ' active' : ''}" style="--lc:${lcolor(p.leader)}"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${p.first ? 'first' : 'second'} · ฿${Math.round(p.bounty).toLocaleString()}${p.won ? ' · <span class="good">winner</span>' : ''}</span><button type="button" class="hl-btn" data-peek="hand" data-seat="${seat}">Hand · ${S[seat].hand.length}</button>${isActive ? '<span class="turnpill">Active</span>' : ''}</div>`; };
     const logHtml = () => {
       const from = Math.max(0, cur - 9);
       return `<div class="log" id="log">${events.slice(from, cur + 1).map((si, k) => { const e = G.steps[si] as Extract<Step, { 0: 'e' }>; const isCur = from + k === cur; const seat = e[1];
@@ -172,21 +311,21 @@ import { IMG_BASE } from '../../lib/data';
       if (!peek) return '';
       const s = S[peek.seat], p = P[peek.seat];
       let title = '', body = '';
-      // every zone lists its cards in order, numbered from the top of the pile
-      const ordered = (ids: string[]) => ids.map((c, i) => `<span class="pk">${card(c)}<i>${i + 1}</i></span>`).join('');
+      const pk = (cid: string, i: number) => `<span class="pk"><span class="cd">${cid === '?' ? backFace() : face(cid)}</span><i>${i + 1}</i></span>`;
+      const ordered = (ids: string[]) => ids.map(pk).join('');
       if (peek.zone === 'trash') { title = `Trash · ${s.trash.length}`; body = s.trash.length ? `<p class="muted small">Top of the pile first.</p>` + ordered([...s.trash].reverse()) : '<span class="dim">empty</span>'; }
-      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game. The log records them, so you can peek. Top of the stack first.</p>` + (s.life.length ? ordered([...s.life].reverse()) : '<span class="dim">none</span>'); }
+      else if (peek.zone === 'life') { title = `Life · ${s.life.length}`; body = `<p class="muted small">Face down in the real game unless an effect flipped them. The log records them, so you can peek. Top of the stack first.</p>` + (s.life.length ? ordered([...s.life].reverse().map((l) => l.id)) : '<span class="dim">none</span>'); }
       else if (peek.zone === 'hand') { title = `Hand · ${s.hand.length}`; body = s.hand.length ? ordered(s.hand) : '<span class="dim">empty</span>'; }
       else {
         // the log tells us which cards leave the deck from here on, so the top of the deck is known in order; the rest comes from the decklist
         const last = events[cur]; const future: string[] = [];
         for (let i = last + 1; i < G.steps.length && future.length < s.deck; i++) { const st = G.steps[i]; if (st[0] === 'm' && st[1] === peek.seat && st[3] === 0 && st[4] !== 0 && st[2] !== 'Don') future.push(String(st[2])); }
         const dk = deckOf(p);
-        for (const c of [...s.hand, ...s.chars.map((c) => c.id), ...s.trash, ...s.life, ...(s.stage ? [s.stage] : []), ...future]) if (dk.has(c) && dk.get(c)! > 0) dk.set(c, dk.get(c)! - 1);
+        for (const c of [...s.hand, ...s.chars.map((c) => c.id), ...s.trash, ...s.life.map((l) => l.id), ...(s.stage ? [s.stage.id] : []), ...future]) if (dk.has(c) && dk.get(c)! > 0) dk.set(c, dk.get(c)! - 1);
         const rest = [...dk.entries()].filter(([, n]) => n > 0).sort((a, b) => a[0].localeCompare(b[0]));
         title = `Deck · ${s.deck} cards left`;
         body = (future.length ? `<p class="muted small">Top of the deck, in the order the cards leave it from this point on.</p>` + ordered(future) : '')
-          + (rest.length ? `<p class="muted small">${future.length ? 'Further down, order unknown' : 'Decklist minus everything seen so far. Order unknown'}.</p>` + rest.map(([c, n]) => card(c, '', `<b class="qty">${n}</b>`)).join('') : '')
+          + (rest.length ? `<p class="muted small">${future.length ? 'Further down, order unknown' : 'Decklist minus everything seen so far. Order unknown'}.</p>` + rest.map(([c, n]) => `<span class="cd">${face(c)}<b class="qty">${n}</b></span>`).join('') : '')
           + (!future.length && !dk.size ? '<span class="muted">Decklist not recorded for this player, so the remaining cards are unknown.</span>' : '');
       }
       return `<div class="peek" style="--lc:${lcolor(p.leader)}"><div class="peek-h"><span class="rg-seat">P${peek.seat}</span> <b>${esc(title)}</b><button type="button" class="copy" data-close-peek>✕</button></div><div class="cards wrap">${body}</div></div>`;
@@ -196,9 +335,15 @@ import { IMG_BASE } from '../../lib/data';
       root.innerHTML = `
         <div class="rg-bar">${back ? backLink() : `<a href="/replays/?a=${P[1].leader}&b=${P[2].leader}" class="muted small">← Study Games</a>`}
           <span class="rg-title"><b style="color:${lcolor(P[1].leader)}">${esc(lname(P[1].leader))}</b> <span class="muted">vs</span> <b style="color:${lcolor(P[2].leader)}">${esc(lname(P[2].leader))}</b></span>
-          <span class="muted small">${G.date} · <b style="color:${lcolor(W.leader)}">${esc(lname(W.leader))}</b> won in ${G.endTurns} turns, ${esc(lname(L.leader))} ${ending}</span></div>
+          <span class="muted small">${G.date} · <b style="color:${lcolor(W.leader)}">${esc(lname(W.leader))}</b> won in ${G.endTurns} turns, ${esc(lname(Lo.leader))} ${ending}</span></div>
         <div class="table">
-          <div class="mat" id="mat">${handHtml(topSeat, true)}${halfHtml(topSeat, true)}${halfHtml(botSeat, false)}${handHtml(botSeat, false)}<svg class="arrow" id="arrow"></svg></div>
+          <div class="board">
+            ${who(topSeat)}
+            ${handRow(topSeat, true)}
+            <div class="stage${showHands ? '' : ' hidehands'}" id="stage">${sideHtml(topSeat, true)}${sideHtml(botSeat, false)}<svg class="arrow" id="arrow"></svg></div>
+            ${handRow(botSeat, false)}
+            ${who(botSeat)}
+          </div>
           <aside class="dock">
             <div class="turnbox"><span class="tb-turn">Turn ${turn}</span><span class="tb-who" style="--lc:${lcolor(P[active].leader)}"><span class="rg-seat">P${active}</span> ${esc(lname(P[active].leader))}</span><span class="tb-phase">${esc(phaseOf())}</span></div>
             ${logHtml()}
@@ -213,9 +358,9 @@ import { IMG_BASE } from '../../lib/data';
       wire(); drawArrow();
     };
     const drawArrow = () => {
-      const svg = document.getElementById('arrow') as unknown as SVGSVGElement | null, mat = document.getElementById('mat');
+      const svg = document.getElementById('arrow') as unknown as SVGSVGElement | null, mat = document.getElementById('stage');
       if (!svg || !mat) return;
-      const a = mat.querySelector<HTMLElement>('.cd.atk'), t = mat.querySelector<HTMLElement>('.cd.tgt');
+      const a = mat.querySelector<HTMLElement>('.el.atk .face'), t = mat.querySelector<HTMLElement>('.el.tgt .face');
       const done = hl.done;
       if (!a || !t) { svg.innerHTML = ''; return; }
       const m = mat.getBoundingClientRect(), ra = a.getBoundingClientRect(), rt = t.getBoundingClientRect();
@@ -236,7 +381,8 @@ import { IMG_BASE } from '../../lib/data';
       (document.getElementById('scrub') as HTMLInputElement).addEventListener('input', (e) => go(Number((e.target as HTMLInputElement).value)));
       ctl.querySelector('[data-flip]')!.addEventListener('click', () => { flip = !flip; render(); });
       ctl.querySelector('[data-hands]')!.addEventListener('click', () => { showHands = !showHands; localStorage.setItem('rg-hands', showHands ? '1' : '0'); render(); });
-      root.querySelectorAll<HTMLButtonElement>('[data-peek]').forEach((b) => b.addEventListener('click', () => { const z = b.dataset.peek as 'deck' | 'trash' | 'life' | 'hand'; const seat = Number(b.dataset.seat); peek = peek && peek.seat === seat && peek.zone === z ? null : { seat, zone: z }; render(); document.querySelector('.peek')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
+      const openPeek = (b: HTMLElement) => { const z = b.dataset.peek as 'deck' | 'trash' | 'life' | 'hand'; const seat = Number(b.dataset.seat); peek = peek && peek.seat === seat && peek.zone === z ? null : { seat, zone: z }; render(); document.querySelector('.peek')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+      root.querySelectorAll<HTMLElement>('[data-peek]').forEach((b) => { b.addEventListener('click', () => openPeek(b)); b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPeek(b); } }); });
       root.querySelector('[data-close-peek]')?.addEventListener('click', () => { peek = null; render(); });
       const lg = document.getElementById('log'); lg?.scrollTo({ top: lg.scrollHeight });
     };
@@ -257,13 +403,13 @@ import { IMG_BASE } from '../../lib/data';
     const need = ['w', 'l', 'wb', 'lb', 'ts'].filter((k) => !q.get(k));
     if (need.length || !id) fail('This link is missing the game details.');
     else Promise.all([
-      fetch('/replays/cards.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ names: Record<string, string>; leaders: Bundle['leaders'] }>; }),
+      fetch('/replays/cards.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ names: Record<string, string>; leaders: Bundle['leaders']; powers?: Record<string, number>; flags?: Bundle['flags'] }>; }),
       fetch(`/log/${logPath.split('/').map(encodeURIComponent).join('/')}`).then((r) => { if (r.status === 404) throw new Error('The combat log for this game is no longer stored upstream.'); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); }),
     ]).then(([cards, raw]) => {
       const decks: Record<string, string> = {}; if (q.get('wd')) decks.w = q.get('wd')!; if (q.get('ld')) decks.l = q.get('ld')!;
       const G = parseLog(raw, { id, ts: q.get('ts')!, w: { l: q.get('w')!, b: Number(q.get('wb')), d: decks.w ? 'w' : null }, l: { l: q.get('l')!, b: Number(q.get('lb')), d: decks.l ? 'l' : null }, decks });
       if (!G) throw new Error('The players in this log could not be told apart, so it cannot be shown.');
-      start({ pair: '', leaders: cards.leaders, names: cards.names, games: { [id]: G as Game } }, G as Game);
+      start({ pair: '', leaders: cards.leaders, names: cards.names, powers: cards.powers, flags: cards.flags, games: { [id]: G as Game } }, G as Game);
     }).catch((e: Error) => fail(e.message));
   }
   else if (!pair || !id) fail('This link is missing the matchup or game id.');

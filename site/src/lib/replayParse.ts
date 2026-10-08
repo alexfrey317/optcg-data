@@ -1,15 +1,18 @@
 /** Browser port of ingest/sources/opbounty_replays.parse_log (PARSER_VERSION 2).
  *  Turns a raw OPBounty combat log into the anonymised step list the viewer replays. Keep in lockstep with the Python
  *  parser; `scripts/check-parser-port.mjs` diffs the two on stored logs. */
+/** Card move: seat, card, fromZone, toZone, rested, deck, donDeck, donCost, donAttached, fromSlot, toSlot, faceUp, powerDelta, costDelta.
+ *  Zones (from the sim's ReplaySyncZone): 0 deck (last slot = top), 1 hand, 2 characters (slot = board position), 3 life (last = top),
+ *  4 DON deck, 5 DON cost area, 6 trash (last = top), 7 stage, 8 leader, 9 attached DON (slot = parent*100 + index, parent 99 = leader). */
 export type Step =
-  | ['m', 1 | 2, string, number, number, 0 | 1, number | null, number | null, number | null, number | null]
+  | ['m', 1 | 2, string, number, number, 0 | 1, number | null, number | null, number | null, number | null, number, number, 0 | 1, number, number]
   | ['e', 0 | 1 | 2, string, string]
   | ['s', 1 | 2, string[], string[], string[], number];
 export interface MatchInfo { id: string; ts: string; w: { l: string; b: number; d?: string | null }; l: { l: string; b: number; d?: string | null }; decks?: Record<string, string> }
 export interface Player { seat: 1 | 2; leader: string; bounty: number; won: boolean; first: boolean; deck: string | null; mulligan: string[] | null }
 export interface Game { v: number; id: string; ts: string; date: string; players: Player[]; first: 1; winner: 1 | 2; endTurns: number; end: { how: string; loserLife: number | null; winnerLife: number | null }; finished: boolean; steps: Step[] }
 
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 3;
 const MIN_END_TURNS = 8, MAX_LOSER_LIFE = 2, LONG_GAME_TURNS = 12;
 const MARK = /\[<mark><link="([^"]+)">[^<]*<\/link><\/mark>\]/g;
 const TAG = /<\/?(?:b|i|size(?:=\d+)?|color(?:=[^>]+)?)>/g;
@@ -17,7 +20,7 @@ const ACTOR = /^\[(.+?)\] (.*)$/;
 const PLY = /^RZ1\|PLY\|([12])\|(.+?)\|([A-Z0-9]+-\d+)\s*$/;
 const CARD_ID = /\[([A-Z]{1,3}\d{2}-\d{3}(?:_p\d+)?)\]/g;
 const LIST = /^(Hand|Board|Trash) before Mulligan: \[(.*)\]$|^(Hand|Board|Trash): \[(.*)\]$/;
-const MOVE = /^RZ1\|(\d+)\|([12])\|([^|]+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d)\|(\d)\|(\d)\|(\d)\|(\d)/;
+const MOVE = /^RZ1\|(\d+)\|([12])\|([^|]+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d)\|(\d)\|(\d)\|(-?\d+)\|(-?\d+)/;
 const CHK = /^RZ1\|CHK\|(\d+)\|([12])\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)/;
 const DREW = /^Drew card from deck: .*\[([A-Z0-9]+-\d+(?:_p\d+)?)\]$/;
 const ALIASES = new Set(['You', 'Your Client', 'Opponent']);
@@ -46,7 +49,7 @@ const deckIds = (text: string | null | undefined) => new Set((text || '').split(
 const splitList = (s: string) => s.split(',').filter(Boolean);
 const setDefault = <K, V>(m: Map<K, V>, k: K, v: V) => { if (!m.has(k)) m.set(k, v); };
 
-type Row = ['t', string | null, string] | ['m', string, string, number, number, 0 | 1] | ['c', string, [number, number, number, number]];
+type Row = ['t', string | null, string] | ['m', string, string, number, number, 0 | 1, number, number, 0 | 1, number, number] | ['c', string, [number, number, number, number]];
 
 export function parseLog(raw: string, match: MatchInfo): Game | null {
   const decks = match.decks || {};
@@ -66,7 +69,7 @@ export function parseLog(raw: string, match: MatchInfo): Game | null {
     if (m) {
       const zf = Number(m[4]), zt = Number(m[6]);
       if (zf === 0 && zt === 0) continue;
-      rows.push(['m', m[2], m[3], zf, zt, Number(m[10]) as 0 | 1]);
+      rows.push(['m', m[2], m[3], zf, zt, Number(m[10]) as 0 | 1, Number(m[5]), Number(m[7]), m[8] === '1' && m[9] === '1' ? 1 : 0, Number(m[11]), Number(m[12])]);
       if (zf === 0 && zt === 1) {
         if (pendingText.has(m[3])) { setDefault(numLabel, m[2], pendingText.get(m[3])!); pendingText.delete(m[3]); }
         else pendingDraw.set(m[3], m[2]);
@@ -132,7 +135,7 @@ export function parseLog(raw: string, match: MatchInfo): Game | null {
   const mull: Record<number, string[]> = {};
   let ends = 0; const snap: Record<number, Record<string, string[]>> = { 1: {}, 2: {} };
   for (const r of rows) {
-    if (r[0] === 'm') steps.push(['m', numSeat.get(r[1])!, r[2], r[3], r[4], r[5], null, null, null, null]);
+    if (r[0] === 'm') steps.push(['m', numSeat.get(r[1])!, r[2], r[3], r[4], r[5], null, null, null, null, r[6], r[7], r[8], r[9], r[10]]);
     else if (r[0] === 'c') { const last = steps[steps.length - 1]; if (last && last[0] === 'm' && last[6] === null) { last[6] = r[2][0]; last[7] = r[2][1]; last[8] = r[2][2]; last[9] = r[2][3]; } }
     else {
       const [, actor, text] = r;
