@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: write   # re-dispatch this workflow when code landed on main during the run
 
 concurrency:
   group: ingest
@@ -61,6 +62,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Commit data
+        id: commit
         run: |
           git config user.name "ingest-bot"
           git config user.email "ingest-bot@users.noreply.github.com"
@@ -75,21 +77,35 @@ jobs:
             git push origin HEAD:main && break
             echo "push rejected, retrying ($attempt)"
           done
+          # Code pushed to main while this run was ingesting: the data (and the gitignored caches) were produced by the
+          # old code, so a site built now would mix the two. Skip the build and run again from the new code instead.
+          if ! git diff --quiet "${{ github.sha }}" origin/main -- . ':!data'; then
+            echo "main moved during the run (code changed); rebuilding from current main in a new run"
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+          fi
           # sync the working tree with the committed code so the site builds from current main
           git checkout -- .
 
+      - name: Re-run with the new code
+        if: steps.commit.outputs.code_changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run daily.yml --ref main
+
       - uses: actions/setup-node@v4
+        if: steps.commit.outputs.code_changed != 'true'
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: site/package-lock.json
 
       - name: Build site
+        if: steps.commit.outputs.code_changed != 'true'
         run: npm ci && npm run build
         working-directory: site
 
       - name: Deploy to Cloudflare Pages
-        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        if: ${{ steps.commit.outputs.code_changed != 'true' && env.CLOUDFLARE_API_TOKEN != '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
