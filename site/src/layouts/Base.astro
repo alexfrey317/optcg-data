@@ -614,7 +614,7 @@ const ICONS: Record<string, string> = {
   .ov.cn { left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: calc(22 * var(--u)); color: #9fe29f; }
   .ov.bp { left: 50%; bottom: 14%; transform: translateX(-50%); font-size: calc(19 * var(--u)); background: var(--accent); color: #0b0e14; box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
   .ov.st { left: 0; right: 0; bottom: 0; border-radius: 0 0 calc(5 * var(--u)) calc(5 * var(--u)); text-align: center; font-size: calc(10 * var(--u)); background: rgba(0,0,0,.78); box-shadow: none; white-space: normal; }
-  .dls { display: grid; gap: .6rem; margin-top: .4rem; }
+  .dls { grid-column: 1 / -1; display: grid; gap: .6rem; }
   .dl { border: 1px solid var(--line); border-left: 4px solid var(--lc); border-radius: 12px; background: var(--panel); padding: .55rem .7rem; min-width: 0; }
   .dl-h { display: flex; gap: .4rem; align-items: center; margin-bottom: .4rem; flex-wrap: wrap; } .dl-h .copy { margin-left: auto; } .dl .cards { display: flex; flex-wrap: wrap; gap: .3rem; }
   .who { display: flex; gap: .5rem; align-items: center; padding: .1rem .3rem; } .who .turnpill { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--lc); } .who .hl-btn { margin-left: auto; }
@@ -642,7 +642,10 @@ const ICONS: Record<string, string> = {
     .table { grid-template-columns: 1fr; } .dock { position: static; } .board { max-width: none; }
     /* narrow screens: only the two mats fit, so the hands move to rows above and below the board */
     .stage { --sw: 800; --ox: -400; aspect-ratio: 800 / 1000; } .stage .el.hs { display: none; } .handrow { display: flex; } .who .hl-btn { display: none; }
-    .ctl { position: sticky; bottom: calc(3.9rem + var(--sab, 0px)); z-index: 20; background: rgba(11,14,20,.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    /* phones: the side panel sits below the board, so the step controls pin to the viewport above the tab bar and the
+       page gets room at the bottom so nothing hides behind them */
+    .ctl { position: fixed; left: max(.5rem, var(--sal)); right: max(.5rem, var(--sar)); bottom: calc(3.9rem + var(--sab, 0px)); z-index: 20; background: rgba(11,14,20,.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    #rg { padding-bottom: 7.5rem; } body:has(#rg) #totop { display: none; }
     .log { max-height: 9rem; }
   }
   @media (max-width: 720px) {

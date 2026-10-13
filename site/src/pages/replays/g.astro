@@ -368,7 +368,6 @@ import { IMG_BASE } from '../../lib/data';
             <div class="stage${showHands ? '' : ' hidehands'}" id="stage">${sideHtml(topSeat, true)}${sideHtml(botSeat, false)}<svg class="arrow" id="arrow"></svg></div>
             ${handRow(botSeat, false)}
             ${who(botSeat)}
-            <div class="dls">${deckHtml(topSeat)}${deckHtml(botSeat)}</div>
           </div>
           <aside class="dock">
             <div class="turnbox"><span class="tb-turn">Turn ${turn}</span><span class="tb-who" style="--lc:${lcolor(P[active].leader)}"><span class="rg-seat">P${active}</span> ${esc(lname(P[active].leader))}</span><span class="tb-phase">${esc(phaseOf())}</span></div>
@@ -380,6 +379,7 @@ import { IMG_BASE } from '../../lib/data';
             </div>
             ${peekHtml()}
           </aside>
+          <div class="dls">${deckHtml(topSeat)}${deckHtml(botSeat)}</div>
         </div>`;
       wire(); drawArrow();
     };
