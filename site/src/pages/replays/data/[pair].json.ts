@@ -27,6 +27,8 @@ export const GET: APIRoute = ({ params }) => {
   }
   const names = Object.fromEntries([...used].map((id) => [id, card(id).name]));
   const powers = Object.fromEntries([...used].filter((id) => Number(card(id).power)).map((id) => [id, Number(card(id).power)]));
-  const lead = Object.fromEntries(key.split('|').map((c) => [c, { name: leaders[c]?.name ?? card(c).name ?? c, color: colorVar(leaders[c]?.color ?? card(c).color) }]));
-  return new Response(JSON.stringify({ pair: key, leaders: lead, names, powers, games, flags: { restCost: cardFlags.restCost.filter((id) => used.has(id)) } }), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+  const costs = Object.fromEntries([...used].filter((id) => card(id).cost !== '' && !Number.isNaN(Number(card(id).cost))).map((id) => [id, Number(card(id).cost)]));
+  // the pair's two leaders plus any other leader card the games name (a decklist may carry one), so the viewer can tell leaders from deck cards
+  const lead = Object.fromEntries([...new Set([...key.split('|'), ...[...used].filter((c) => card(c).type === 'LEADER')])].map((c) => [c, { name: leaders[c]?.name ?? card(c).name ?? c, color: colorVar(leaders[c]?.color ?? card(c).color) }]));
+  return new Response(JSON.stringify({ pair: key, leaders: lead, names, powers, costs, games, flags: { restCost: cardFlags.restCost.filter((id) => used.has(id)) } }), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 };

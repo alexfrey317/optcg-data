@@ -614,6 +614,10 @@ const ICONS: Record<string, string> = {
   .ov.cn { left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: calc(22 * var(--u)); color: #9fe29f; }
   .ov.bp { left: 50%; bottom: 14%; transform: translateX(-50%); font-size: calc(19 * var(--u)); background: var(--accent); color: #0b0e14; box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
   .ov.st { left: 0; right: 0; bottom: 0; border-radius: 0 0 calc(5 * var(--u)) calc(5 * var(--u)); text-align: center; font-size: calc(10 * var(--u)); background: rgba(0,0,0,.78); box-shadow: none; white-space: normal; }
+  .dls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-top: .4rem; }
+  .dl { border: 1px solid var(--line); border-left: 4px solid var(--lc); border-radius: 12px; background: var(--panel); padding: .55rem .7rem; min-width: 0; }
+  .dl-h { display: flex; gap: .4rem; align-items: center; margin-bottom: .4rem; flex-wrap: wrap; } .dl .cards { display: flex; flex-wrap: wrap; gap: .3rem; }
+  @media (max-width: 720px) { .dls { grid-template-columns: 1fr; } }
   .who { display: flex; gap: .5rem; align-items: center; padding: .1rem .3rem; } .who .turnpill { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--lc); } .who .hl-btn { margin-left: auto; }
   .cd { position: relative; display: inline-block; width: 54px; height: 76px; flex: none; } .cd.hc { width: 44px; height: 61px; }
   .cd .qty { position: absolute; z-index: 2; right: 3px; bottom: 3px; font-size: .7rem; font-weight: 800; padding: .05rem .3rem; border-radius: 5px; background: rgba(0,0,0,.85); color: #fff; }

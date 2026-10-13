@@ -28,7 +28,7 @@ import { IMG_BASE } from '../../lib/data';
   type Move = ['m', 1 | 2, string, number, number, 0 | 1, number, number, number, number, number?, number?, (0 | 1)?, number?, number?];
   type Step = Move | ['e', 0 | 1 | 2, string, string] | ['s', 1 | 2, string[], string[], string[], number];
   type Game = { id: string; ts: string; date: string; players: Player[]; winner: 1 | 2; endTurns: number; end: { how: string; loserLife: number | null }; steps: Step[] };
-  type Bundle = { pair: string; leaders: Record<string, { name: string; color: string }>; names: Record<string, string>; powers?: Record<string, number>; flags?: { restCost: string[] }; games: Record<string, Game> };
+  type Bundle = { pair: string; leaders: Record<string, { name: string; color: string }>; names: Record<string, string>; powers?: Record<string, number>; costs?: Record<string, number>; flags?: { restCost: string[] }; games: Record<string, Game> };
   // what the sim keeps per card and shows on it: rest, "DON!! xN", a power delta, a counter total during battle, and status text
   type Until = 'turn' | 'combat' | 'refresh' | 'ownerEnd' | 'oppEnd';
   type Mod = { n?: number; base?: number; tag?: string; until: Until; turn: number };
@@ -294,6 +294,28 @@ import { IMG_BASE } from '../../lib/data';
       s.hand.forEach((cid, j) => out += el('card hand hs', L.hand.x + j * step, Y(L.hand.y), 50 + j, showHands ? face(cid) : backFace(), `data-hand="${seat}"`));
       return out;
     };
+    // Decklists under the board: the archive's full list when it recorded one for that side, else every card of that player's
+    // the log names anywhere (hand, board, trash, life, deck leaves), which is most of the deck by the end of a game.
+    const seenCards = (seat: number) => {
+      // every physical card leaves the deck once; a card returned to the deck (mulligan, bottom-decking) is counted again when it leaves again, so subtract returns
+      const m = new Map<string, number>(); const bump = (c: string, d: number) => m.set(c, (m.get(c) ?? 0) + d);
+      for (const st of G.steps) {
+        if (st[0] !== 'm' || st[1] !== seat || st[2] === 'Don') continue;
+        if (st[3] === 0 && st[4] !== 0) bump(st[2], 1); else if (st[4] === 0 && st[3] !== 0) bump(st[2], -1);
+      }
+      for (const [c, n] of m) if (n <= 0) m.delete(c);
+      return m;
+    };
+    const deckHtml = (seat: number) => {
+      const p = P[seat]; const full = deckOf(p); const recorded = full.size > 0; const list = recorded ? full : seenCards(seat);
+      for (const c of [...list.keys()]) if (c === p.leader || B.leaders[c] || B.leaders[c.replace(/_p\d+$/, '')]) list.delete(c);
+      const total = [...list.values()].reduce((a, b) => a + b, 0);
+      const cost = (c: string) => B.costs?.[c] ?? B.costs?.[c.replace(/_p\d+$/, '')] ?? 99;
+      const rows = [...list.entries()].sort((a, b) => cost(a[0]) - cost(b[0]) || a[0].localeCompare(b[0]));
+      const cards = rows.map(([c, n]) => `<span class="cd" title="${esc(name(c))} · ${c}">${face(c)}<b class="qty">${n}</b></span>`).join('');
+      const note = recorded ? `${total} cards` : `${total} of 50 seen in this game · the archive did not record this deck`;
+      return `<section class="dl" style="--lc:${lcolor(p.leader)}"><div class="dl-h"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${note}</span></div><div class="cards">${cards || '<span class="dim small">no cards known</span>'}</div></section>`;
+    };
     const handRow = (seat: number, top: boolean) => {
       const s = S[seat];
       const cards = showHands ? s.hand.map((c) => `<span class="cd hc">${face(c)}</span>`).join('') : Array.from({ length: s.hand.length }, () => `<span class="cd hc">${backFace()}</span>`).join('');
@@ -343,6 +365,7 @@ import { IMG_BASE } from '../../lib/data';
             <div class="stage${showHands ? '' : ' hidehands'}" id="stage">${sideHtml(topSeat, true)}${sideHtml(botSeat, false)}<svg class="arrow" id="arrow"></svg></div>
             ${handRow(botSeat, false)}
             ${who(botSeat)}
+            <div class="dls">${deckHtml(topSeat)}${deckHtml(botSeat)}</div>
           </div>
           <aside class="dock">
             <div class="turnbox"><span class="tb-turn">Turn ${turn}</span><span class="tb-who" style="--lc:${lcolor(P[active].leader)}"><span class="rg-seat">P${active}</span> ${esc(lname(P[active].leader))}</span><span class="tb-phase">${esc(phaseOf())}</span></div>
@@ -403,13 +426,13 @@ import { IMG_BASE } from '../../lib/data';
     const need = ['w', 'l', 'wb', 'lb', 'ts'].filter((k) => !q.get(k));
     if (need.length || !id) fail('This link is missing the game details.');
     else Promise.all([
-      fetch('/replays/cards.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ names: Record<string, string>; leaders: Bundle['leaders']; powers?: Record<string, number>; flags?: Bundle['flags'] }>; }),
+      fetch('/replays/cards.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ names: Record<string, string>; leaders: Bundle['leaders']; powers?: Record<string, number>; costs?: Record<string, number>; flags?: Bundle['flags'] }>; }),
       fetch(`/log/${logPath.split('/').map(encodeURIComponent).join('/')}`).then((r) => { if (r.status === 404) throw new Error('The combat log for this game is no longer stored upstream.'); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); }),
     ]).then(([cards, raw]) => {
       const decks: Record<string, string> = {}; if (q.get('wd')) decks.w = q.get('wd')!; if (q.get('ld')) decks.l = q.get('ld')!;
       const G = parseLog(raw, { id, ts: q.get('ts')!, w: { l: q.get('w')!, b: Number(q.get('wb')), d: decks.w ? 'w' : null }, l: { l: q.get('l')!, b: Number(q.get('lb')), d: decks.l ? 'l' : null }, decks });
       if (!G) throw new Error('The players in this log could not be told apart, so it cannot be shown.');
-      start({ pair: '', leaders: cards.leaders, names: cards.names, powers: cards.powers, flags: cards.flags, games: { [id]: G as Game } }, G as Game);
+      start({ pair: '', leaders: cards.leaders, names: cards.names, powers: cards.powers, costs: cards.costs, flags: cards.flags, games: { [id]: G as Game } }, G as Game);
     }).catch((e: Error) => fail(e.message));
   }
   else if (!pair || !id) fail('This link is missing the matchup or game id.');
