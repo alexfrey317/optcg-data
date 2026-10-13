@@ -314,7 +314,10 @@ import { IMG_BASE } from '../../lib/data';
       const rows = [...list.entries()].sort((a, b) => cost(a[0]) - cost(b[0]) || a[0].localeCompare(b[0]));
       const cards = rows.map(([c, n]) => `<span class="cd" title="${esc(name(c))} · ${c}">${face(c)}<b class="qty">${n}</b></span>`).join('');
       const note = recorded ? `${total} cards` : `${total} of 50 seen in this game · the archive did not record this deck`;
-      return `<section class="dl" style="--lc:${lcolor(p.leader)}"><div class="dl-h"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${note}</span></div><div class="cards">${cards || '<span class="dim small">no cards known</span>'}</div></section>`;
+      // the text format OPTCG Sim imports: leader first, then one "NxCODE" line per card (same as the deck pages' button)
+      const simText = [`1x${p.leader.replace(/_p\d+$/, '')}`, ...rows.map(([c, n]) => `${n}x${c.replace(/_p\d+$/, '')}`)].join('\n');
+      const copy = rows.length ? `<button type="button" class="copy sm" data-copy="${esc(simText)}" title="${recorded ? 'Copies the list in the text format OPTCG Sim imports' : 'Copies the cards seen so far in the text format OPTCG Sim imports (not a complete deck)'}">Copy for sim</button>` : '';
+      return `<section class="dl" style="--lc:${lcolor(p.leader)}"><div class="dl-h"><span class="rg-seat">P${seat}</span> <b>${esc(lname(p.leader))}</b><span class="muted small"> · ${note}</span>${copy}</div><div class="cards">${cards || '<span class="dim small">no cards known</span>'}</div></section>`;
     };
     const handRow = (seat: number, top: boolean) => {
       const s = S[seat];
