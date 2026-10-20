@@ -38,7 +38,7 @@ from ..http import request
 
 BASE = "https://d2spmnr3w7rm2f.cloudfront.net/stats"
 MODE = "mode_0"
-DAYS = int(os.environ.get("OPB_STATS_DAYS", "3"))
+DAYS = int(os.environ.get("OPB_STATS_DAYS", "8"))  # the publisher can trail by several days (seen Oct 2026), so look back a week
 WORKERS = int(os.environ.get("OPB_STATS_WORKERS", "8"))
 REFRESH = os.environ.get("OPB_STATS_REFRESH") == "1"
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -151,17 +151,17 @@ def merge_chunk(day_obj: dict, key: str, chunk: dict):
 
 def fetch_all(days: int = DAYS) -> dict:
     """Bring the last `days` UTC days up to date with the published chunk index. Incremental: only
-    chunks not yet merged are downloaded. A day is final once it is at least two days old (its last
-    chunk lands in the early hours of the next day)."""
+    chunks not yet merged are downloaded. Every day in the range is diffed against the index on every run
+    (the index is one request), because the publisher's cadence varies: it used to finish a day within hours,
+    but in October 2026 chunks for a day kept landing two or three days later. A day is marked final once it
+    is at least two days old, every indexed chunk is merged and a later day has started publishing."""
     idx = index()
     today = datetime.now(timezone.utc).date()
     status = {}
     for back in range(days - 1, -1, -1):
         day = (today - timedelta(days=back)).isoformat()
         obj = STORE.load(day) or empty_day(day)
-        if obj.get("final") and not REFRESH:
-            status[day] = {"matches": obj["matches"], "chunks": len(obj["chunks"]), "cached": True}
-            continue
+        was_final = obj.get("final", False)
         if REFRESH and obj["chunks"]:
             obj = empty_day(day)
         todo = [k for k in idx.get(day, []) if k not in set(obj["chunks"])]
@@ -169,9 +169,11 @@ def fetch_all(days: int = DAYS) -> dict:
             with ThreadPoolExecutor(max_workers=WORKERS) as ex:
                 for key, chunk in zip(todo, ex.map(fetch_chunk, todo)):
                     merge_chunk(obj, key, chunk)
-        obj["final"] = day <= (today - timedelta(days=2)).isoformat()
-        STORE.save(obj)
-        status[day] = {"matches": obj["matches"], "chunks": len(obj["chunks"]), "new": len(todo), "decks": len(obj["decks"])}
+        later_published = any(d > day and ks for d, ks in idx.items())
+        obj["final"] = day <= (today - timedelta(days=2)).isoformat() and not todo and later_published
+        if todo or REFRESH or obj["final"] != was_final:
+            STORE.save(obj)
+        status[day] = {"matches": obj["matches"], "chunks": len(obj["chunks"]), "new": len(todo), "decks": len(obj["decks"]), "final": obj["final"]}
     return status
 
 
