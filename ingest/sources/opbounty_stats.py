@@ -37,13 +37,16 @@ from ..daystore import DayStore
 from ..http import request
 
 BASE = "https://d2spmnr3w7rm2f.cloudfront.net/stats"
-MODE = "mode_0"
+MODE = "mode_0"  # Standard ranked; "mode_1" is the spoiler (pre-release) ranked queue, published in the same feed
+SPOILER_MODE = "mode_1"
 DAYS = int(os.environ.get("OPB_STATS_DAYS", "8"))  # the publisher can trail by several days (seen Oct 2026), so look back a week
 WORKERS = int(os.environ.get("OPB_STATS_WORKERS", "8"))
 REFRESH = os.environ.get("OPB_STATS_REFRESH") == "1"
 ROOT = Path(__file__).resolve().parent.parent.parent
 OUT = ROOT / "data" / "stats"
 STORE = DayStore(OUT)
+SPOILER_OUT = ROOT / "data" / "stats_spoiler"
+SPOILER_STORE = DayStore(SPOILER_OUT)
 
 
 def _decode(raw: bytes):
@@ -56,14 +59,15 @@ def _decode(raw: bytes):
         return json.loads(gzip.decompress(base64.b64decode(raw)))
 
 
-def index() -> dict[str, list[str]]:
-    """day -> [keys] for ranked (mode_0) chunks."""
-    _, _, raw = request(f"{BASE}/files.json")
+def index(mode: str = MODE, raw: bytes | None = None) -> dict[str, list[str]]:
+    """day -> [keys] for the chunks of one game mode."""
+    if raw is None:
+        _, _, raw = request(f"{BASE}/files.json")
     by_day: dict[str, list[str]] = defaultdict(list)
     for item in json.loads(raw):
         k = item.get("Key") or ""
         parts = k.split("/")
-        if len(parts) == 4 and parts[1] == MODE:
+        if len(parts) == 4 and parts[1] == mode:
             by_day[parts[0]].append(k)
     return {d: sorted(ks) for d, ks in by_day.items()}
 
@@ -150,17 +154,29 @@ def merge_chunk(day_obj: dict, key: str, chunk: dict):
 
 
 def fetch_all(days: int = DAYS) -> dict:
-    """Bring the last `days` UTC days up to date with the published chunk index. Incremental: only
+    """Standard ranked and the spoiler queue, each into its own store. The spoiler queue only publishes while a
+    pre-release season is open, so its status lists just the days that exist in the index."""
+    _, _, raw = request(f"{BASE}/files.json")
+    out = fetch_mode(index(MODE, raw), STORE, days)
+    sp = fetch_mode(index(SPOILER_MODE, raw), SPOILER_STORE, max(days, SPOILER_WINDOW_DAYS + 7), only_indexed=True)
+    if sp:
+        out["spoiler"] = sp
+    return out
+
+
+def fetch_mode(idx: dict[str, list[str]], store: DayStore, days: int, only_indexed: bool = False) -> dict:
+    """Bring the last `days` UTC days of one mode up to date with the published chunk index. Incremental: only
     chunks not yet merged are downloaded. Every day in the range is diffed against the index on every run
     (the index is one request), because the publisher's cadence varies: it used to finish a day within hours,
     but in October 2026 chunks for a day kept landing two or three days later. A day is marked final once it
     is at least two days old, every indexed chunk is merged and a later day has started publishing."""
-    idx = index()
     today = datetime.now(timezone.utc).date()
     status = {}
     for back in range(days - 1, -1, -1):
         day = (today - timedelta(days=back)).isoformat()
-        obj = STORE.load(day) or empty_day(day)
+        if only_indexed and day not in idx:
+            continue
+        obj = store.load(day) or empty_day(day)
         was_final = obj.get("final", False)
         if REFRESH and obj["chunks"]:
             obj = empty_day(day)
@@ -172,13 +188,30 @@ def fetch_all(days: int = DAYS) -> dict:
         later_published = any(d > day and ks for d, ks in idx.items())
         obj["final"] = day <= (today - timedelta(days=2)).isoformat() and not todo and later_published
         if todo or REFRESH or obj["final"] != was_final:
-            STORE.save(obj)
+            store.save(obj)
         status[day] = {"matches": obj["matches"], "chunks": len(obj["chunks"]), "new": len(todo), "decks": len(obj["decks"]), "final": obj["final"]}
     return status
 
 
 def load_days(days: int) -> list[dict]:
     return STORE.load_days(days)
+
+
+SPOILER_WINDOW_DAYS = 14
+SPOILER_MIN_WEEK_GAMES = 2000  # the queue idles at single-digit games a day between card drops and spikes to thousands after one
+
+
+def spoiler_window(today: str | None = None, days: int = SPOILER_WINDOW_DAYS, min_week_games: int = SPOILER_MIN_WEEK_GAMES) -> list[dict]:
+    """The spoiler queue's last `days` published days (oldest first) while the queue is busy: the last seven days must
+    hold at least `min_week_games` games, else the queue is dormant and the window is empty (no Spoiler tab)."""
+    all_days = [d for d in SPOILER_STORE.load_days(days + 7) if not today or d.get("date", "") < today]
+    if not all_days:
+        return []
+    now = datetime.fromisoformat(today).date() if today else datetime.now(timezone.utc).date()
+    week = [d for d in all_days if (now - datetime.fromisoformat(d["date"]).date()).days <= 7]
+    if sum(int(d.get("matches") or 0) for d in week) < min_week_games:
+        return []
+    return [d for d in all_days if (now - datetime.fromisoformat(d["date"]).date()).days <= days]
 
 
 if __name__ == "__main__":

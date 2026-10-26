@@ -1,7 +1,7 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, fmt, pct, top1000, leaderStats, imgUrl, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, sourceLabel, type Win } from '../lib/data';
+import { leadersByVolumeFor, fmt, pct, top1000, leaderStats, imgUrl, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, sourceLabel, isSpoiler, type Win } from '../lib/data';
 interface Props { window: Win }
 const { window: W } = Astro.props;
 const all = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
@@ -16,6 +16,8 @@ for (const p of top1000) for (const t of p.topLeaders) pilots.set(t.code, (pilot
 const wm = windowMeta(W);
 const totalGames = wm?.matches ?? 0;
 const src = wm?.leaderSource ?? all[0]?.s.source ?? 'ranked';
+// the spoiler queue has no Card Kaizoku or ladder data: pilot counts and top-1000 presence are Standard-only
+const sp = isSpoiler(W);
 const srcNote = src === 'kaizoku'
   ? `Games, win rates and play rate come from Card Kaizoku, which records the whole sim${W === '7d' ? ` (their weekly table, updated ${wm?.kaizokuUpdated ? `${wm.kaizokuUpdated.slice(0, 4)}-${wm.kaizokuUpdated.slice(4, 6)}-${wm.kaizokuUpdated.slice(6, 8)}` : 'daily'})` : ` (${wm?.kaizokuDays ?? '?'} of ${wm?.targetDays ?? '?'} days)`}. Matchups, decks and cards come from OPBounty's published ranked stats.`
   : `Games, win rates and play rate come from OPBounty's published ranked stats${wm?.kaizokuCoverage != null && wm.kaizokuCoverage < 0.9 ? `; this window switches to Card Kaizoku's whole-sim numbers once their daily files cover it (${Math.round((wm.kaizokuCoverage ?? 0) * (wm.targetDays ?? 0))} of ${wm?.targetDays} days so far)` : ''}.`;
@@ -27,7 +29,7 @@ if (W === '7d') {
 }
 ---
 <div class="hero"><div style="flex:1"><h1>Leader Rankings</h1>
-  <div class="meta">Standard ranked, {WINDOWS[W].label.toLowerCase()}. <b style="color:var(--text)">{fmt(totalGames, 0)}</b> games played. Sorted by weighted win rate; click any column to re-sort. Leaders in under {MIN_PLAY_RATE}% of games are listed separately at the bottom. <Info text={srcNote} /> <span class="muted">Source: {sourceLabel(src)}.</span></div>
+  <div class="meta">{sp ? "OPBounty's spoiler queue, where the unreleased set is legal, last 14 days." : `Standard ranked, ${WINDOWS[W].label.toLowerCase()}.`} <b style="color:var(--text)">{fmt(totalGames, 0)}</b> games played. Sorted by weighted win rate; click any column to re-sort. Leaders in under {MIN_PLAY_RATE}% of games are listed separately at the bottom. <Info text={srcNote} /> <span class="muted">Source: {sourceLabel(src)}.</span></div>
   <WindowToggle current={W} path="/leaders/" /></div></div>
 <div class="panel scroll">
   <table id="t" class="rank-table">
@@ -40,10 +42,10 @@ if (W === '7d') {
       <th class="num sortable hide-m" data-k="wr">Raw WR <Info text="Wins divided by games, unadjusted." /></th>
       <th class="num sortable" data-k="play">Play Rate <Info text="Share of all decks in the window's games that were this leader. Every game has two decks, so the column sums to 100%." /></th>
       <th class="num sortable" data-k="games">Games</th>
-      <th class="num sortable hide-m" data-k="pilots">Pilots <Info text="Distinct sim accounts that played this leader last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></th>
+      {!sp && <th class="num sortable hide-m" data-k="pilots">Pilots <Info text="Distinct sim accounts that played this leader last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></th>}
       <th class="num sortable" data-k="first">1st WR <Info text="Win rate when this leader took the first turn." /></th>
       <th class="num sortable" data-k="second">2nd WR <Info text="Win rate when this leader took the second turn." /></th>
-      <th class="num sortable hide-m" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>
+      {!sp && <th class="num sortable hide-m" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>}
     </tr></thead>
     <tbody>{[...rows, ...rare].map(({ l, s, pilots: up }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); const isRare = i >= rows.length; return (<>
       {i === rows.length && <tr class="divider"><td colspan="12"><span>Rarely played</span> <span class="muted small">under {MIN_PLAY_RATE}% of games in the window · win rates here are small samples</span></td></tr>}
@@ -56,10 +58,10 @@ if (W === '7d') {
         <td class:list={['num', 'hide-m', (s.winRate ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.winRate)}</td>
         <td class="num">{pct(s.playRate)}</td>
         <td class="num muted">{fmt(s.games, 0)}</td>
-        <td class="num muted hide-m">{up == null ? '–' : fmt(up, 0)}</td>
+        {!sp && <td class="num muted hide-m">{up == null ? '–' : fmt(up, 0)}</td>}
         <td class:list={['num', (s.first ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.first)}</td>
         <td class:list={['num', (s.second ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.second)}</td>
-        <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>
+        {!sp && <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>}
       </tr></>); })}</tbody>
   </table>
 </div>

@@ -7,6 +7,8 @@ import WindowToggle from './WindowToggle.astro';
 import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, replayBest, pairKey, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, sourceLabel, type Win, type Leader, type CurveTurn } from '../lib/data';
 interface Props { window: Win; leader: Leader }
 const { window: W, leader: L } = Astro.props;
+// Standard-only sections (Card Kaizoku weekly data, replay-archive pilots) are left out of the spoiler queue's page
+const sp = W === 'spoiler';
 const ls = leadersFor(W);
 const s = leaderStats(L);
 const decksRaw = deckFileFor(W, L.code);
@@ -96,7 +98,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       <div class="stat"><div class="label">Total Games <Info text={`Headline numbers (games, win rates, play rate) for this window come from ${sourceLabel(s.source)}${s.source === 'kaizoku' ? ', which records the whole sim. The matchup, decklist and card tables below come from OPBounty\'s published ranked stats, a smaller set of games, so their totals differ a little.' : '.'}`} /></div><div class="value">{fmt(s.games, 0)}</div><div class="muted small">{sourceLabel(s.source)}</div></div>
       <div class="stat"><div class="label">1st Win Rate <Info text="Win rate when taking the first turn." /></div><div class:list={['value', wrClass(s.first)]}>{pct(s.first)}</div></div>
       <div class="stat"><div class="label">2nd Win Rate <Info text="Win rate when taking the second turn. Compare with 1st to decide the coin flip." /></div><div class:list={['value', wrClass(s.second)]}>{pct(s.second)}</div></div>
-      <div class="stat"><div class="label">Pilots <Info text="Distinct sim accounts that played this leader in ranked last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></div><div class="value">{uniquePilots == null ? '–' : fmt(uniquePilots, 0)}</div></div>
+      {!sp && <div class="stat"><div class="label">Pilots <Info text="Distinct sim accounts that played this leader in ranked last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></div><div class="value">{uniquePilots == null ? '–' : fmt(uniquePilots, 0)}</div></div>}
     </div>
     {trend.length >= 3 && <div style="margin-top:.9rem">
       <div class="muted small" style="display:flex;justify-content:space-between"><span>Daily win rate, {winLabel} <Info text="Raw win rate on each UTC day of the window, from OPBounty's published statistics. Dashed line is 50%. Hover or drag across the chart to read a day." /></span><span>{trend[0][0]} → {trend.at(-1)![0]}</span></div>
@@ -141,9 +143,9 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       <div class="stat"><div class="label">Going First Wins</div><div class:list={['value', wrClass(mirrorMu!.first)]}>{pct(mirrorMu!.first)}</div><div class="muted small">{fmt(mirrorMu!.firstGames ?? 0, 0)} games</div></div>
       <div class="stat"><div class="label">Going Second Wins</div><div class:list={['value', wrClass(mirrorMu!.second)]}>{pct(mirrorMu!.second)}</div><div class="muted small">{fmt(mirrorMu!.secondGames ?? 0, 0)} games</div></div>
       <div class="stat"><div class="label">Mirror Share <Info text="Share of this leader's games that were mirrors." /></div><div class="value">{pct(s.games ? (100 * mirrorGames) / s.games : null)}</div></div>
-      <div class="stat"><div class="label">Recorded With Both Lists</div><div class="value">{fmt(mirror?.withDecks ?? 0, 0)}</div><div class="muted small">{mirror?.games ? `${fmt(mirror.games, 0)} archived mirrors · ${mirror.archiveDays} days` : 'replay archive'}</div></div>
+      {!sp && <div class="stat"><div class="label">Recorded With Both Lists</div><div class="value">{fmt(mirror?.withDecks ?? 0, 0)}</div><div class="muted small">{mirror?.games ? `${fmt(mirror.games, 0)} archived mirrors · ${mirror.archiveDays} days` : 'replay archive'}</div></div>}
     </div>
-    <div class="panel scroll" style="max-height:520px">
+    {!sp && <div class="panel scroll" style="max-height:520px">
       {mirrorGood.length + mirrorBad.length === 0 ? <p class="muted" style="padding:1rem;margin:0">Not enough recorded mirror games with both lists yet to single out cards (each card needs 10 games where only one side ran it).</p> :
       <table>
         <thead><tr><th>Card</th><th class="num hide-m">In Lists</th><th class="num">Edge Games <Info text="Recorded mirror games where exactly one side ran the card." /></th><th class="num">Win % <Info text="How often the side that ran the card won those edge games. 50% means the card made no difference." /></th><th class="num">Edge</th></tr></thead>
@@ -154,11 +156,11 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
           </>)}
         </tbody>
       </table>}
-    </div>
+    </div>}
   </div>
 </>}
 
-{curve && (curve.first.length > 0 || curve.second.length > 0) && <>
+{!sp && curve && (curve.first.length > 0 || curve.second.length > 0) && <>
   <h2>Curve <span class="sub">most common plays each turn · sim-wide ranked, week of {curve.date.slice(0, 4)}-{curve.date.slice(4, 6)}-{curve.date.slice(6, 8)}</span> <Info text="For each turn, the three plays seen most often with this leader, going first and going second, from the sim's own match logs (Card Kaizoku, weekly, whole sim). A play is the set of cards put down that turn. Pick an opponent to see how the curve changes in that matchup; the right-hand number is how many turns were recorded." /></h2>
   <div class="panel curve" data-curve={JSON.stringify({ first: curve.first.map((t) => ({ t: t.t, n: t.n, top: t.top, vs: t.vs })), second: curve.second.map((t) => ({ t: t.t, n: t.n, top: t.top, vs: t.vs })), names: curveNames, img: IMG_BASE })}>
     <div class="curve-tabs">
@@ -185,7 +187,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
   </DeckList>
 </section>
 
-<div class="grid two">
+{!sp && <div class="grid two">
   <section>
     <h2>Best Pilots <Info text={pilotsNote} /></h2>
     <div class="panel tight">
@@ -213,19 +215,19 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       ))}
     </div>
   </section>
-</div>
+</div>}
 
 <h2>Card Usage <span class="sub">{fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists · {cardsF.complete ? winLabel : 'last 7 days'}</span> <Info text={cardsF.complete ? `Per card across every ranked game this leader played in the window, from OPBounty's complete published statistics. Usage is the share of games with the card in the list; Copies shows how those lists split between 4, 3, 2 and 1 copies (hover for each count's win rate); In Hand is how often the card sat in the kept opening hand, with the win rate of those games; Pilots is how many distinct sim accounts ran it last week (Card Kaizoku, sim-wide); Lift is how much games with the card outperform the leader's average. Click a row to show only lists running that card.` : `Per card across every ranked list for this leader last week (card-level stats are only published weekly). Usage is the share of lists running it; copies is the average count when included; lift is how much lists with the card outperform the leader's average win rate.`} /></h2>
 <div class="panel scroll" style="max-height:760px">
   <table>
-    <thead><tr><th>Card</th><th class="num">Usage</th><th class="hide-m">Copies <Info text="How lists running the card split between 4, 3, 2 and 1 copies. Gold is 4 copies. Hover a bar for the win rate at each count." /></th><th class="num hide-m">In Hand <Info text="Share of the card's games where it was in the kept opening hand, and the win rate of those games." /></th><th class="num hide-m">Pilots</th><th class="num">Win %</th><th class="num">Lift <Info text="How much better lists running this card do than the leader's average. +1.5 means lists with the card win 1.5 points more often than the leader overall; negative means they do worse." /></th></tr></thead>
+    <thead><tr><th>Card</th><th class="num">Usage</th><th class="hide-m">Copies <Info text="How lists running the card split between 4, 3, 2 and 1 copies. Gold is 4 copies. Hover a bar for the win rate at each count." /></th><th class="num hide-m">In Hand <Info text="Share of the card's games where it was in the kept opening hand, and the win rate of those games." /></th>{!sp && <th class="num hide-m">Pilots</th>}<th class="num">Win %</th><th class="num">Lift <Info text="How much better lists running this card do than the leader's average. +1.5 means lists with the card win 1.5 points more often than the leader overall; negative means they do worse." /></th></tr></thead>
     <tbody>{cardsF.cards.slice(0, 80).map((c) => { const k2 = card(c.id); const qs = qshares(c); return (
       <tr data-filter-card={c.id} data-filter-name={k2.name} title="Click to show only lists running this card">
         <td style="display:flex;align-items:center;gap:.6rem"><img src={imgUrl(c.id)} alt="" loading="lazy" style="width:44px;height:62px;object-fit:cover;object-position:top;border-radius:5px;flex:none" /><span><span style="font-weight:500">{k2.name}</span>{(c.usage ?? 0) >= 90 && <span class="src" style="margin-left:.4rem">staple</span>}<div class="muted small">{k2.type?.toLowerCase()}{k2.cost && ` · cost ${k2.cost}`}</div></span></td>
         <td class="num"><div class="bar hide-m" style="width:56px;display:inline-block;vertical-align:middle;margin-right:.4rem"><i style={`width:${c.usage}%`}></i></div>{pct(c.usage)}</td>
         <td class="hide-m"><span class="qbar" title={qs.filter((q) => q.games).map((q) => `${q.q}× · ${q.share.toFixed(0)}% of lists · ${pct(q.wr)} win`).join('\n')}>{qs.map((q) => <i class={`q${q.q}`} style={`width:${q.share}%`}></i>)}</span><span class="qtxt">{qs.filter((q) => q.share >= 5).map((q) => `${q.q}× ${q.share.toFixed(0)}%`).join(' · ')}</span></td>
         <td class="num hide-m">{c.handRate == null ? <span class="dim">–</span> : <>{pct(c.handRate)}<div class:list={['small', wrClass(c.handWinRate)]}>{pct(c.handWinRate)} win</div></>}</td>
-        <td class="num muted hide-m">{c.pilots == null ? '–' : fmt(c.pilots, 0)}</td>
+        {!sp && <td class="num muted hide-m">{c.pilots == null ? '–' : fmt(c.pilots, 0)}</td>}
         <td class:list={['num', wrClass(c.winRate)]}>{pct(c.winRate)}</td>
         <td class:list={['num', (c.winRateVsLeader ?? 0) >= 0 ? 'good' : 'bad']}>{c.winRateVsLeader == null ? '–' : `${c.winRateVsLeader >= 0 ? '+' : ''}${fmt(c.winRateVsLeader, 2)}`}</td></tr>); })}</tbody>
   </table>

@@ -34,11 +34,30 @@ def rest_cost_ids(payload: dict) -> list[str]:
     return sorted(out)
 
 
-def fetch_all(out: Path) -> dict:
+def card_db(payload: dict) -> dict:
+    """Every card in dotgg's index in the shape of normalize.build_card_db (no image: the site derives art from the
+    id). Kaizoku's database lags new sets by weeks, so this fills in the unreleased cards the spoiler queue plays."""
+    names = payload["names"]
+    col = {k: names.index(k) for k in ("id", "rarity", "cardType", "name", "Cost", "Power", "Counter", "Color", "set")}
+    db = {}
+    for row in payload["data"]:
+        cid = row[col["id"]]
+        if not cid or not CODE.match(cid) or cid in db:
+            continue
+        db[cid] = {"name": row[col["name"]], "type": (row[col["cardType"]] or "").upper(), "cost": row[col["Cost"]],
+                   "color": row[col["Color"]], "power": row[col["Power"]], "counter": row[col["Counter"]],
+                   "rarity": row[col["rarity"]], "img": None, "set": row[col["set"]] or cid.split("-")[0]}
+    return db
+
+
+def fetch_all(out: Path, cards_out: Path | None = None) -> dict:
     payload = get_json(URL)
     ids = rest_cost_ids(payload)
     if len(ids) < 50:  # the index normally has a few hundred such cards; a tiny result means a changed format
         raise RuntimeError(f"only {len(ids)} rest-cost cards found")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"restCost": ids}, separators=(",", ":")))
-    return {"restCost": len(ids), "cards": len(payload["data"])}
+    db = card_db(payload)
+    if cards_out and len(db) > 1000:
+        cards_out.write_text(json.dumps(db, separators=(",", ":")))
+    return {"restCost": len(ids), "cards": len(db)}

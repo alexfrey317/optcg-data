@@ -175,19 +175,23 @@ const COUNTRY_CODES: Record<string, string> = {
 };
 
 /* ---------------------------------------------------------------- time windows */
-export type Win = '1d' | '7d' | '30d' | '90d';
+export type Win = '1d' | '7d' | '30d' | '90d' | 'spoiler';
 export const WINDOWS: Record<Win, { label: string; short: string; base: string }> = {
   '1d': { label: 'Yesterday', short: 'yesterday', base: '/1d' },
   '7d': { label: 'Last 7 Days', short: '7 days', base: '' },
   '30d': { label: 'Last 30 Days', short: '30 days', base: '/30d' },
   '90d': { label: 'Last 90 Days', short: '90 days', base: '/90d' },
+  // OPBounty's spoiler (pre-release) ranked queue, one window over the current season; the ingest only writes it while the queue is open
+  'spoiler': { label: 'Spoiler Queue', short: 'spoiler season', base: '/spoiler' },
 };
-export const WINDOW_KEYS = Object.keys(WINDOWS) as Win[];
 const WDIR = join(ROOT, 'windows');
-export interface WindowMeta { days: number; targetDays: number; start: string | null; end: string | null; matches: number; rankedMatches?: number; leaderSource?: 'kaizoku' | 'ranked'; kaizokuCoverage?: number; kaizokuUpdated?: string | null; kaizokuDays?: number }
+export interface WindowMeta { days: number; targetDays: number; start: string | null; end: string | null; matches: number; rankedMatches?: number; leaderSource?: 'kaizoku' | 'ranked'; kaizokuCoverage?: number; kaizokuUpdated?: string | null; kaizokuDays?: number; queue?: 'spoiler' }
+const hasWindow = (w: Win) => existsSync(join(WDIR, w, 'leaders.json'));
+/** Windows the site builds: the time windows always, the spoiler queue only while it is live. */
+export const WINDOW_KEYS = (Object.keys(WINDOWS) as Win[]).filter((w) => w !== 'spoiler' || hasWindow(w));
+export const isSpoiler = (w: Win) => w === 'spoiler';
 /** Human label for where a window's leader headline numbers come from. */
 export const sourceLabel = (src: 'kaizoku' | 'ranked' | null | undefined) => (src === 'kaizoku' ? 'Card Kaizoku' : 'OPBounty ranked stats');
-const hasWindow = (w: Win) => existsSync(join(WDIR, w, 'leaders.json'));
 export const windowMeta = (w: Win): WindowMeta | null =>
   hasWindow(w) ? readJson<WindowMeta | null>(join(WDIR, w, 'meta.json'), null)
   : w === '7d' ? { days: 7, targetDays: 7, start: null, end: meta.date, matches: Object.values(leaders).reduce((n, l) => n + Number(l.sources.kaizoku?.matches ?? 0), 0) / 2 }

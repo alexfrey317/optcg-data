@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import time
 import traceback
@@ -88,7 +89,7 @@ def main(argv=None):
     step("optcgone", optcgone.fetch_all)
     step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
     # card-text flags for the replay viewer (rest-as-cost abilities the sim never logs); the old file stays on failure
-    guard("cardtext", lambda: card_text.fetch_all(LATEST / "card_flags.json"))
+    guard("cardtext", lambda: card_text.fetch_all(LATEST / "card_flags.json", RAW / "dotgg_cards.json"))
     step("curves", lambda: kaizoku_curves.fetch_all(RAW / "kaizoku_curves_state.json", LATEST / "curves"))
     step("opbounty", opbounty.fetch_all)
 
@@ -100,6 +101,8 @@ def main(argv=None):
 
     opb, kz, one = raw["opbounty"], raw["kaizoku"], raw["optcgone"]
     card_db = N.build_card_db(raw["cards"]) if raw.get("cards") else load(LATEST / "cards.json", {})
+    # cards Kaizoku does not know yet (unreleased sets played in the spoiler queue) come from dotgg's index
+    card_db = {**load(RAW / "dotgg_cards.json", {}), **card_db}
 
     players = N.build_players(opb)
 
@@ -242,6 +245,41 @@ def main(argv=None):
                               "statsDays": len(st_days), "archiveDays": len(ar_days), "kaizokuDays": 7 if kz_weekly else len(kz_days),
                               "archiveMatches": sum(len(d.get("matches") or []) for d in ar_days)}
         dump(wdir / "meta.json", window_meta[wname])
+
+    # spoiler (pre-release) ranked queue: one window over its last two weeks, built from OPBounty's mode_1 stats alone
+    # (Card Kaizoku and the match archive are Standard-only). The directory is removed while the queue is dormant, which
+    # hides the Spoiler tab on the site.
+    sp_days = opbounty_stats.spoiler_window(today=today)
+    sp_dir = ROOT / "data" / "windows" / "spoiler"
+    if sp_days:
+        sp_leaders, sp_decks = N.build_stats_window(sp_days, card_db)
+        sp_leaders, sp_decks = N.merge_windows({}, sp_leaders, {}, sp_decks, "ranked")
+        shutil.rmtree(sp_dir, ignore_errors=True)
+        for code, dfile in sp_decks.items():
+            dump(sp_dir / "decks" / f"{code}.json", dfile)
+            for d in dfile["decks"]:
+                used_cards.update(c["id"] for c in d["cards"])
+        sp_trends = N.build_trends(sp_days)
+        for code in sp_leaders:
+            cf = N.build_stats_cards(sp_days, code)
+            if not cf:
+                continue
+            cf["tech"] = {}; cf["openingHand"] = []
+            cf["mirror"] = {"games": 0, "withDecks": 0, "cards": [], "archiveDays": 0}
+            dump(sp_dir / "cards" / f"{code}.json", cf)
+            used_cards.update(c["id"] for c in cf["cards"])
+        for code, L in sp_leaders.items():
+            L["trend"] = sp_trends.get(code) or []
+        used_cards.update(sp_leaders)
+        dump(sp_dir / "leaders.json", sp_leaders)
+        sp_matches = sum(int(d.get("matches") or 0) for d in sp_days)
+        window_meta["spoiler"] = {"days": len(sp_days), "targetDays": len(sp_days), "start": sp_days[0]["date"], "end": sp_days[-1]["date"],
+                                  "matches": sp_matches, "rankedMatches": sp_matches, "leaderSource": "ranked", "kaizokuCoverage": 0,
+                                  "kaizokuUpdated": None, "statsDays": len(sp_days), "archiveDays": 0, "kaizokuDays": 0, "archiveMatches": 0,
+                                  "queue": "spoiler"}
+        dump(sp_dir / "meta.json", window_meta["spoiler"])
+    elif sp_dir.exists():
+        shutil.rmtree(sp_dir, ignore_errors=True)
 
     # cards named in the curve plays need names/images too
     for f in (LATEST / "curves").glob("*.json") if (LATEST / "curves").exists() else []:
