@@ -15,6 +15,10 @@ export interface TopLeader { code: string; winRate: number | null; matches: numb
 export interface Player {
   id: number | string | null; rank: number; name: string; bounty: number; wins: number; losses: number;
   matches: number; winRate: number; country: string | null; topLeaders: TopLeader[];
+  /** this season's part alone (wins etc. above include the banked part when OPBounty has reset the ladder) */
+  season?: { wins: number; losses: number; matches: number; winRate: number; topLeaders: TopLeader[] };
+  /** records banked from previous seasons (see ingest/carry.py) */
+  carry?: { wins: number; losses: number; matches: number; leaders: Record<string, { games: number; wins: number }> };
 }
 export interface SourceStats { [k: string]: number | string | string[] | null | undefined }
 export interface Leader {
@@ -60,6 +64,8 @@ export const imgUrl = (id: string) => `${IMG_BASE}${id}.webp`;
 export const wrClass = (v: number | null | undefined) => (v == null ? 'dim' : v >= 50 ? 'good' : 'bad');
 
 export const meta = readJson<Meta>(join(LATEST, 'meta.json'), { generatedAt: '', date: '', status: {}, players: 0, leaders: 0, sources: [] });
+/** Dates OPBounty reset its ladder; our records keep adding across them (see ingest/carry.py). */
+export const ladderResets: string[] = (meta.ladderResets as string[] | undefined) ?? [];
 export const players = readJson<Player[]>(join(LATEST, 'players.json'), []);
 /** The ladder's top 1,000: what the home page and "Top-1000" counts use; player pages exist for every pulled row. */
 export const top1000 = players.slice(0, 1000);
@@ -189,6 +195,11 @@ export interface WindowMeta { days: number; targetDays: number; start: string | 
 const hasWindow = (w: Win) => existsSync(join(WDIR, w, 'leaders.json'));
 /** Windows the site builds: the time windows always, the spoiler queue only while it is live. */
 export const WINDOW_KEYS = (Object.keys(WINDOWS) as Win[]).filter((w) => w !== 'spoiler' || hasWindow(w));
+/** The spoiler queue's own ladder (OPBounty ranks it separately): the top 2,000 rows while the queue is busy, else []. */
+export const spoilerPlayers = readJson<Player[]>(join(WDIR, 'spoiler', 'players.json'), []);
+export const spoilerPilotsFor = (code: string) => readJson<Pilot[]>(join(WDIR, 'spoiler', 'pilots', `${code}.json`), []);
+/** Ladder rows for a window: the spoiler queue has its own, every other window is the Standard ladder. */
+export const playersFor = (w: Win) => (w === 'spoiler' ? spoilerPlayers : players);
 export const isSpoiler = (w: Win) => w === 'spoiler';
 /** Human label for where a window's leader headline numbers come from. */
 export const sourceLabel = (src: 'kaizoku' | 'ranked' | null | undefined) => (src === 'kaizoku' ? 'Card Kaizoku' : 'OPBounty ranked stats');
@@ -228,16 +239,22 @@ export const playerProfile = (id: string | number) => readJson<PlayerProfile | n
 /** Best pilots per leader from OPBounty's leader-filtered ladder (complete): players with the leader among their most-played, ranked by bounty. */
 export interface Pilot { id: string; name: string; leaderRank: number; rank: number | null; bounty: number; games: number | null; winRate: number | null; country: string | null }
 export const pilotsFor = (code: string) => readJson<Pilot[]>(join(LATEST, 'pilots', `${code}.json`), []);
-/** Season record for a ladder row: the player's own profile when we have it (complete), else the ladder's top-3 sum. */
-export interface SeasonRecord { wins: number | null; losses: number | null; games: number | null; winRate: number | null; src: 'profile' | 'ladder' }
+/** Record for a ladder row: the player's own profile when we have it (complete), else the ladder's top-3 sum, plus
+ *  whatever was banked before OPBounty's last season reset (our ladder keeps adding across seasons). */
+export interface SeasonRecord { wins: number | null; losses: number | null; games: number | null; winRate: number | null; src: 'profile' | 'ladder'; carried?: number }
 const seasonCache = new Map<Player, SeasonRecord>(); // every ladder page sums this over the top 1,000, so read each profile once per build
-export const seasonRecord = (p: Player): SeasonRecord => {
+export const seasonRecord = (p: Player, ladderOnly = false): SeasonRecord => {
   let r = seasonCache.get(p);
   if (r) return r;
-  const pr = p.id == null ? null : playerProfile(p.id);
+  const pr = p.id == null || ladderOnly ? null : playerProfile(p.id);
+  const season = p.season ?? { wins: p.wins, losses: p.losses, matches: p.matches, winRate: p.winRate };
   // the ladder's count is the top-3-leader subset of the same data, so a profile reporting fewer games is stale: keep the ladder then
-  r = pr && pr.games && pr.games >= (p.matches || 0) ? { wins: pr.wins, losses: pr.losses, games: pr.games, winRate: pr.winRate, src: 'profile' }
-    : { wins: p.wins, losses: p.losses, games: p.matches, winRate: p.winRate, src: 'ladder' };
+  r = pr && pr.games && pr.games >= (season.matches || 0) ? { wins: pr.wins, losses: pr.losses, games: pr.games, winRate: pr.winRate, src: 'profile' }
+    : { wins: season.wins, losses: season.losses, games: season.matches, winRate: season.winRate, src: 'ladder' };
+  if (p.carry?.matches) {
+    const wins = (r.wins ?? 0) + p.carry.wins, games = (r.games ?? 0) + p.carry.matches;
+    r = { wins, losses: (r.losses ?? 0) + p.carry.losses, games, winRate: games ? Math.round((1000 * wins) / games) / 10 : 0, src: r.src, carried: p.carry.matches };
+  }
   seasonCache.set(p, r);
   return r;
 };

@@ -15,6 +15,9 @@ LADDER_MODE = os.environ.get("OPB_MODE", "mode_0")  # Standard
 TOP_PAGES = int(os.environ.get("OPB_TOP_PAGES", "50"))  # 50 x 200 = top 10,000 (the ladder has ~40,000 rows)
 PER_PAGE = 200
 PILOT_LEADERS = int(os.environ.get("OPB_PILOT_LEADERS", "120"))  # leader-filtered ladder pages to pull (one request each)
+SPOILER_MODE = "mode_1"  # the pre-release queue ("Special" on OPBounty's site), ranked separately
+SPOILER_PAGES = int(os.environ.get("OPB_SPOILER_PAGES", "10"))  # top 2,000 of ~10,000 spoiler-ladder rows
+SPOILER_PILOT_LEADERS = int(os.environ.get("OPB_SPOILER_PILOT_LEADERS", "40"))
 
 
 class OPBounty:
@@ -87,4 +90,15 @@ def fetch_all() -> dict:
             out["pilots"][code] = api.leaderboard_for_leader(code)
         except Exception as e:  # noqa: BLE001
             out["pilots"][code] = {"error": str(e)}
+    # the spoiler queue's own ladder, pulled only while that queue is busy (see opbounty_stats.spoiler_window)
+    from . import opbounty_stats  # noqa: PLC0415  (sibling source; imported here to keep module load order simple)
+    sp_codes = opbounty_stats.spoiler_leader_codes(SPOILER_PILOT_LEADERS)
+    if sp_codes:
+        out["spoilerLeaderboard"] = api.leaderboard(SPOILER_PAGES, mode=SPOILER_MODE)
+        out["spoilerPilots"] = {}
+        for code in sp_codes:
+            try:
+                out["spoilerPilots"][code] = api.leaderboard_for_leader(code, mode=SPOILER_MODE)
+            except Exception as e:  # noqa: BLE001
+                out["spoilerPilots"][code] = {"error": str(e)}
     return out

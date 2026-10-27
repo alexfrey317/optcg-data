@@ -1,7 +1,7 @@
 ---
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersByVolumeFor, fmt, pct, top1000, leaderStats, imgUrl, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, sourceLabel, isSpoiler, type Win } from '../lib/data';
+import { leadersByVolumeFor, fmt, pct, playersFor, leaderStats, imgUrl, colorVar, leaderHistory, windowMeta, wpath, cardFileFor, WINDOWS, MIN_PLAY_RATE, sourceLabel, isSpoiler, type Win } from '../lib/data';
 interface Props { window: Win }
 const { window: W } = Astro.props;
 const all = leadersByVolumeFor(W).map((l) => ({ l, s: leaderStats(l), pilots: cardFileFor(W, l.code).leaderStats?.uniquePilots ?? null }));
@@ -12,7 +12,8 @@ const rare = all.filter((r) => (r.s.playRate ?? 0) < MIN_PLAY_RATE);
 const fieldMean = all.find((r) => r.s.fieldWinRate != null)?.s.fieldWinRate ?? null;
 const weightK = all.find((r) => r.s.weightK != null)?.s.weightK ?? null;
 const pilots = new Map<string, number>();
-for (const p of top1000) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
+for (const p of playersFor(W).slice(0, 1000)) for (const t of p.topLeaders) pilots.set(t.code, (pilots.get(t.code) ?? 0) + 1);
+const hasTop = pilots.size > 0;  // the spoiler ladder reports no top leaders until the season has games
 const wm = windowMeta(W);
 const totalGames = wm?.matches ?? 0;
 const src = wm?.leaderSource ?? all[0]?.s.source ?? 'ranked';
@@ -45,7 +46,7 @@ if (W === '7d') {
       {!sp && <th class="num sortable hide-m" data-k="pilots">Pilots <Info text="Distinct sim accounts that played this leader last week, across the whole sim (Card Kaizoku). Weekly figure regardless of the window." /></th>}
       <th class="num sortable" data-k="first">1st WR <Info text="Win rate when this leader took the first turn." /></th>
       <th class="num sortable" data-k="second">2nd WR <Info text="Win rate when this leader took the second turn." /></th>
-      {!sp && <th class="num sortable hide-m" data-k="top">Top-1000 <Info text="How many of the top 1,000 ladder players have this leader among their three most-played." /></th>}
+      {(!sp || hasTop) && <th class="num sortable hide-m" data-k="top">Top-1000 <Info text={`How many of the top 1,000 ${sp ? 'spoiler-queue ' : ''}ladder players have this leader among their three most-played.`} /></th>}
     </tr></thead>
     <tbody>{[...rows, ...rare].map(({ l, s, pilots: up }, i) => { const pr = prevRank.get(l.code); const d = pr == null ? null : pr - (i + 1); const isRare = i >= rows.length; return (<>
       {i === rows.length && <tr class="divider"><td colspan="12"><span>Rarely played</span> <span class="muted small">under {MIN_PLAY_RATE}% of games in the window · win rates here are small samples</span></td></tr>}
@@ -61,7 +62,7 @@ if (W === '7d') {
         {!sp && <td class="num muted hide-m">{up == null ? '–' : fmt(up, 0)}</td>}
         <td class:list={['num', (s.first ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.first)}</td>
         <td class:list={['num', (s.second ?? 0) >= 50 ? 'good' : 'bad']}>{pct(s.second)}</td>
-        {!sp && <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>}
+        {(!sp || hasTop) && <td class="num hide-m">{pilots.get(l.code) ?? 0}</td>}
       </tr></>); })}</tbody>
   </table>
 </div>

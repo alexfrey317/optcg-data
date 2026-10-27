@@ -18,6 +18,7 @@ from pathlib import Path
 
 from . import link, normalize as N
 from .http import get_json
+from . import carry
 from .sources import card_text, kaizoku, kaizoku_curves, kaizoku_players, opbounty, opbounty_matches, opbounty_profiles, opbounty_replays, opbounty_stats, optcgone
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,12 +106,21 @@ def main(argv=None):
     card_db = {**load(RAW / "dotgg_cards.json", {}), **card_db}
 
     players = N.build_players(opb)
+    # OPBounty resets the ladder each season; we bank the old records and keep adding (see carry.py)
+    bank: dict = {"seasons": [], "players": {}}
+
+    def _carry():
+        nonlocal bank
+        st, bank = carry.run(players, load(LATEST / "players.json", []), LATEST / "carry.json", LATEST / "profiles")
+        return st
+    guard("carry", _carry, unavailable=status.get("opbounty") != "ok")
 
     # OPBounty personal profiles (Firestore PublicUsers): complete season record + per-leader stats per ladder player
     profiles_status = guard("profiles", lambda: opbounty_profiles.fetch_all(players), unavailable=not opbounty_matches.EMAIL)
     leaders = N.build_leaders(opb, kz, card_db)
     used_cards: set[str] = set(leaders)
     pilots = N.build_pilots(opb, players)
+    carry.apply_pilots(pilots, bank)
     if pilots:  # keep the previous day's files when the leader-filtered ladder pull failed entirely
         for f in (LATEST / "pilots").glob("*.json") if (LATEST / "pilots").exists() else []:
             if f.stem not in pilots:
@@ -277,6 +287,13 @@ def main(argv=None):
                                   "matches": sp_matches, "rankedMatches": sp_matches, "leaderSource": "ranked", "kaizokuCoverage": 0,
                                   "kaizokuUpdated": None, "statsDays": len(sp_days), "archiveDays": 0, "kaizokuDays": 0, "archiveMatches": 0,
                                   "queue": "spoiler"}
+        # the spoiler queue's own ladder (top 2,000) and leader-filtered pilots, same shapes as the Standard files
+        sp_players = N.build_players({"leaderboard": opb.get("spoilerLeaderboard") or []})
+        if sp_players:
+            dump(sp_dir / "players.json", sp_players)
+            for code, rows in N.build_pilots({"pilots": opb.get("spoilerPilots") or {}}, sp_players).items():
+                dump(sp_dir / "pilots" / f"{code}.json", rows)
+            window_meta["spoiler"]["ladderPlayers"] = len(sp_players)
         dump(sp_dir / "meta.json", window_meta["spoiler"])
     elif sp_dir.exists():
         shutil.rmtree(sp_dir, ignore_errors=True)
@@ -319,6 +336,7 @@ def main(argv=None):
         "profiles": profiles_status,
         "stats": stats_status,
         "linked": len(links),
+        "ladderResets": [x["detected"] for x in load(LATEST / "carry.json", {}).get("seasons", [])],  # OPBounty season resets we carried records across
         "windows": window_meta,
         "sources": [
             {"name": "OPBounty", "url": "https://stats.tcgmatchmaking.com/", "support": "https://www.patreon.com/tcgmm"},

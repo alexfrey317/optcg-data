@@ -1,0 +1,14 @@
+---
+import Base from '../../../layouts/Base.astro';
+import LadderPage from '../../../components/LadderPage.astro';
+import { spoilerPlayers, LADDER_PAGE, fmt } from '../../../lib/data';
+
+// pages 2+ of the spoiler-queue ladder (page 1 is /spoiler/)
+export function getStaticPaths() {
+  const pages = Math.ceil(spoilerPlayers.length / LADDER_PAGE);
+  return Array.from({ length: Math.max(0, pages - 1) }, (_, i) => ({ params: { win: 'spoiler', page: String(i + 2) } }));
+}
+const page = Number(Astro.params.page);
+const first = (page - 1) * LADDER_PAGE + 1, last = Math.min(page * LADDER_PAGE, spoilerPlayers.length);
+---
+<Base title={`Spoiler Queue Ladder #${fmt(first, 0)}–${fmt(last, 0)}`} wide><LadderPage page={page} win="spoiler" /></Base>

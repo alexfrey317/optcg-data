@@ -4,7 +4,7 @@ import DeckCard from './DeckCard.astro';
 import DeckList from './DeckList.astro';
 import Info from './Info.astro';
 import WindowToggle from './WindowToggle.astro';
-import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, replayBest, pairKey, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, deckStats, deckScore, WINDOWS, wpath, sourceLabel, type Win, type Leader, type CurveTurn } from '../lib/data';
+import { leadersFor, deckFileFor, cardFileFor, curveFile, card, fmt, pct, berry, top1000, playerById, imgUrl, IMG_BASE, replayBest, pairKey, wrClass, leaderStats, matchupIn, heat, pilotScore, pilotsFor, spoilerPilotsFor, deckStats, deckScore, WINDOWS, wpath, sourceLabel, type Win, type Leader, type CurveTurn } from '../lib/data';
 interface Props { window: Win; leader: Leader }
 const { window: W, leader: L } = Astro.props;
 // Standard-only sections (Card Kaizoku weekly data, replay-archive pilots) are left out of the spoiler queue's page
@@ -25,7 +25,8 @@ const winLabel = WINDOWS[W].label.toLowerCase();
 // Best pilots. Preferred: OPBounty's ladder filtered to this leader (complete: every ranked player with the
 // leader among their most-played, with their own season games and win rate on it). Fallbacks: sim handles seen
 // piloting the leader in the replay archive, then the top-1000 ladder rows.
-const ladderByLeader = pilotsFor(L.code).filter((p) => (p.games ?? 0) >= 5).map((p) => ({
+// spoiler window: the spoiler queue's own leader-filtered ladder; player pages exist only for Standard-ranked players
+const ladderByLeader = (sp ? spoilerPilotsFor(L.code) : pilotsFor(L.code)).filter((p) => (p.games ?? 0) >= 5).map((p) => ({
   name: p.name, href: `/players/${p.id}/`, inSite: playerById.has(p.id), bounty: p.bounty, games: p.games ?? 0, winRate: p.winRate,
   rank: p.rank, score: pilotScore(p.winRate, p.games, p.bounty),
 }));
@@ -36,9 +37,9 @@ const archivePilots = (decks.topPilots ?? []).filter((t) => t.handle).map((t) =>
 }));
 const ladderPilots = top1000.filter((p) => p.id != null && p.topLeaders.some((t) => t.code === L.code))
   .map((p) => { const t = p.topLeaders.find((t) => t.code === L.code)!; return { name: p.name, href: `/players/${p.id}/`, inSite: true, bounty: p.bounty, games: t.matches ?? 0, winRate: t.winRate, rank: p.rank, score: pilotScore(t.winRate, t.matches, p.bounty) }; });
-const pilots = (ladderByLeader.length ? ladderByLeader : archivePilots.length ? archivePilots : ladderPilots).sort((a, b) => b.score - a.score).slice(0, 15);
+const pilots = (ladderByLeader.length ? ladderByLeader : sp ? [] : archivePilots.length ? archivePilots : ladderPilots).sort((a, b) => b.score - a.score).slice(0, 15);
 const pilotsNote = ladderByLeader.length
-  ? `Every ranked player with this leader among their three most-played, from OPBounty's ladder filtered to this leader. Games and win rate are that player's own season results with it. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000. `
+  ? `Every ranked player with this leader among their three most-played, from OPBounty's ${sp ? 'spoiler-queue ' : ''}ladder filtered to this leader. Games and win rate are that player's own season results with it. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000. `
   : archivePilots.length
   ? `Every pilot seen with this leader in ranked over the window (players above bounty 1,900). Bounty is their rating at their last game. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000. Names link to a ladder page when we could match the sim handle to a ladder row.`
   : `Top-1,000 ladder players who have this leader among their most-played. Games and win rate are that player's own results with this leader. Score = win rate shrunk toward 50% for small samples, plus 1 point per 200 bounty above 3,000.`;
@@ -187,7 +188,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
   </DeckList>
 </section>
 
-{!sp && <div class="grid two">
+{(!sp || pilots.length > 0) && <div class="grid two">
   <section>
     <h2>Best Pilots <Info text={pilotsNote} /></h2>
     <div class="panel tight">
@@ -203,7 +204,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
       {pilots.length === 0 && <p class="muted" style="padding:1rem;margin:0">No pilots with 5 or more games on this leader in the window.</p>}
     </div>
   </section>
-  <section>
+  {!sp && <section>
     <h2>Tech Cards by Matchup <Info text={`Tech cards are cards that are not staples: anything run in 90% or more of this leader's lists (${staples} cards) is excluded. The number is how many points the card raises the win rate in that matchup; only cards with strong statistical evidence are shown. Weekly, sim-wide (Card Kaizoku).`} /></h2>
     <div class="panel">
       {techOpps.length === 0 && <p class="muted" style="margin:0">No non-staple tech cards with strong evidence this week.</p>}
@@ -214,7 +215,7 @@ const renderSide = (turns: CurveTurn[], opp: string | null) => turns.map((t) => 
         </div>
       ))}
     </div>
-  </section>
+  </section>}
 </div>}
 
 <h2>Card Usage <span class="sub">{fmt(cardsF.leaderStats?.uniqueDecklists, 0)} lists · {cardsF.complete ? winLabel : 'last 7 days'}</span> <Info text={cardsF.complete ? `Per card across every ranked game this leader played in the window, from OPBounty's complete published statistics. Usage is the share of games with the card in the list; Copies shows how those lists split between 4, 3, 2 and 1 copies (hover for each count's win rate); In Hand is how often the card sat in the kept opening hand, with the win rate of those games; Pilots is how many distinct sim accounts ran it last week (Card Kaizoku, sim-wide); Lift is how much games with the card outperform the leader's average. Click a row to show only lists running that card.` : `Per card across every ranked list for this leader last week (card-level stats are only published weekly). Usage is the share of lists running it; copies is the average count when included; lift is how much lists with the card outperform the leader's average win rate.`} /></h2>

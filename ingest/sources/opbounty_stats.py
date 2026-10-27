@@ -214,6 +214,16 @@ def spoiler_window(today: str | None = None, days: int = SPOILER_WINDOW_DAYS, mi
     return [d for d in all_days if (now - datetime.fromisoformat(d["date"]).date()).days <= days]
 
 
+def spoiler_leader_codes(limit: int) -> list[str]:
+    """Leaders of the current spoiler window by games played, most first; [] while the queue is dormant."""
+    games: dict[str, int] = defaultdict(int)
+    for d in spoiler_window():
+        for b in d.get("brackets", {}).values():
+            for code, L in b.get("leaders", {}).items():
+                games[code] += int(L.get("g") or 0)
+    return sorted(games, key=lambda c: -games[c])[:limit]
+
+
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else DAYS
     print(json.dumps(fetch_all(n), indent=1))

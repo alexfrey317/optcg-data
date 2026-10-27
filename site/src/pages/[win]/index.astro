@@ -1,0 +1,11 @@
+---
+import Base from '../../layouts/Base.astro';
+import LadderPage from '../../components/LadderPage.astro';
+import { spoilerPlayers } from '../../lib/data';
+
+// only the spoiler queue has a ladder of its own (Standard's is the home page); nothing is built while the queue is dormant
+export function getStaticPaths() {
+  return spoilerPlayers.length ? [{ params: { win: 'spoiler' } }] : [];
+}
+---
+<Base title="Spoiler Queue Ladder" wide><LadderPage page={1} win="spoiler" /></Base>
