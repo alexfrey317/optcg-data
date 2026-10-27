@@ -4806,12 +4806,12 @@
 },
 "13427": {
 "candidates": 1,
-"checked": "2026-10-15",
-"handle": "Valemorv​#3204",
-"kzId": "u3Ibg988CgE9KGPXdGeRwiNa23qu",
+"checked": "2026-10-27",
+"handle": "mnkn​#1014",
+"kzId": "pbjOwxUqM5Nr7wUNY2ETvKciFjuB",
 "name": "M.or.A",
 "score": 100,
-"simHandle": "Valemorv#3204",
+"simHandle": "mnkn#1014",
 "via": "handle"
 },
 "13437": {
@@ -6206,12 +6206,12 @@
 },
 "146734": {
 "candidates": 1,
-"checked": "2026-10-26",
-"handle": "nemo​#27671",
-"kzId": "aNWm8egzwjYVUFA5K5nL3eqLhnMR",
+"checked": "2026-10-27",
+"handle": "Mamene​#82061",
+"kzId": "S9aBX8lP7cSMMVsBGuUQVUnKms2a",
 "name": "Mamene",
 "score": 100,
-"simHandle": "nemo#27671",
+"simHandle": "Mamene#82061",
 "via": "handle"
 },
 "146756": {
@@ -7069,10 +7069,12 @@
 "155384": {
 "candidates": 1,
 "checked": "2026-10-27",
-"handle": "TeeZy​#99810",
-"kzId": "JhW7w5LTPgC8jnV0GxxpZOYI1bwp",
+"handle": "Bostic​#6074",
+"kzId": "uO91D1qrIwcGn34xTEfN0eQyLr5i",
 "name": "TeeZy",
-"score": 0
+"score": 100,
+"simHandle": "Bostic#6074",
+"via": "handle"
 },
 "155464": {
 "candidates": 1,
@@ -8725,7 +8727,9 @@
 "handle": "Jtothepup​#4641",
 "kzId": "ayMLrBZ7HUnjbQpHWfHyFGgtNP16",
 "name": "Jtothepup",
-"score": 0
+"score": 100,
+"simHandle": "Jtothepup#4641",
+"via": "handle"
 },
 "172596": {
 "candidates": 1,
@@ -9117,7 +9121,9 @@
 "handle": "joanmooles​#7889",
 "kzId": "2U1miyuGmbwzA2QlcNcXJuwehL69",
 "name": "joanmooles",
-"score": 0
+"score": 100,
+"simHandle": "joanmooles#7889",
+"via": "handle"
 },
 "178263": {
 "candidates": 1,
@@ -12118,11 +12124,11 @@
 "32148": {
 "candidates": 1,
 "checked": "2026-10-27",
-"handle": "slidemac01​#5995",
-"kzId": "WUTOnt612PjtTT5NssX3YI5vrWUt",
+"handle": "Hiken​#8385",
+"kzId": "TDEVNlNdhqQz6WGPBOZ5WgkxarbI",
 "name": "Troc",
 "score": 100,
-"simHandle": "slidemac01#5995",
+"simHandle": "Hiken#8385",
 "via": "handle"
 },
 "32204": {
@@ -12546,6 +12552,16 @@
 "name": "Mladen777",
 "score": 100,
 "simHandle": "Mladen777#7198",
+"via": "handle"
+},
+"34865": {
+"candidates": 1,
+"checked": "2026-10-27",
+"handle": "Thanatos​#7403",
+"kzId": "jTKyvVcrReO0ilKttTcz5JGLfc9A",
+"name": "wukong",
+"score": 100,
+"simHandle": "Thanatos#7403",
 "via": "handle"
 },
 "34920": {
@@ -13207,11 +13223,13 @@
 },
 "38172": {
 "candidates": 1,
-"checked": "2026-10-16",
-"handle": "LizBeh​#2259",
-"kzId": "LMjmnLVF3EoH6m91YITOfdwDisXw",
+"checked": "2026-10-27",
+"handle": "Liz​#3897",
+"kzId": "GyHxR4iEUvczmiNVlwnnGwUYuShI",
 "name": "LizBeh",
-"score": 0
+"score": 100,
+"simHandle": "Liz#3897",
+"via": "handle"
 },
 "38181": {
 "candidates": 1,
@@ -15506,7 +15524,7 @@
 "via": "handle"
 },
 "53586": {
-"checked": "2026-10-19",
+"checked": "2026-10-27",
 "name": "alexileone"
 },
 "5360": {
@@ -18675,11 +18693,11 @@
 "76708": {
 "candidates": 1,
 "checked": "2026-10-27",
-"handle": "Bolotime​#1022",
-"kzId": "BPzln0gIKgPnzf6cUaNafqUYpA3W",
+"handle": "BachiXP​#6584",
+"kzId": "bPFOJrqbgSH7kCkJFSeuWQr9fZc8",
 "name": "BachiXP",
 "score": 100,
-"simHandle": "Bolotime#1022",
+"simHandle": "BachiXP#6584",
 "via": "handle"
 },
 "7674": {
@@ -19597,12 +19615,12 @@
 },
 "82753": {
 "candidates": 1,
-"checked": "2026-10-20",
-"handle": "Jotsobear​#5517",
+"checked": "2026-10-27",
+"handle": "Jotso​#6713",
 "kzId": "FTkbqEiOIpzpL39yQvFN8LO6uJLq",
 "name": "Jotsobear",
 "score": 100,
-"simHandle": "Jotsobear#5517",
+"simHandle": "Jotso#6713",
 "via": "handle"
 },
 "82755": {
@@ -20711,8 +20729,14 @@
 "via": "handle"
 },
 "89878": {
-"checked": "2026-10-26",
-"name": "Kasumi"
+"candidates": 1,
+"checked": "2026-10-27",
+"handle": "Kasumi​#7656",
+"kzId": "jBvVnnXi6TXOkmgx5qazRqBaATEZ",
+"name": "Kasumi",
+"score": 100,
+"simHandle": "Kasumi#7656",
+"via": "handle"
 },
 "8996": {
 "candidates": 1,
@@ -21850,12 +21874,12 @@
 },
 "96191": {
 "candidates": 1,
-"checked": "2026-10-26",
-"handle": "Josuem​#37152",
-"kzId": "0ujXgFgY9CzOcBRBD59pzAp0UyiZ",
+"checked": "2026-10-27",
+"handle": "carlodevisu​#7648",
+"kzId": "2XssJLtGeUC1c5qYRjo4X4wgMxd3",
 "name": "carlodevisu",
 "score": 100,
-"simHandle": "Josuem#37152",
+"simHandle": "carlodevisu#7648",
 "via": "handle"
 },
 "96456": {
