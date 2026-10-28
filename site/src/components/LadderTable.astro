@@ -8,7 +8,7 @@ interface Props { rows: Player[]; id?: string; sortable?: boolean; win?: Win }
 const { rows, id, sortable = false, win = '7d' } = Astro.props;
 // spoiler-queue rows: ladder record only (profiles are Standard), leaders link into the spoiler window, player pages only for Standard-ranked players
 const sp = win === 'spoiler';
-const playerHref = (p: Player) => (p.id == null || (sp && !playerById.has(String(p.id))) ? undefined : `/players/${p.id}/`);
+const playerHref = (p: Player) => (p.id == null || (sp && !playerById.has(String(p.id))) ? undefined : `/players/${p.id}/${sp ? '#spoiler' : ''}`);  // from the spoiler ladder, land on the player's spoiler box
 ---
 <table id={id} class="ladder">
   <thead><tr>

@@ -62,7 +62,7 @@ const lastReset = ladderResets.at(-1);
   </div>}
 </>))}
 
-<script define:vars={{ LIMIT: LADDER_PAGE, INDEX: `${root}ladder/index.json`, LEADERS: sp ? '/spoiler/leaders/' : '/leaders/' }}>
+<script define:vars={{ LIMIT: LADDER_PAGE, INDEX: `${root}ladder/index.json`, LEADERS: sp ? '/spoiler/leaders/' : '/leaders/', PANCHOR: sp ? '#spoiler' : '' }}>
   const tbody = document.querySelector('#ladder tbody');
   const pageRows = [...tbody.querySelectorAll('tr')];
   const q = document.getElementById('q'), count = document.getElementById('count'), empty = document.getElementById('empty');
@@ -83,7 +83,7 @@ const lastReset = ladderResets.at(-1);
     const [rank, id, name, cc, bounty, games, wins, losses, wr, ls] = r;
     const leaders = ls ? ls.split('|').map((s) => { const [code, lwr, n] = s.split(':'); const L = index.leaders[code] || [code, 'var(--dim)']; return `<a class="leader leader-sm" href="${LEADERS}${code}/" title="${esc(L[0])} · ${code}" style="--lc:${L[1]}"><span class="leader-frame"><img src="https://static.dotgg.gg/onepiece/card/${code}.webp" alt="${esc(L[0])}" loading="lazy"></span><span class="leader-label"><span class="leader-name">${esc(L[0])}</span><span class="leader-sub">${lwr}% · ${n} games</span></span></a>`; }).join('') : '';
     return `<tr class="${rank === 1 ? 'top1' : rank <= 3 ? 'top3' : ''}"><td class="num c-rank"><span class="pill-rank">${rank}</span></td>` +
-      `<td class="c-name">${id != null ? `<a href="/players/${id}/" style="font-weight:600;color:var(--text)">${esc(name)}</a>` : `<span style="font-weight:600">${esc(name)}</span>`}${cc ? `<div class="muted small">${flag(cc)} ${esc(cc)}</div>` : ''}</td>` +
+      `<td class="c-name">${id != null ? `<a href="/players/${id}/${PANCHOR}" style="font-weight:600;color:var(--text)">${esc(name)}</a>` : `<span style="font-weight:600">${esc(name)}</span>`}${cc ? `<div class="muted small">${flag(cc)} ${esc(cc)}</div>` : ''}</td>` +
       `<td class="num gold c-bounty" style="font-weight:700;font-size:1.02rem">฿${fmt(bounty)}</td>` +
       `<td class="num c-games">${games ? `${fmt(games)}<div class="muted small">${wins}–${losses}</div>` : '<span class="dim">–</span>'}</td>` +
       `<td class="num c-wr ${wr >= 50 ? 'good' : 'bad'}" style="font-weight:600">${games ? `${wr}%` : '<span class="dim">–</span>'}</td>` +

@@ -4,7 +4,7 @@ import LeaderArt from '../../components/LeaderArt.astro';
 import DeckCard from '../../components/DeckCard.astro';
 import DeckList from '../../components/DeckList.astro';
 import Info from '../../components/Info.astro';
-import { players, leaders, wrClass, bountyHistory, playerDecks, playerMatches, playerProfile, publicMatches, parseCompactDeck, seasonRecord, ladderResets, fmt, pct, berry, flag, heat, LEADER_CODE, type Player, type Deck } from '../../lib/data';
+import { players, leaders, wrClass, bountyHistory, playerDecks, playerMatches, playerProfile, publicMatches, parseCompactDeck, seasonRecord, ladderResets, spoilerPlayers, fmt, pct, berry, flag, heat, LEADER_CODE, type Player, type Deck } from '../../lib/data';
 
 export function getStaticPaths() {
   return players.filter((p) => p.id != null).map((p) => ({ params: { id: String(p.id) }, props: { player: p } }));
@@ -131,6 +131,8 @@ const curveLabel = curveSrc === 'profile'
   : curveSrc === 'recorded' ? `${curve[0].t!.slice(0, 10)} → ${curve.at(-1)!.t!.slice(0, 10)} · ${curve.length} recorded games` : `${curve[0]?.t?.slice(0, 10)} → ${curve.at(-1)?.t?.slice(0, 10)}`;
 
 /* ---- complete per-list records: Card Kaizoku's sim records for this account (exact when linked by sim handle) ---- */
+// the same account on the spoiler queue's separate ladder, if ranked there (everything else on this page is Standard)
+const spRow = spoilerPlayers.find((p) => String(p.id) === pid) ?? null;
 const own = playerDecks(pid);
 const ownExact = own?.via === 'handle';
 const ownByLeader = own ? own.leaders.map((l) => ({ ...l, decks: own.decks.filter((d) => d.leader === l.code) })).filter((l) => l.decks.length) : [];
@@ -141,7 +143,7 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
   <div class="hero">
     {main && <LeaderArt code={main.code} size="xl" label={false} />}
     <div style="flex:1">
-      <div class="muted small">Rank #{player.rank} · {flag(player.country)} {player.country ?? 'Unknown region'}{pm && <> · sim handle <b style="color:var(--text)">{pm.name}</b></>}</div>
+      <div class="muted small"><span class="queue-tag">Standard ranked</span> rank #{player.rank}{spRow && <> · <a class="queue-tag spoiler" href="#spoiler" title="This player is also ranked on the spoiler queue's ladder">Spoiler Queue #{spRow.rank}</a></>} · {flag(player.country)} {player.country ?? 'Unknown region'}{pm && <> · sim handle <b style="color:var(--text)">{pm.name}</b></>}</div>
       <h1>{player.name}</h1>
       <div class="meta">Mains <b style="color:var(--text)">{main ? lname(main.code) : '–'}</b>{main && main.matches ? <> at {pct(main.winRate)} over {fmt(main.matches, 0)} games</> : null}.</div>
       <div class="grid stats" style="margin-top:1rem">
@@ -153,6 +155,16 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
       {prof && <div class="muted small" style="margin-top:.6rem">Season stats as of {prof.writtenAt?.replace('T', ' ').slice(0, 16) ?? prof.updated.slice(0, 10)} UTC, refreshed whenever the player opens their OPBounty profile.{coverage != null && <> Decklists are known for <b style="color:var(--text)">{fmt(rec.length, 0)}</b> of their {fmt(seasonGames, 0)} games ({coverage}%).</>}</div>}
     </div>
   </div>
+
+  {spRow && <section id="spoiler" class="spoiler-box">
+    <h2><span class="queue-tag spoiler">Spoiler Queue</span> ranked #{spRow.rank} <span class="sub">OPBounty's pre-release queue, ranked separately · <a href="/spoiler/">spoiler ladder</a></span> <Info text="The spoiler queue has its own ladder, bounty and season record on OPBounty. Only this box is about that queue: everything else on the page is the Standard ranked queue." /></h2>
+    <div class="grid stats">
+      <div class="stat"><div class="label">Spoiler Bounty</div><div class="value gold">{berry(spRow.bounty)}</div></div>
+      <div class="stat"><div class="label">Spoiler Record</div><div class="value">{spRow.matches ? <>{spRow.wins}–{spRow.losses}</> : '–'}</div>{!spRow.matches && <div class="muted small">no games counted yet this season</div>}</div>
+      <div class="stat"><div class="label">Win Rate</div><div class:list={['value', wrClass(spRow.matches ? spRow.winRate : null)]}>{spRow.matches ? pct(spRow.winRate) : '–'}</div></div>
+      <div class="stat"><div class="label">Leaders There</div><div class="leader-row" style="margin-top:.3rem">{spRow.topLeaders.length ? spRow.topLeaders.slice(0, 3).map((t) => <LeaderArt code={t.code} size="sm" sub={`${fmt(t.winRate)}% · ${t.matches} games`} href={`/spoiler/leaders/${t.code}/`} />) : <span class="muted">–</span>}</div></div>
+    </div>
+  </section>}
 
   <h2>Bounty History <Info text={curveSrc === 'profile' ? 'Bounty after every ranked game this season, from the player\'s OPBounty profile. Dates and matchups appear on games we also have a recording of.' : curveSrc === 'recorded' ? 'Bounty after each recorded ranked game.' : 'One point per daily snapshot. The chart appears after a second daily snapshot.'} /></h2>
   <div class="panel">
@@ -287,3 +299,10 @@ const useOwn = ownByLeader.length > 0 && (ownExact || rec.length === 0);
     });
   </script>
 </Base>
+
+<style>
+  .queue-tag { font-size: .7rem; padding: .05rem .5rem; border-radius: 999px; border: 1px solid var(--line-2); font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--text); text-decoration: none; }
+  .queue-tag.spoiler { background: var(--gold, #e4b43b); color: #111; border-color: transparent; }
+  .spoiler-box { scroll-margin-top: 4.5rem; margin: 1rem 0 1.5rem; padding: .9rem 1rem 1rem; border: 1px solid var(--gold, #e4b43b); border-radius: 12px; }
+  .spoiler-box h2 { margin-top: 0; }
+</style>
