@@ -1,15 +1,13 @@
-"""Carry ladder records across OPBounty seasons.
+"""Bank ladder records across OPBounty seasons.
 
 OPBounty resets its ranked ladder at the start of a season (seen 2026-10-27: every player back to 0W/0L, bounties
-compressed). Our ladder keeps adding instead: the day a reset is detected, every player's last pre-reset record (their
-profile when it was current, else their ladder row) is banked here, and from then on the site shows banked + current.
+compressed). The day a reset is detected, every player's last pre-reset record (their profile when it was current,
+else their ladder row) is banked here so nothing is lost, but the site shows the current season only: mixing old
+seasons into the rows made the ladder reflect a card pool nobody plays any more.
 
 data/latest/carry.json
   {"seasons": [{"detected": "YYYY-MM-DD", "players": N}],
    "players": {id: {"wins", "losses", "matches", "leaders": {code: {"games", "wins"}}}}}
-
-Player rows get two extra fields: "season" (this season only, straight from the ladder) and "carry" (the banked part),
-while wins / losses / matches / winRate / topLeaders become the sum.
 """
 from __future__ import annotations
 
@@ -73,41 +71,15 @@ def bank_season(carry: dict, prev: list[dict], profiles_dir: Path, today: str) -
 
 
 def apply(players: list[dict], carry: dict):
-    """Rewrite ladder rows in place as banked + this season."""
+    """Rows stay this season's. Banked seasons are kept on disk only (see module docstring); any leftover
+    merged fields from the carrying era are dropped so the site never sums them again."""
     for p in players:
-        season = _rec(p)
-        p["season"] = season
-        c = carry["players"].get(str(p.get("id")))
-        if not c:
-            p.pop("carry", None)
-            continue
-        p["carry"] = {"wins": c["wins"], "losses": c["losses"], "matches": c["matches"], "leaders": c["leaders"]}
-        p["wins"] = int(season.get("wins") or 0) + c["wins"]
-        p["losses"] = int(season.get("losses") or 0) + c["losses"]
-        p["matches"] = int(season.get("matches") or 0) + c["matches"]
-        p["winRate"] = round(100 * p["wins"] / p["matches"], 1) if p["matches"] else 0.0
-        merged: dict[str, dict] = {}
-        for t in season.get("topLeaders") or []:
-            g = int(t.get("matches") or 0)
-            merged[t["code"]] = {"games": g, "wins": round(g * (t.get("winRate") or 0) / 100)}
-        for code, L in c["leaders"].items():
-            m = merged.setdefault(code, {"games": 0, "wins": 0})
-            m["games"] += L["games"]; m["wins"] += L["wins"]
-        p["topLeaders"] = [{"code": code, "matches": m["games"], "winRate": round(100 * m["wins"] / m["games"], 1) if m["games"] else 0.0}
-                           for code, m in sorted(merged.items(), key=lambda kv: -kv[1]["games"]) if m["games"]][:3]
+        p.pop("season", None)
+        p.pop("carry", None)
 
 
 def apply_pilots(pilots: dict[str, list[dict]], carry: dict):
-    """Leader-filtered ladder rows (games / winRate with one leader) become banked + this season too."""
-    for code, rows in pilots.items():
-        for r in rows:
-            L = (carry["players"].get(str(r.get("id"))) or {}).get("leaders", {}).get(code)
-            if not L:
-                continue
-            g = int(r.get("games") or 0)
-            w = round(g * (r.get("winRate") or 0) / 100) + L["wins"]
-            r["games"] = g + L["games"]
-            r["winRate"] = round(100 * w / r["games"], 1) if r["games"] else 0.0
+    """Leader-filtered ladder rows are this season's too."""
 
 
 def run(players: list[dict], prev: list[dict], carry_path: Path, profiles_dir: Path) -> tuple[dict, dict]:

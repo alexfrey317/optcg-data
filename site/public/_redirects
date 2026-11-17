@@ -1,0 +1,2 @@
+# old window paths: the 90-day window became the current-set window
+/90d/* /set/:splat 301

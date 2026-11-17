@@ -15,7 +15,7 @@ const playerHref = (p: Player) => (p.id == null || (sp && !playerById.has(String
     <th class:list={['num', { 'sortable sorted': sortable }]} data-k="rank">#</th>
     <th>Player</th>
     <th class:list={['num', { sortable }]} data-k="bounty">Bounty <Info text="Ranked rating. Higher is better. Roughly 1,500 for a new account; the top players sit above 4,000." /></th>
-    <th class:list={['num', { sortable }]} data-k="matches">Games <Info text={sp ? 'Ranked games in the spoiler queue this season, with the win–loss record underneath.' : 'Ranked games with the win–loss record underneath. OPBounty resets the ladder each season; our count keeps adding across seasons.'} /></th>
+    <th class:list={['num', { sortable }]} data-k="matches">Games <Info text={sp ? 'Ranked games in the spoiler queue this season, with the win–loss record underneath.' : 'Ranked games this season, with the win–loss record underneath.'} /></th>
     <th class:list={['num', { sortable }]} data-k="winrate">Win % <Info text="Wins divided by ranked games played." /></th>
     <th>Top Leaders <Info text="The three leaders this player has played most, with their personal win rate and game count on each." /></th>
   </tr></thead>

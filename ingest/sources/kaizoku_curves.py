@@ -59,9 +59,10 @@ def _opps(entry: dict) -> set[str]:
     return {k for k, _ in sorted(seen.items(), key=lambda kv: -kv[1])[:MAX_OPPS]}
 
 
-def fetch_all(state_path: Path, out_dir: Path) -> dict:
+def fetch_all(state_path: Path, out_dir: Path, set_name: str | None = None) -> dict:
     manifest = get_json(f"{CDN}/manifest.json?t=0")
-    entry = ((manifest.get("simStats") or {}).get("files") or {}).get("curve", {}).get("lw")
+    curves = ((manifest.get("simStats") or {}).get("files") or {}).get("curve", {})
+    entry = curves.get(f"{set_name}_lw") or curves.get("lw")  # the current set's curve file ("eb05_lw"), else the generic one
     if not entry:
         return {"status": "no curve file in manifest"}
     rel, date = entry["current"], entry["date"]

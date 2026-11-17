@@ -28,7 +28,7 @@ HISTORY = ROOT / "data" / "history"
 DAILY = ROOT / "data" / "daily"
 # time windows the site offers, in finished UTC days; numbers come from the published stats (complete),
 # pilots / mirror card impact from the replay archive (kept ARCHIVE_DAYS deep), 1st/2nd extras from Card Kaizoku
-WINDOWS = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
+WINDOWS = {"1d": 1, "7d": 7, "30d": 30, "set": 90}  # "set": the whole current format, up to 90 days (clamped to the format start like the others)
 KZ_MIN_COVERAGE = 0.9  # share of a window's days Card Kaizoku dailies must cover before they become the leader headline source
 ARCHIVE_DAYS = 31
 
@@ -85,13 +85,16 @@ def main(argv=None):
         print(f"[{name}] {status[name]} {json.dumps(result) if result else ''} ({time.time() - t0:.0f}s)", file=sys.stderr)
         return result
 
-    step("kaizoku", lambda: kaizoku.fetch_all(RAW / "kaizoku_state.json", RAW))
-    daily_status = guard("daily", lambda: kaizoku.fetch_daily(DAILY))
+    step("kaizoku", lambda: kaizoku.fetch_all(RAW / "kaizoku_state.json", RAW, LATEST / "format.json"))
+    # the current Standard format (set + first day), detected from Card Kaizoku's manifest and kept in data/latest/format.json
+    fmt = raw["kaizoku"].get("format") or load(LATEST / "format.json", {})
+    FORMAT_START = fmt.get("start") or "2000-01-01"
+    daily_status = guard("daily", lambda: kaizoku.fetch_daily(DAILY, fmt.get("set") or "op17"))
     step("optcgone", optcgone.fetch_all)
-    step("cards", lambda: get_json(f"{kaizoku.CDN}/card_data.json"))
+    step("cards", lambda: get_json(f"{kaizoku.CDN}/{get_json(f'{kaizoku.CDN}/manifest.json?t=0')['cardData']['current']}"))
     # card-text flags for the replay viewer (rest-as-cost abilities the sim never logs); the old file stays on failure
     guard("cardtext", lambda: card_text.fetch_all(LATEST / "card_flags.json", RAW / "dotgg_cards.json"))
-    step("curves", lambda: kaizoku_curves.fetch_all(RAW / "kaizoku_curves_state.json", LATEST / "curves"))
+    step("curves", lambda: kaizoku_curves.fetch_all(RAW / "kaizoku_curves_state.json", LATEST / "curves", fmt.get("set")))
     step("opbounty", opbounty.fetch_all)
 
     # OPBounty ranked match archive (Firestore). Needs OPB_FS_EMAIL/OPB_FS_PASSWORD; skipped otherwise.
@@ -187,9 +190,11 @@ def main(argv=None):
     window_meta = {}
     daily_files = sorted(DAILY.glob("*.json")) if DAILY.exists() else []
     # windows cover the last N *finished* UTC days: today's partial day would make the numbers drift with the run time
-    stats_days_all = [d for d in opbounty_stats.load_days(max(WINDOWS.values()) + 1) if d.get("date", "") < today]
-    archive_full = [d for d in archive_days if d.get("date", "") < today]
-    daily_full = [f for f in daily_files if f.stem < today]
+    # ... and never reach back past the current format's first day: older games were a different card pool (the data
+    # itself is kept, in data/stats, data/matches and data/daily, for history and replays)
+    stats_days_all = [d for d in opbounty_stats.load_days(max(WINDOWS.values()) + 1) if FORMAT_START <= d.get("date", "") < today]
+    archive_full = [d for d in archive_days if FORMAT_START <= d.get("date", "") < today]
+    daily_full = [f for f in daily_files if FORMAT_START <= f.stem < today]
     for wname, days in WINDOWS.items():
         kz_days = [load(f, {}) for f in daily_full[-days:]]
         ar_days = archive_full[-days:]
@@ -198,7 +203,7 @@ def main(argv=None):
             continue
         # Leader headline numbers come from Card Kaizoku (the whole sim) once their files cover the window: the weekly file
         # for 7d (their own table, so the numbers match their site), summed dailies elsewhere when at least KZ_MIN_COVERAGE
-        # of the days exist. Their dailies are kept forever in data/daily, so 30d/90d switch over by themselves as they fill.
+        # of the days exist. Their dailies are kept forever in data/daily, so the longer windows switch over by themselves as they fill.
         kz_weekly = wname == "7d" and bool(kz.get("stats"))
         if kz_weekly:
             kz_leaders, kz_decks = N.build_leaders({}, kz, card_db), {}
@@ -249,9 +254,10 @@ def main(argv=None):
         kz_matches = (max((int(r.get("total_matches") or 0) for r in kz.get("stats") or []), default=0) // 2 if kz_weekly
                       else sum(int(d.get("total") or 0) for d in kz_days) // 2)
         window_meta[wname] = {"days": len(span), "targetDays": days, "start": span[0].get("date"), "end": span[-1].get("date"),
+                              "format": fmt.get("set"), "formatStart": FORMAT_START,
                               "matches": kz_matches if headline == "kaizoku" else ranked_matches, "rankedMatches": ranked_matches,
                               "leaderSource": headline, "kaizokuCoverage": round(kz_cover, 3),
-                              "kaizokuUpdated": kz.get("manifest_date") if kz_weekly else (kz_days[-1].get("date") if kz_days else None),
+                              "kaizokuUpdated": ((kz.get("files") or {}).get("stats") or {}).get("date") or kz.get("manifest_date") if kz_weekly else (kz_days[-1].get("date") if kz_days else None),
                               "statsDays": len(st_days), "archiveDays": len(ar_days), "kaizokuDays": 7 if kz_weekly else len(kz_days),
                               "archiveMatches": sum(len(d.get("matches") or []) for d in ar_days)}
         dump(wdir / "meta.json", window_meta[wname])
@@ -336,7 +342,8 @@ def main(argv=None):
         "profiles": profiles_status,
         "stats": stats_status,
         "linked": len(links),
-        "ladderResets": [x["detected"] for x in load(LATEST / "carry.json", {}).get("seasons", [])],  # OPBounty season resets we carried records across
+        "ladderResets": [x["detected"] for x in load(LATEST / "carry.json", {}).get("seasons", [])],  # OPBounty season resets (records before them are banked, not shown)
+        "format": {"set": fmt.get("set"), "start": FORMAT_START, "dataset": fmt.get("dataset")},
         "windows": window_meta,
         "sources": [
             {"name": "OPBounty", "url": "https://stats.tcgmatchmaking.com/", "support": "https://www.patreon.com/tcgmm"},

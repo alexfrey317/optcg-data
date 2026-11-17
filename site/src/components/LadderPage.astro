@@ -26,14 +26,14 @@ const lastReset = ladderResets.at(-1);
     {spoilerPlayers.length > 0 && <div class="queues"><a class:list={['copy', { on: !sp }]} href="/">Standard</a><a class:list={['copy', 'spoiler', { on: sp }]} href="/spoiler/">Spoiler Queue</a></div>}
     <div class="meta">{sp
       ? <>OPBounty ranks its pre-release queue separately. The top {fmt(list.length, 0)} of those players, {LADDER_PAGE} per page, with the leaders they pilot there{spMeta ? ` (${spMeta.start} → ${spMeta.end} stats window)` : ''}.</>
-      : <>Every player OPBounty ranks on the Standard ladder, {fmt(list.length, 0)} in all, {LADDER_PAGE} per page, with the leaders they pilot and the lists winning with those leaders.{lastReset && <> OPBounty reset the ladder on {lastReset}: bounties restarted, but game records here keep adding across seasons.</>}</>} Search and filters cover the whole ladder. Updated once a day.</div>
+      : <>Every player OPBounty ranks on the Standard ladder, {fmt(list.length, 0)} in all, {LADDER_PAGE} per page, with the leaders they pilot and the lists winning with those leaders.{lastReset && <> Records are this season's: OPBounty reset the ladder on {lastReset}.</>}</>} Search and filters cover the whole ladder. Updated once a day.</div>
   </div>
 </div>
 
 <div class="grid stats">
   <div class="stat"><div class="label">Top Bounty <Info text="Bounty is your ranked rating. It rises with wins and falls with losses, scaled by opponent strength, like Elo." /></div><div class="value gold">{berry(list[0]?.bounty)}</div></div>
   <div class="stat"><div class="label">#1,000 Bounty <Info text="The bounty needed to sit in the top 1,000." /></div><div class="value">{berry(top1000.at(-1)?.bounty)}</div></div>
-  <div class="stat"><div class="label">Top-1000 Games <Info text={sp ? "Sum of spoiler-queue ranked games this season for the top 1,000 players." : "Sum of ranked games for the top 1,000 players, from their OPBounty profiles where available, carried across OPBounty's season resets."} /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
+  <div class="stat"><div class="label">Top-1000 Games <Info text={sp ? "Sum of spoiler-queue ranked games this season for the top 1,000 players." : "Sum of this season's ranked games for the top 1,000 players, from their OPBounty profiles where available."} /></div><div class="value">{fmt(totalMatches, 0)}</div></div>
   <div class="stat"><div class="label">Players Ranked <Info text={sp ? "How many spoiler-queue ladder rows we pull each day: the top 2,000 of about 10,000." : "How many ladder rows we pull each day. OPBounty ranks about 40,000 accounts; we keep the top 10,000."} /></div><div class="value">{fmt(list.length, 0)}</div></div>
 </div>
 

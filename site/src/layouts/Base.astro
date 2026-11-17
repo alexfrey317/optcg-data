@@ -4,7 +4,7 @@ interface Props { title: string; description?: string; wide?: boolean }
 const { title, description = 'OPTCG Sim ranked ladder: top players, bounties, leaders, decks and cards. Daily snapshot.', wide = false } = Astro.props;
 const path = Astro.url.pathname;
 const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups'], ['/counter/', 'Counter'], ['/replays/', 'Replays']];
-const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/ladder/') : path.startsWith(href) || /^\/(1d|30d|90d)/.test(path) && path.replace(/^\/(1d|30d|90d)/, '').startsWith(href));
+const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/ladder/') : path.startsWith(href) || /^\/(1d|30d|set|spoiler)\//.test(path) && path.replace(/^\/(1d|30d|set|spoiler)/, '').startsWith(href));
 const ICONS: Record<string, string> = {
   '/': 'M3 20h4V10H3zM10 20h4V4h-4zM17 20h4v-7h-4z',
   '/leaders/': 'M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z',
