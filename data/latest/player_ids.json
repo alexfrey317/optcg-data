@@ -14,7 +14,7 @@
 "name": "papapanko"
 },
 "100183": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "tito puente"
 },
 "1002": {
@@ -80,6 +80,16 @@
 "100390": {
 "checked": "2026-10-10",
 "name": "digao"
+},
+"100402": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "YomiYomi​#6303",
+"kzId": "oXzESXkH1fKOkbadCNj1OWKhZx5R",
+"name": "YomiYomi",
+"score": 100,
+"simHandle": "YomiYomi#6303",
+"via": "handle"
 },
 "100413": {
 "candidates": 1,
@@ -592,12 +602,14 @@
 "via": "handle"
 },
 "103103": {
-"candidates": 4,
-"checked": "2026-10-04",
-"handle": "DoubleA​#73241",
-"kzId": "wmuMttCkIVv9p4qE38QzvltdgDaY",
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "monkeydludo​#9630",
+"kzId": "SBD0g7zq2iasqnXnLgC6TSJoRQU5",
 "name": "DoubleA",
-"score": 43
+"score": 100,
+"simHandle": "monkeydludo#9630",
+"via": "handle"
 },
 "10319": {
 "checked": "2026-11-02",
@@ -1245,12 +1257,12 @@
 },
 "105949": {
 "candidates": 1,
-"checked": "2026-11-17",
-"handle": "daniel​#9684",
-"kzId": "EPIHYwOF4UaUFs7KEhdRlT5e6Ptg",
+"checked": "2026-11-18",
+"handle": "toshicom​#2648",
+"kzId": "y9dSPiqh4dPqdaVZqltcM7WcmV7q",
 "name": "toshicom",
 "score": 100,
-"simHandle": "daniel#9684",
+"simHandle": "toshicom#2648",
 "via": "handle"
 },
 "105996": {
@@ -1407,12 +1419,12 @@
 },
 "106770": {
 "candidates": 1,
-"checked": "2026-10-19",
-"handle": "kitkallos​#1050",
-"kzId": "SHp5yCQVUKE2Kg0OZkUubOmvFdRI",
+"checked": "2026-11-18",
+"handle": "Kitkallos​#7925",
+"kzId": "r4eIaweoztVu2fWyrUPm2Bw4n0um",
 "name": "kitkallos",
 "score": 100,
-"simHandle": "kitkallos#1050",
+"simHandle": "Kitkallos#7925",
 "via": "handle"
 },
 "10679": {
@@ -1445,12 +1457,12 @@
 },
 "106910": {
 "candidates": 1,
-"checked": "2026-09-21",
-"handle": "monn​#8751",
-"kzId": "nFVLAHl9tMo7VjCnjM15RiuhhMRb",
+"checked": "2026-11-18",
+"handle": "Liz​#3897",
+"kzId": "GyHxR4iEUvczmiNVlwnnGwUYuShI",
 "name": "monn",
 "score": 100,
-"simHandle": "monn#8751",
+"simHandle": "Liz#3897",
 "via": "handle"
 },
 "106959": {
@@ -2209,7 +2221,7 @@
 "via": "handle"
 },
 "109586": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "mg112"
 },
 "10967": {
@@ -3003,8 +3015,14 @@
 "via": "handle"
 },
 "11413": {
-"checked": "2026-11-15",
-"name": "A.Valenti TCG"
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "AlfredoValentiTCG​#2092",
+"kzId": "9vx3NKSmkQTZ4BmkZG0LJDAnlLL0",
+"name": "A.Valenti TCG",
+"score": 100,
+"simHandle": "AlfredoValentiTCG#2092",
+"via": "handle"
 },
 "114135": {
 "candidates": 1,
@@ -3417,7 +3435,7 @@
 "via": "handle"
 },
 "116702": {
-"checked": "2026-10-21",
+"checked": "2026-11-18",
 "name": "NessENPAI"
 },
 "11672": {
@@ -3510,7 +3528,7 @@
 "name": "LucyAbuser"
 },
 "11734": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "tylernol"
 },
 "117364": {
@@ -3867,12 +3885,12 @@
 },
 "118625": {
 "candidates": 1,
-"checked": "2026-11-15",
-"handle": "okka​#59662",
-"kzId": "h76ohgB0mduyG5JLkgbHLrnd8E7v",
+"checked": "2026-11-18",
+"handle": "prycey​#1048",
+"kzId": "PIkNBgb7wxEzIoUNkw46v0HQgOU0",
 "name": "Prycey",
 "score": 100,
-"simHandle": "okka#59662",
+"simHandle": "prycey#1048",
 "via": "handle"
 },
 "11866": {
@@ -4059,12 +4077,12 @@
 },
 "119906": {
 "candidates": 1,
-"checked": "2026-10-14",
-"handle": "capajr​#6066",
-"kzId": "Gh3ZS02j86iwzcyEfUKoqhZDihz7",
+"checked": "2026-11-18",
+"handle": "Sawyer​#5463",
+"kzId": "RQTkw3LBMstY5oR6pRtVIbRKBxcW",
 "name": "capajr",
 "score": 100,
-"simHandle": "capajr#6066",
+"simHandle": "Sawyer#5463",
 "via": "handle"
 },
 "11996": {
@@ -4146,8 +4164,14 @@
 "via": "handle"
 },
 "120893": {
-"checked": "2026-11-12",
-"name": "iampolski23"
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "Iampolski​#3334",
+"kzId": "c47ChX8iM3Djf9sweFVXOlDoBY2a",
+"name": "iampolski23",
+"score": 100,
+"simHandle": "Iampolski#3334",
+"via": "handle"
 },
 "12112": {
 "candidates": 1,
@@ -4238,7 +4262,7 @@
 "via": "handle"
 },
 "121835": {
-"checked": "2026-11-09",
+"checked": "2026-11-18",
 "name": "TakaTomi"
 },
 "1219": {
@@ -5136,6 +5160,16 @@
 "name": "Rockaso",
 "score": 100,
 "simHandle": "Rockaso#4813",
+"via": "handle"
+},
+"129016": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "Frashe​#2653",
+"kzId": "ZCop2jvTTcCobgFTW2D1NNdywvwM",
+"name": "Frashe",
+"score": 100,
+"simHandle": "Frashe#2653",
 "via": "handle"
 },
 "129033": {
@@ -6227,7 +6261,7 @@
 "via": "handle"
 },
 "138854": {
-"checked": "2026-11-17",
+"checked": "2026-11-18",
 "name": "currygravy1"
 },
 "138862": {
@@ -6528,12 +6562,12 @@
 },
 "140428": {
 "candidates": 1,
-"checked": "2026-10-20",
-"handle": "Sergio​#74114",
-"kzId": "ssDeELFQXPgPdRR0Kl8a2Yr7jbSS",
+"checked": "2026-11-18",
+"handle": "nightmare​#86945",
+"kzId": "E43I316gJZ9wWpI7xEXjRT6YmaGS",
 "name": "SERGIO",
 "score": 100,
-"simHandle": "Sergio#74114",
+"simHandle": "nightmare#86945",
 "via": "handle"
 },
 "140450": {
@@ -6670,12 +6704,12 @@
 },
 "141004": {
 "candidates": 1,
-"checked": "2026-11-17",
-"handle": "himlam​#59088",
-"kzId": "hkcoEDKsrIeIlR4uciwujhMw2zmK",
+"checked": "2026-11-18",
+"handle": "kenty​#16553",
+"kzId": "JJH3xu3kBvWuYFRQzteJCmmqjZpY",
 "name": "Aceonehimlam",
 "score": 100,
-"simHandle": "himlam#59088",
+"simHandle": "kenty#16553",
 "via": "handle"
 },
 "141043": {
@@ -6949,7 +6983,7 @@
 "name": "sonic1117"
 },
 "14250": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "H3llrais3r"
 },
 "14266": {
@@ -6958,12 +6992,12 @@
 },
 "142714": {
 "candidates": 1,
-"checked": "2026-11-10",
-"handle": "Eggsactly​#8615",
-"kzId": "Tvt29tsLBFBcb4a4c883JNKsYIc9",
+"checked": "2026-11-18",
+"handle": "kitkallos​#1050",
+"kzId": "SHp5yCQVUKE2Kg0OZkUubOmvFdRI",
 "name": "Il Brendelli",
 "score": 100,
-"simHandle": "Eggsactly#8615",
+"simHandle": "kitkallos#1050",
 "via": "handle"
 },
 "142716": {
@@ -8375,7 +8409,7 @@
 "name": "Steven974"
 },
 "154640": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "dof jr"
 },
 "154726": {
@@ -9070,6 +9104,16 @@
 "simHandle": "Iwashun#58954",
 "via": "handle"
 },
+"160309": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "FlyinRyan​#95823",
+"kzId": "ajPugJckNadRlv4QfiG9FESTRCQE",
+"name": "FlyinRyan",
+"score": 100,
+"simHandle": "FlyinRyan#95823",
+"via": "handle"
+},
 "16031": {
 "candidates": 1,
 "checked": "2026-09-21",
@@ -9510,7 +9554,7 @@
 "via": "handle"
 },
 "163016": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "sansito"
 },
 "163196": {
@@ -9686,12 +9730,12 @@
 },
 "165088": {
 "candidates": 1,
-"checked": "2026-11-14",
-"handle": "Otab​#3531",
-"kzId": "CKmjdtgFhN7ZHBt4EgzNhjUjqAyU",
+"checked": "2026-11-18",
+"handle": "LooseYaz​#7253",
+"kzId": "ai19M3ydxCBnYwX2Q0cSyn7HKn56",
 "name": "flashbang",
 "score": 100,
-"simHandle": "Otab#3531",
+"simHandle": "LooseYaz#7253",
 "via": "handle"
 },
 "165139": {
@@ -9703,7 +9747,7 @@
 "name": "kevitcg"
 },
 "165420": {
-"checked": "2026-11-05",
+"checked": "2026-11-18",
 "name": "KF"
 },
 "165440": {
@@ -9946,7 +9990,7 @@
 "via": "handle"
 },
 "16748": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Pirate51877"
 },
 "16749": {
@@ -9975,6 +10019,14 @@
 "checked": "2026-11-04",
 "name": "aoitaso",
 "rejected": "KFOyn5iTE5iwVjxJ56ZpvkLQw1D3"
+},
+"16774": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "Guspugs​#3498",
+"kzId": "XjO270KZnVKlfj3VJptUPrmrQb9A",
+"name": "Guspugs",
+"score": 0
 },
 "167752": {
 "candidates": 1,
@@ -10175,7 +10227,7 @@
 "via": "handle"
 },
 "16956": {
-"checked": "2026-10-31",
+"checked": "2026-11-18",
 "name": "Laine34"
 },
 "169686": {
@@ -11198,7 +11250,7 @@
 "name": "KRS PONGUI"
 },
 "180124": {
-"checked": "2026-11-04",
+"checked": "2026-11-18",
 "name": "Corbeyy"
 },
 "180148": {
@@ -11536,7 +11588,7 @@
 "name": "banbonneypls"
 },
 "183693": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "SynDQ"
 },
 "183796": {
@@ -11560,7 +11612,7 @@
 "via": "handle"
 },
 "183930": {
-"checked": "2026-11-17",
+"checked": "2026-11-18",
 "name": "Lia-sama"
 },
 "184012": {
@@ -11573,12 +11625,12 @@
 },
 "18426": {
 "candidates": 1,
-"checked": "2026-11-17",
-"handle": "JajaColeen​#8551",
-"kzId": "n0CqMQeyEHb8WXHlu1aFT0kjyiju",
+"checked": "2026-11-18",
+"handle": "Medilooo​#2999",
+"kzId": "vx2S9GpRVNKuBo6BKjPN2047jDij",
 "name": "medilooo",
 "score": 100,
-"simHandle": "JajaColeen#8551",
+"simHandle": "Medilooo#2999",
 "via": "handle"
 },
 "18432": {
@@ -11647,7 +11699,7 @@
 },
 "18478": {
 "candidates": 1,
-"checked": "2026-11-17",
+"checked": "2026-11-18",
 "handle": "Stalin1953​#2521",
 "kzId": "sm2TVI31UASuDr79CakuNQ01QdXm",
 "name": "Stalin1953",
@@ -11675,6 +11727,20 @@
 "name": "south",
 "score": 100,
 "simHandle": "south#39893",
+"via": "handle"
+},
+"18515": {
+"checked": "2026-11-18",
+"name": "d4nn"
+},
+"185228": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "mamamiaspaghetti​#6734",
+"kzId": "yYGIqhUQQysfkdoQETyycwRJHYUN",
+"name": "Übung",
+"score": 100,
+"simHandle": "mamamiaspaghetti#6734",
 "via": "handle"
 },
 "18533": {
@@ -12147,7 +12213,7 @@
 "via": "handle"
 },
 "2036": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Nightingale"
 },
 "20370": {
@@ -13532,6 +13598,10 @@
 "simHandle": "yogg#2878",
 "via": "handle"
 },
+"25832": {
+"checked": "2026-11-18",
+"name": "jopape99"
+},
 "25901": {
 "candidates": 1,
 "checked": "2026-09-22",
@@ -14184,6 +14254,16 @@
 "name": "Soymilk",
 "score": 26
 },
+"28629": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "MONSTER​#2821",
+"kzId": "QkTdglxSWKlCIilLBI3ZDZMtQI1w",
+"name": "MONSTER",
+"score": 100,
+"simHandle": "MONSTER#2821",
+"via": "handle"
+},
 "28632": {
 "candidates": 1,
 "checked": "2026-10-27",
@@ -14769,7 +14849,7 @@
 "via": "handle"
 },
 "31231": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "MonoNami"
 },
 "31260": {
@@ -14928,7 +15008,7 @@
 "via": "handle"
 },
 "31753": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "xueli123"
 },
 "3176": {
@@ -15062,8 +15142,14 @@
 "name": "SGAhIce"
 },
 "32232": {
-"checked": "2026-11-03",
-"name": "Zorrofloo"
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "Zorrofloo​#3858",
+"kzId": "8DkxLMAl1rnDoQGegU4o399pJwBP",
+"name": "Zorrofloo",
+"score": 100,
+"simHandle": "Zorrofloo#3858",
+"via": "handle"
 },
 "32260": {
 "candidates": 1,
@@ -15438,12 +15524,14 @@
 "name": "Papi2.0"
 },
 "33855": {
-"candidates": 3,
-"checked": "2026-11-10",
-"handle": "HotDadNoKids​#61620",
-"kzId": "vZwlOpYQf578yOcapRzeVJhmKP4D",
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "HotDadNoKids​#6864",
+"kzId": "QoQC1QYlCOBuQA0QaPgS2tqPM3oC",
 "name": "HotDadNoKids",
-"score": 12
+"score": 100,
+"simHandle": "HotDadNoKids#6864",
+"via": "handle"
 },
 "3387": {
 "candidates": 1,
@@ -15520,8 +15608,14 @@
 "name": "IMABOT"
 },
 "34332": {
-"checked": "2026-11-12",
-"name": "mikelop99"
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "Mikelop​#5641",
+"kzId": "18QgOWJS8dBhbCRB2MaN5tbdRezd",
+"name": "mikelop99",
+"score": 100,
+"simHandle": "Mikelop#5641",
+"via": "handle"
 },
 "34404": {
 "candidates": 1,
@@ -16719,6 +16813,16 @@
 "simHandle": "Sparks#8579",
 "via": "handle"
 },
+"39553": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "MezZ​#6314",
+"kzId": "GJ4qj23atukZOwXFBRypf838Bhbw",
+"name": "MezZ",
+"score": 100,
+"simHandle": "MezZ#6314",
+"via": "handle"
+},
 "39583": {
 "candidates": 1,
 "checked": "2026-10-05",
@@ -16835,12 +16939,12 @@
 },
 "39974": {
 "candidates": 1,
-"checked": "2026-10-07",
-"handle": "Griffith​#7544",
-"kzId": "cFukU7niYNdlxzFEKuNitCNYeP8R",
+"checked": "2026-11-18",
+"handle": "mkji​#2719",
+"kzId": "AIZpkM10ZJbLU6UF51NO3gNQDHW8",
 "name": "meru",
 "score": 100,
-"simHandle": "Griffith#7544",
+"simHandle": "mkji#2719",
 "via": "handle"
 },
 "40014": {
@@ -17000,8 +17104,14 @@
 "via": "handle"
 },
 "40876": {
-"checked": "2026-11-16",
-"name": "challenger"
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "nominate​#5370",
+"kzId": "YOs4oPhSELMuSkuvmmqxQQijGjm4",
+"name": "challenger",
+"score": 100,
+"simHandle": "nominate#5370",
+"via": "handle"
 },
 "4088": {
 "candidates": 1,
@@ -17738,6 +17848,10 @@
 "kzId": "EpPOBPZgfH9FQF8CLqLy2dyNE2pn",
 "name": "LilDoki",
 "score": 0
+},
+"44332": {
+"checked": "2026-11-18",
+"name": "epermono"
 },
 "44343": {
 "candidates": 1,
@@ -19155,7 +19269,7 @@
 },
 "53606": {
 "candidates": 4,
-"checked": "2026-11-17",
+"checked": "2026-11-18",
 "handle": "Romulus​#68717",
 "kzId": "8M4bW7c0n1Ija0Min0hpkuLFjUre",
 "name": "romulus",
@@ -19904,7 +20018,7 @@
 "via": "handle"
 },
 "59315": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Danteee"
 },
 "59404": {
@@ -19997,6 +20111,16 @@
 "name": "Badgerlock",
 "score": 100,
 "simHandle": "Badgerlock#47323",
+"via": "handle"
+},
+"60065": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "LilKoala1746​#9886",
+"kzId": "LFSzsPRZpIpZSjkIInwEjqoJnf2H",
+"name": "LilKoala1746",
+"score": 100,
+"simHandle": "LilKoala1746#9886",
 "via": "handle"
 },
 "601": {
@@ -20614,7 +20738,7 @@
 },
 "63322": {
 "candidates": 5,
-"checked": "2026-11-16",
+"checked": "2026-11-18",
 "handle": "Yyds​#1969",
 "kzId": "Hsww6uftUsDdxK8mEEimMwGt41Zi",
 "name": "Dickson",
@@ -20759,7 +20883,7 @@
 "via": "handle"
 },
 "6393": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "heaty"
 },
 "63945": {
@@ -21564,7 +21688,7 @@
 "via": "handle"
 },
 "67966": {
-"checked": "2026-11-05",
+"checked": "2026-11-18",
 "name": "Jimmyc"
 },
 "68029": {
@@ -21890,7 +22014,7 @@
 "via": "handle"
 },
 "70009": {
-"checked": "2026-11-07",
+"checked": "2026-11-18",
 "name": "JoshBoosters"
 },
 "70012": {
@@ -21991,7 +22115,7 @@
 "via": "handle"
 },
 "70818": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Kobes aunt"
 },
 "70919": {
@@ -22431,7 +22555,7 @@
 "via": "handle"
 },
 "73358": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "bulbasoor"
 },
 "73394": {
@@ -23130,7 +23254,7 @@
 "name": "WoahEZthere"
 },
 "77077": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Denekers"
 },
 "77199": {
@@ -23380,7 +23504,7 @@
 "name": "finna69420"
 },
 "79164": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Imuxd"
 },
 "79166": {
@@ -24239,6 +24363,10 @@
 "simHandle": "faoky#1279",
 "via": "handle"
 },
+"82928": {
+"checked": "2026-11-18",
+"name": "Ombre"
+},
 "82984": {
 "candidates": 1,
 "checked": "2026-10-31",
@@ -24849,9 +24977,8 @@
 "via": "handle"
 },
 "85767": {
-"checked": "2026-11-05",
-"name": "MukenAizen",
-"rejected": "3tU6yIInb1X7rSLtCBF06eVmT5So"
+"checked": "2026-11-18",
+"name": "MukenAizen"
 },
 "85804": {
 "checked": "2026-09-23",
@@ -25566,7 +25693,7 @@
 "via": "handle"
 },
 "8984": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "AdamYamato"
 },
 "89878": {
@@ -26281,12 +26408,12 @@
 },
 "93104": {
 "candidates": 1,
-"checked": "2026-11-17",
-"handle": "Linty​#51889",
-"kzId": "Q2TfFzwgkc9VqTUo5kuUP6vFKOxg",
+"checked": "2026-11-18",
+"handle": "desse​#6648",
+"kzId": "cJiKalNqQiMJk2nUmVCG2UDVj42j",
 "name": "desse",
 "score": 100,
-"simHandle": "Linty#51889",
+"simHandle": "desse#6648",
 "via": "handle"
 },
 "93179": {
@@ -26298,7 +26425,7 @@
 "score": 0
 },
 "93201": {
-"checked": "2026-11-10",
+"checked": "2026-11-18",
 "name": "Sterzz"
 },
 "93240": {
@@ -27288,12 +27415,12 @@
 },
 "98206": {
 "candidates": 1,
-"checked": "2026-10-10",
-"handle": "Zancr0w​#3755",
-"kzId": "SzkeDOJFPYYjAASNS4gB651TwJyB",
+"checked": "2026-11-18",
+"handle": "STFkJL​#2165",
+"kzId": "BnLlHhTPsP3EEjMvzmcu2MkpWeB4",
 "name": "STFK.blank",
 "score": 100,
-"simHandle": "Zancr0w#3755",
+"simHandle": "STFkJL#2165",
 "via": "handle"
 },
 "98236": {
@@ -27468,6 +27595,16 @@
 "name": "Beton112",
 "score": 100,
 "simHandle": "Beton112#72557",
+"via": "handle"
+},
+"99304": {
+"candidates": 1,
+"checked": "2026-11-18",
+"handle": "babygrowboy​#3605",
+"kzId": "Pf9gaECH2vihgxfHdZ9fNINIDxQF",
+"name": "Victor Arano",
+"score": 100,
+"simHandle": "babygrowboy#3605",
 "via": "handle"
 },
 "99336": {
@@ -27650,12 +27787,12 @@
 },
 "99938": {
 "candidates": 1,
-"checked": "2026-09-21",
-"handle": "fortnitekidd​#4553",
-"kzId": "xhBDqy3IhNV4nqrp6nbqUN32zpx7",
+"checked": "2026-11-18",
+"handle": "sirokko​#1314",
+"kzId": "AQ59yPGRCEKPvk7DWWE9gmGvDSid",
 "name": "fortnitekidd",
 "score": 100,
-"simHandle": "fortnitekidd#4553",
+"simHandle": "sirokko#1314",
 "via": "handle"
 }
 }
