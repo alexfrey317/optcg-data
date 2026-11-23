@@ -1,0 +1,40 @@
+---
+import { card, imgUrl, TYPE_ORDER, oplayTournament, ccFlag, type OplayDeck } from '../lib/data';
+/** One OPlayTCG tournament decklist: who played it, where it placed, the 50 cards. */
+interface Props { deck: OplayDeck; open?: boolean }
+const { deck, open = false } = Astro.props;
+const t = oplayTournament.get(deck.t);
+const sorted = [...deck.cards].sort(([a], [b]) => {
+  const ca = card(a), cb = card(b);
+  return TYPE_ORDER.indexOf(ca.type) - TYPE_ORDER.indexOf(cb.type) || Number(ca.cost || 0) - Number(cb.cost || 0) || a.localeCompare(b);
+});
+const simText = [`1x${deck.leader}`, ...deck.cards.map(([id, n]) => `${n}x${id}`)].join('\n');
+const preview = [...deck.cards].sort(([a, qa], [b, qb]) => qb - qa || Number(card(b).cost || 0) - Number(card(a).cost || 0)).slice(0, 9);
+const place = deck.place == null ? 'dropped' : deck.place === 1 ? '🏆 1st' : `${deck.place}${['th', 'st', 'nd', 'rd'][deck.place % 10 > 3 || Math.floor(deck.place / 10) === 1 ? 0 : deck.place % 10]}`;
+---
+<details class="deck" open={open}>
+  <summary>
+    <span class="deck-head">
+      <span class="deck-title">
+        {deck.rank != null && <span class="pill-rank deck-rank" title="OPlayTCG ladder rank" style="min-width:1.9rem;height:1.9rem;font-size:.8rem">#{deck.rank}</span>}
+        <b>{ccFlag(deck.cc)} {deck.name}</b>
+        <span class="muted small"> · <a href={`https://oplaytcg.com/en/tournaments/${deck.t}`} target="_blank" rel="noopener">{t?.name ?? `Tournament ${deck.t}`}</a>{t?.date && ` · ${t.date.slice(0, 10)}`}</span>
+      </span>
+    </span>
+    <span class="num"><b>{place}</b></span>
+    <span class:list={['num', deck.w >= deck.l ? 'good' : 'bad']}><b>{deck.w}–{deck.l}</b></span>
+    <span class="deck-actions">
+      <button type="button" class="copy" data-copy={simText} title="Copies the list in the text format OPTCG Sim imports">Copy for sim</button>
+      <span class="expand-hint"><span class="when-closed">Expand</span><span class="when-open">Collapse</span> <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </span>
+    <span class="deck-preview">{preview.map(([id, n]) => <span class="mini" title={`${n}× ${card(id).name}`}><img src={imgUrl(id)} alt="" loading="lazy" /><b>{n}</b></span>)}</span>
+  </summary>
+  <div class="cards">
+    {sorted.map(([id, n]) => { const k = card(id); return (
+      <div class="card" title={`${k.name} (${id})${k.cost ? ` · cost ${k.cost}` : ''}`}>
+        <img src={imgUrl(id)} alt={k.name} loading="lazy" />
+        <span class="qty">{n}</span>
+        <div class="cname">{k.name}</div>
+      </div>); })}
+  </div>
+</details>

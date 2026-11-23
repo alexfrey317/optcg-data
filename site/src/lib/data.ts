@@ -324,3 +324,14 @@ export const replayGame = (id: string): ReplayGame | null => {
 export const pairKey = (a: string, b: string) => [a, b].sort().join('|');
 /** Every game id referenced by best.json (the pages we build). */
 export const replayIds = (best = replayBest()) => [...new Set(Object.values(best.pairs).flatMap((bk) => Object.values(bk).flatMap((gs) => gs.map((g) => g.id))))];
+
+// OPlayTCG tournament decklists (data/latest/oplaytcg.json, merged by hand from ingest/oplaytcg_collect.js dumps)
+export interface OplayDeck { t: number; user: string; name: string; cc: string | null; place: number | null; w: number; l: number; leader: string; leaderName: string | null; rank: number | null; rating: number | null; cards: [string, number][] }
+export interface OplayData { updated: string; scanned: [number, number]; ladderTop: number; tournaments: { id: number; name: string; date: string; format: string; bestOf: number; players: number }[]; decks: OplayDeck[] }
+export const oplay = readJson<OplayData>(join(LATEST, 'oplaytcg.json'), { updated: '', scanned: [0, 0], ladderTop: 0, tournaments: [], decks: [] });
+export const oplayTournament = new Map(oplay.tournaments.map((t) => [t.id, t]));
+/** Current-format decks only, best pilots first: ladder rank, then tournament placement. */
+export const oplayDecks = oplay.decks
+  .filter((d) => (oplayTournament.get(d.t)?.date ?? '') >= currentFormat.start)
+  .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || (a.place ?? 1e9) - (b.place ?? 1e9) || b.w - a.w);
+export const ccFlag = (cc: string | null) => (cc && /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '');

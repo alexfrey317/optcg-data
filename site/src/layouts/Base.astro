@@ -3,7 +3,7 @@ import { meta } from '../lib/data';
 interface Props { title: string; description?: string; wide?: boolean }
 const { title, description = 'OPTCG Sim ranked ladder: top players, bounties, leaders, decks and cards. Daily snapshot.', wide = false } = Astro.props;
 const path = Astro.url.pathname;
-const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups'], ['/counter/', 'Counter'], ['/replays/', 'Replays']];
+const nav = [['/', 'Ladder'], ['/leaders/', 'Leaders'], ['/matchups/', 'Matchups'], ['/counter/', 'Counter'], ['/replays/', 'Replays'], ['/oplaytcg/', 'OPlayTCG']];
 const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/ladder/') : path.startsWith(href) || /^\/(1d|30d|set|spoiler)\//.test(path) && path.replace(/^\/(1d|30d|set|spoiler)/, '').startsWith(href));
 const ICONS: Record<string, string> = {
   '/': 'M3 20h4V10H3zM10 20h4V4h-4zM17 20h4v-7h-4z',
@@ -11,6 +11,7 @@ const ICONS: Record<string, string> = {
   '/matchups/': 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z',
   '/counter/': 'M12 2a10 10 0 100 20 10 10 0 000-20zm0 4a6 6 0 110 12 6 6 0 010-12zm0 3.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z',
   '/replays/': 'M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm6 4v8l6-4z',
+  '/oplaytcg/': 'M5 3h14v2h2v4a4 4 0 01-4 4h-.3A5 5 0 0113 16.9V19h3v2H8v-2h3v-2.1A5 5 0 017.3 13H7a4 4 0 01-4-4V5h2zm0 4v2a2 2 0 002 2V7zm14 0h-2v4a2 2 0 002-2z',
 };
 ---
 <!doctype html>
@@ -297,7 +298,7 @@ const ICONS: Record<string, string> = {
     header nav { display: none; }
     header.top .wrap { gap: 1rem; }
     .snap-l { display: none; }
-    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr); background: rgba(11,14,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: .3rem max(.25rem, var(--sar)) calc(.3rem + var(--sab)) max(.25rem, var(--sal)); }
+    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(6, 1fr); background: rgba(11,14,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: .3rem max(.25rem, var(--sar)) calc(.3rem + var(--sab)) max(.25rem, var(--sal)); }
     .tabbar a { display: grid; justify-items: center; gap: .15rem; padding: .35rem 0; color: var(--dim); font-size: .68rem; font-weight: 600; letter-spacing: .02em; border-radius: 10px; min-height: 48px; }
     .tabbar a:hover { text-decoration: none; } .tabbar a.active { color: var(--accent); }
     .tabbar a:active { background: var(--panel-2); }

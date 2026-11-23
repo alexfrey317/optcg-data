@@ -6,7 +6,7 @@ GitHub Actions job and committed to `data/`; the site is rebuilt from those file
 fetched from upstream at page-view time.
 
 Sources (used with permission): [OPBounty](https://stats.tcgmatchmaking.com/),
-[Card Kaizoku](https://www.cardkaizoku.com/), [optcg.one](https://www.optcg.one/).
+[Card Kaizoku](https://www.cardkaizoku.com/), [optcg.one](https://www.optcg.one/), [OPlayTCG](https://oplaytcg.com/).
 Card images are served from [OnePiece.gg](https://onepiece.gg/)'s CDN (`static.dotgg.gg`, official art with only a faint watermark).
 
 ## Layout
@@ -89,3 +89,12 @@ profile document (`PublicUsers/<id>`, field `Western`) with season wins/losses, 
 Written to `data/latest/profiles/<id>.json`; public match rows accumulate forever in
 `data/matches/public/YYYY-MM-DD.json`. Player pages show season totals from the profile and decklists
 from the recorded games (archive + profile rows), labelled as such.
+
+## OPlayTCG tournament decklists
+
+OPlayTCG publishes exact 50-card lists for completed online tournaments (not for ranked ladder games). Cloudflare
+returns 403 to every unattended client, headless Chromium included, so this source is refreshed by hand: run
+`ingest/oplaytcg_collect.js` inside a real browser session on oplaytcg.com (Playwright page callback), save
+`localStorage.optcg_dump` to a file, then `python -m ingest.sources.oplaytcg dump.json` merges it into
+`data/latest/oplaytcg.json` (committed). Bump `CFG.from` past the last scanned id each time. The site shows
+winners' lists and lists from pilots in the ladder top 2,000 at `/oplaytcg/`.

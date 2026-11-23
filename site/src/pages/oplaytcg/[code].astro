@@ -1,0 +1,35 @@
+---
+import Base from '../../layouts/Base.astro';
+import LeaderArt from '../../components/LeaderArt.astro';
+import DeckList from '../../components/DeckList.astro';
+import OplayDeckCard from '../../components/OplayDeckCard.astro';
+import { oplayDecks, card, fmt, pct, imgUrl, type OplayDeck } from '../../lib/data';
+export function getStaticPaths() {
+  const by = new Map<string, OplayDeck[]>();
+  for (const d of oplayDecks) by.set(d.leader, [...(by.get(d.leader) ?? []), d]);
+  return [...by].map(([code, decks]) => ({ params: { code }, props: { decks } }));
+}
+const { code } = Astro.params;
+const { decks } = Astro.props as { decks: OplayDeck[] };
+const name = decks[0].leaderName ?? card(code!).name;
+// card inclusion across these lists: share of lists running it and the average copies when run
+const inc = new Map<string, { lists: number; copies: number }>();
+for (const d of decks) for (const [id, n] of d.cards) { const c = inc.get(id) ?? { lists: 0, copies: 0 }; c.lists++; c.copies += n; inc.set(id, c); }
+const cards = [...inc].map(([id, c]) => ({ id, share: (100 * c.lists) / decks.length, avg: c.copies / c.lists })).sort((a, b) => b.share - a.share || b.avg - a.avg);
+---
+<Base title={`${name} · OPlayTCG decks`} wide>
+<div class="hero"><LeaderArt code={code!} size="lg" link={false} />
+  <div style="flex:1"><h1>{name} <span class="muted">[{code}]</span></h1>
+  <div class="meta"><b style="color:var(--text)">{decks.length}</b> OPlayTCG tournament {decks.length === 1 ? 'list' : 'lists'}, {decks.filter((d) => d.place === 1).length} tournament wins. Best pilots first: ladder rank, then placement. <a href="/oplaytcg/">All leaders</a> · <a href={`/leaders/${code}/`}>Ranked stats for this leader</a></div></div></div>
+<div class="grid-2" style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:1.1rem;align-items:start">
+  <div>
+    <h2>Lists</h2>
+    <DeckList limit={8} total={decks.length}>{decks.map((d, i) => <OplayDeckCard deck={d} open={i === 0} />)}</DeckList>
+  </div>
+  <div class="panel scroll">
+    <table class="rank-table"><thead><tr><th>Card</th><th class="num">Lists <span class="muted small">%</span></th><th class="num">Avg</th></tr></thead>
+      <tbody>{cards.map((c) => <tr><td><span class="art-wide art-m"><img src={imgUrl(c.id)} alt="" loading="lazy" /></span> <span class="lcode muted">[{c.id}]</span> {card(c.id).name}</td><td class="num">{pct(c.share)}</td><td class="num">{fmt(c.avg)}</td></tr>)}</tbody></table>
+  </div>
+</div>
+<style>@media (max-width: 800px) { .grid-2 { grid-template-columns: minmax(0, 1fr) !important; } }</style>
+</Base>
